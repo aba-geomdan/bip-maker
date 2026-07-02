@@ -516,6 +516,7 @@ export default function App() {
   const [adminHash, setAdminHash] = useState(null); // 관리자 비번 해시 (null = 미설정)
   const [teachers, setTeachers] = useState([]);       // [{name, hash}]
   const [current, setCurrent] = useState(null);       // {role:'admin'|'teacher', name}
+  const didRestoreSession = React.useRef(false);
 
   // 데이터 (Supabase 로드)
   const [cases, setCases] = useState([]);
@@ -545,12 +546,13 @@ export default function App() {
   useEffect(() => { if (loaded && didHydrate.current) bipStore.set("cases", cases); }, [cases, loaded]);
 
   useEffect(() => {
-    if (current) { try { localStorage.setItem("bipmaker-current", JSON.stringify(current)); } catch (e) {} }
-    else { try { localStorage.removeItem("bipmaker-current"); } catch (e) {} }
-  }, [current]);
-  useEffect(() => {
     try { const r = localStorage.getItem("bipmaker-current"); if (r) setCurrent(JSON.parse(r)); } catch (e) {}
+    didRestoreSession.current = true;
   }, []);
+  useEffect(() => {
+    if (!didRestoreSession.current) return;
+    if (current) { try { localStorage.setItem("bipmaker-current", JSON.stringify(current)); } catch (e) {} }
+  }, [current]);
 
 
   // 로그인 전
@@ -567,6 +569,11 @@ export default function App() {
       />
     );
   }
+
+  const handleLogout = () => {
+    try { localStorage.removeItem("bipmaker-current"); } catch (e) {}
+    setCurrent(null);
+  };
 
   const isAdmin = current.role === "admin";
   // 관리자는 전체, 선생님은 본인 owner만
@@ -596,7 +603,7 @@ export default function App() {
   if (selectedCase) {
     return (
       <div style={{ minHeight: "100vh", background: PKL, fontFamily: "'Pretendard', -apple-system, sans-serif", color: INK, display: "flex", flexDirection: "column" }}>
-        <Header current={current} isAdmin={isAdmin} onLogout={() => setCurrent(null)} />
+        <Header current={current} isAdmin={isAdmin} onLogout={handleLogout} />
         <div style={{ flex: 1, maxWidth: 860, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "0 16px 40px" }}>
           <CaseDetail
             c={selectedCase}
@@ -616,7 +623,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: PKL, fontFamily: "'Pretendard', -apple-system, sans-serif", color: INK, display: "flex", flexDirection: "column" }}>
-      <Header current={current} isAdmin={isAdmin} onLogout={() => setCurrent(null)} />
+      <Header current={current} isAdmin={isAdmin} onLogout={handleLogout} />
 
       <div style={{ flex: 1, maxWidth: 860, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "0 16px 40px" }}>
         {isAdmin && (
