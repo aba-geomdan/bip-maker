@@ -520,6 +520,7 @@ export default function App() {
   // 데이터 (Supabase 로드)
   const [cases, setCases] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const didHydrate = React.useRef(false);
 
   const [tab, setTab] = useState("center");
   const [selectedId, setSelectedId] = useState(null); // 열람 중인 케이스 id
@@ -534,13 +535,14 @@ export default function App() {
       if (ah) setAdminHash(ah);
       if (Array.isArray(tc)) setTeachers(tc);
       if (Array.isArray(cs)) setCases(cs);
-      setLoaded(true);
+      didHydrate.current = true;
+      setTimeout(() => setLoaded(true), 0);
     })();
   }, []);
 
-  useEffect(() => { if (loaded && adminHash) bipStore.set("adminHash", adminHash); }, [adminHash, loaded]);
-  useEffect(() => { if (loaded) bipStore.set("teachers", teachers); }, [teachers, loaded]);
-  useEffect(() => { if (loaded) bipStore.set("cases", cases); }, [cases, loaded]);
+  useEffect(() => { if (loaded && didHydrate.current && adminHash) bipStore.set("adminHash", adminHash); }, [adminHash, loaded]);
+  useEffect(() => { if (loaded && didHydrate.current) bipStore.set("teachers", teachers); }, [teachers, loaded]);
+  useEffect(() => { if (loaded && didHydrate.current) bipStore.set("cases", cases); }, [cases, loaded]);
 
   useEffect(() => {
     if (current) { try { localStorage.setItem("bipmaker-current", JSON.stringify(current)); } catch (e) {} }
