@@ -35,6 +35,54 @@ const bipStore = {
   },
 };
 
+// ── 외부 작성 링크: 토큰 인코딩/디코딩 ──────────────
+// 토큰 안에 케이스 식별 정보를 담아 서버 없이 링크만으로 작동시킨다.
+// { cid: 케이스id, cn: 아동이름, tg: 목표행동, sc: 척도id }
+function encodeFillToken(obj) {
+  const json = JSON.stringify(obj);
+  // 한글 포함 문자열을 안전하게 base64로 (btoa는 latin1만 지원하므로 escape 처리)
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  // URL 안전 형태로 변환
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function decodeFillToken(token) {
+  try {
+    let b64 = token.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const json = decodeURIComponent(escape(atob(b64)));
+    return JSON.parse(json);
+  } catch (e) { return null; }
+}
+
+// ── 외부 제출 저장/조회 (shared_store 재사용) ────────
+// 제출 1건 = bipmaker::submit::{케이스id}::{제출id}
+async function saveExternalSubmission(caseId, submission) {
+  const sid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const key = `submit::${caseId}::${sid}`;
+  return await bipStore.set(key, { ...submission, sid, submittedAt: new Date().toISOString() });
+}
+async function listExternalSubmissions(caseId) {
+  try {
+    const prefix = SKEY(`submit::${caseId}::`);
+    const r = await _sb.from("shared_store").select("key,value").like("key", `${prefix}%`);
+    if (r.error || !r.data) return [];
+    return r.data.map((row) => {
+      let v = row.value;
+      for (let i = 0; i < 2 && typeof v === "string"; i++) {
+        const s = v.trim();
+        if (s && (s[0] === "{" || s[0] === "[")) { try { v = JSON.parse(s); } catch (e) { break; } } else break;
+      }
+      return v;
+    }).filter(Boolean);
+  } catch (e) { return []; }
+}
+async function deleteExternalSubmission(caseId, sid) {
+  try {
+    const key = SKEY(`submit::${caseId}::${sid}`);
+    await _sb.from("shared_store").delete().eq("key", key);
+  } catch (e) { /* ignore */ }
+}
+
 
 /*
  * BIP Maker — 도전행동 평가·중재 앱 (검단ABA언어행동연구소)
@@ -523,7 +571,27 @@ function generateBIP(func, childName, targetBeh, setting) {
   };
 }
 
+// ── 라우터: #/fill/{token} 이면 외부 작성 페이지, 아니면 앱 ──
 export default function App() {
+  const [hash, setHash] = useState(typeof window !== "undefined" ? window.location.hash : "");
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // #/fill/{token}  (척도id는 토큰 안에 들어있으므로 토큰만 파싱)
+  const m = hash.match(/^#\/fill\/(.+)$/);
+  if (m) {
+    // 경로가 #/fill/{scale}/{token} 형태일 수도 있어 마지막 세그먼트를 토큰으로 사용
+    const parts = m[1].split("/");
+    const token = parts[parts.length - 1];
+    return <ExternalFillPage token={token} />;
+  }
+  return <MainApp />;
+}
+
+function MainApp() {
   // 인증 상태
   const [adminHash, setAdminHash] = useState(null); // 관리자 비번 해시 (null = 미설정)
   const [teachers, setTeachers] = useState([]);       // [{name, hash}]
@@ -1011,9 +1079,11 @@ function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAsse
 
       {section === "assess" && (
         <AssessmentSection
+          c={c}
           assessments={assessments}
           onStart={(scaleId) => setRunningScale(scaleId)}
           onRemove={onRemoveAssessment}
+          onImport={onAddAssessment}
         />
       )}
 
@@ -1147,8 +1217,44 @@ function AbcRow({ tag, label, text, color, bold }) {
 // ══════════════════════════════════════════════
 //  간접평가 섹션 (목록 + 시작)
 // ══════════════════════════════════════════════
-function AssessmentSection({ assessments, onStart, onRemove }) {
+function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
   const [linkScale, setLinkScale] = useState(null); // 링크 만들 척도
+  const [subs, setSubs] = useState([]);             // 받은 외부 제출
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [importing, setImporting] = useState(null); // 반영 중인 sid
+
+  const loadSubs = React.useCallback(async () => {
+    setSubsLoading(true);
+    const list = await listExternalSubmissions(c.id);
+    // 최신순
+    list.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+    setSubs(list);
+    setSubsLoading(false);
+  }, [c.id]);
+
+  useEffect(() => { loadSubs(); }, [loadSubs]);
+
+  // 받은 설문 1건 → 채점해서 평가 결과로 반영 + 원본 삭제
+  const importSub = async (sub) => {
+    setImporting(sub.sid);
+    const scored = scoreAssessment(sub.scaleId, sub.answers);
+    onImport({
+      scaleId: sub.scaleId,
+      answers: sub.answers,
+      result: scored,
+      writer: sub.writer,
+      source: "external",
+      date: today(),
+    });
+    await deleteExternalSubmission(c.id, sub.sid);
+    setSubs((prev) => prev.filter((x) => x.sid !== sub.sid));
+    setImporting(null);
+  };
+
+  const dismissSub = async (sub) => {
+    await deleteExternalSubmission(c.id, sub.sid);
+    setSubs((prev) => prev.filter((x) => x.sid !== sub.sid));
+  };
 
   return (
     <div>
@@ -1173,7 +1279,7 @@ function AssessmentSection({ assessments, onStart, onRemove }) {
                 🔗 작성 링크
               </button>
             </div>
-            {linkScale === s.id && <ExternalLinkBox scale={s} />}
+            {linkScale === s.id && <ExternalLinkBox scale={s} c={c} />}
           </div>
         ))}
       </div>
@@ -1192,14 +1298,117 @@ function AssessmentSection({ assessments, onStart, onRemove }) {
   );
 }
 
+// ── 외부 작성 페이지 (로그인 없이, 링크로 접속) ─────
+function ExternalFillPage({ token }) {
+  const info = React.useMemo(() => decodeFillToken(token), [token]);
+  const scale = info ? SCALES[info.sc] : null;
+  const [answers, setAnswers] = useState(() => (scale ? scale.items.map(() => null) : []));
+  const [writer, setWriter] = useState("");
+  const [state, setState] = useState("form"); // form | saving | done | error
+  const [errMsg, setErrMsg] = useState("");
+
+  if (!info || !scale) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: PKL, padding: 20, fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 380, textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>😕</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>링크가 올바르지 않아요</div>
+          <div style={{ fontSize: 13, color: MUTE, lineHeight: 1.6 }}>링크가 손상되었거나 만료되었을 수 있어요. 보내주신 분께 새 링크를 요청해 주세요.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const opts = SCALE_OPTIONS[scale.scale];
+  const answeredCount = answers.filter((a) => a != null).length;
+
+  const submit = async () => {
+    if (!writer.trim()) { setErrMsg("작성자 이름을 입력해 주세요."); return; }
+    setState("saving"); setErrMsg("");
+    const res = await saveExternalSubmission(info.cid, {
+      scaleId: info.sc, childName: info.cn, target: info.tg,
+      writer: writer.trim(), answers,
+    });
+    if (res) setState("done");
+    else { setState("error"); setErrMsg("제출에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."); }
+  };
+
+  if (state === "done") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: PKL, padding: 20, fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 32, maxWidth: 380, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>✅</div>
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>제출 완료</div>
+          <div style={{ fontSize: 13.5, color: MUTE, lineHeight: 1.6 }}>{info.cn} 아동의 {scale.name} 설문이 제출되었어요.<br />창을 닫으셔도 됩니다. 감사합니다 🙏</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${PKL} 0%, #fff 100%)`, fontFamily: "'Pretendard', -apple-system, sans-serif", padding: "20px 16px 60px" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 22, marginBottom: 14, boxShadow: "0 4px 20px rgba(212,114,138,0.1)" }}>
+          <div style={{ fontWeight: 800, fontSize: 19, color: PKD }}>{scale.name}</div>
+          <div style={{ fontSize: 12.5, color: MUTE, marginTop: 3 }}>{scale.fullName}</div>
+          <div style={{ marginTop: 12, padding: "12px 14px", background: PKL, borderRadius: 10, fontSize: 13, color: INK, lineHeight: 1.6 }}>
+            <b>{info.cn}</b> 아동{info.tg ? <> · 목표행동: <b>{info.tg}</b></> : null}에 대해, 아래 문항을 읽고 평소 모습에 가장 가까운 것을 골라주세요.
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: MUTE, marginBottom: 5, fontWeight: 600 }}>작성자 이름 <span style={{ color: PKD }}>*</span></div>
+            <input value={writer} onChange={(e) => setWriter(e.target.value)} placeholder="예: 홍길동 (담임교사 / 어머니)" style={inputStyle} />
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {scale.items.map((item, i) => (
+            <div key={i} style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13.5, color: INK, lineHeight: 1.5, marginBottom: 10 }}>
+                <span style={{ color: PKD, fontWeight: 700 }}>{i + 1}.</span> {item.q}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {opts.map((o) => {
+                  const sel = answers[i] === o.v;
+                  return (
+                    <button key={o.v} onClick={() => setAnswers((prev) => { const n = [...prev]; n[i] = o.v; return n; })}
+                      style={{ padding: "7px 12px", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: sel ? 700 : 400,
+                        border: sel ? `1.5px solid ${PKD}` : "1.5px solid #eadfe2",
+                        background: sel ? PKL : "#fff", color: sel ? PKD : INK }}>
+                      {o.label}{o.hint ? <span style={{ fontSize: 10.5, color: MUTE, marginLeft: 3 }}>{o.hint}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {errMsg && <div style={{ color: PKD, fontSize: 12.5, marginTop: 12, textAlign: "center" }}>{errMsg}</div>}
+
+        <div style={{ position: "sticky", bottom: 0, marginTop: 16, padding: "12px 0", background: "linear-gradient(0deg, #fff 70%, transparent)" }}>
+          <div style={{ fontSize: 11.5, color: MUTE, textAlign: "center", marginBottom: 8 }}>{answeredCount} / {scale.items.length} 문항 응답</div>
+          <button onClick={submit} disabled={state === "saving"} style={{ ...btnPrimary, width: "100%", opacity: state === "saving" ? 0.6 : 1 }}>
+            {state === "saving" ? "제출 중..." : "제출하기"}
+          </button>
+          <div style={{ fontSize: 10.5, color: MUTE, textAlign: "center", marginTop: 10 }}>{COPYRIGHT}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 외부 작성 링크 생성 박스 ────────────────────
-function ExternalLinkBox({ scale }) {
+function ExternalLinkBox({ scale, c }) {
   const [copied, setCopied] = useState(false);
-  // 배포 시: 실제 도메인 + 케이스/척도 토큰이 들어간 URL이 생성됨
-  const demoUrl = `https://aba-geomdan.github.io/bip-maker/#/fill/${scale.id.toLowerCase()}/샘플토큰`;
+  // 케이스 정보를 토큰에 담아 실제 작동하는 링크 생성
+  const token = encodeFillToken({ cid: c.id, cn: c.name, tg: c.target || "", sc: scale.id });
+  const base = (typeof window !== "undefined" && window.location)
+    ? `${window.location.origin}${window.location.pathname}`
+    : "https://aba-geomdan.github.io/bip-maker/";
+  const url = `${base}#/fill/${scale.id.toLowerCase()}/${token}`;
 
   const copy = () => {
-    if (navigator.clipboard) navigator.clipboard.writeText(demoUrl);
+    if (navigator.clipboard) navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
@@ -1207,14 +1416,14 @@ function ExternalLinkBox({ scale }) {
   return (
     <div style={{ marginTop: 10, padding: "12px 14px", background: "#FFF9FA", border: `1px dashed ${PK}`, borderRadius: 10 }}>
       <div style={{ fontSize: 12, color: INK, lineHeight: 1.6, marginBottom: 8 }}>
-        이 링크를 외부 교사·부모에게 보내면, 앱 설치 없이 <b>{scale.name}</b> 설문을 직접 작성하고 제출할 수 있어요. 제출 결과는 이 케이스에 자동으로 들어옵니다.
+        이 링크를 외부 교사·부모에게 보내면, 앱 설치 없이 <b>{scale.name}</b> 설문을 직접 작성하고 제출할 수 있어요. 제출 결과는 이 케이스에 들어옵니다.
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        <input readOnly value={demoUrl} style={{ ...inputStyle, fontSize: 11.5, color: MUTE }} onFocus={(e) => e.target.select()} />
+        <input readOnly value={url} style={{ ...inputStyle, fontSize: 11.5, color: MUTE }} onFocus={(e) => e.target.select()} />
         <button onClick={copy} style={{ ...btnPrimary, flexShrink: 0, padding: "8px 12px", fontSize: 12 }}>{copied ? "복사됨 ✓" : "복사"}</button>
       </div>
       <div style={{ fontSize: 11, color: MUTE, marginTop: 8, lineHeight: 1.5 }}>
-        🔜 실제 링크는 <b>GitHub 배포 + Supabase 연결</b> 후 생성됩니다. 지금은 예시 형태예요.
+        📩 제출된 설문은 <b>평가 탭</b> 아래 <b>받은 설문</b>에서 확인하고 결과로 반영할 수 있어요.
       </div>
     </div>
   );
@@ -1724,7 +1933,7 @@ ${c.type === "pbs"
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
     body: JSON.stringify({ prompt, max_tokens: 1500 }),
   });
   if (!res.ok) {
@@ -1780,7 +1989,7 @@ ${scaleGuide}
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
     body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1500 }),
   });
   if (!res.ok) {
