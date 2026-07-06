@@ -743,15 +743,12 @@ function AuthGate({ adminHash, teachers, onSetupAdmin, onLogin }) {
           </>
         ) : (
           <>
-            <Field label="이름" value={name} onChange={setName} placeholder="이름 (센터장은 '민다혜')" />
+            <Field label="이름" value={name} onChange={setName} placeholder="이름" />
             <Field label="비밀번호" value={pw} onChange={setPw} type="password" placeholder="비밀번호" onEnter={doLogin} />
             {err && <div style={{ color: PKD, fontSize: 12, marginBottom: 8 }}>{err}</div>}
             <button onClick={doLogin} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}>
               {busy ? "확인 중..." : "로그인"}
             </button>
-            <div style={{ fontSize: 11, color: MUTE, textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>
-              센터장은 이름 '민다혜', 선생님은 본인 이름으로 로그인.
-            </div>
           </>
         )}
         <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px dashed #e8d0d6", fontSize: 10.5, color: MUTE, textAlign: "center", lineHeight: 1.6 }}>
@@ -1049,7 +1046,7 @@ function StatBox({ label, value, unit, color = PKD }) {
 
 // ── 기록 입력 폼 ────────────────────────────────
 function RecordForm({ onSave }) {
-  const [datetime, setDatetime] = useState(nowLocal());
+  const [datetime, setDatetime] = useState("");
   const [antecedent, setAntecedent] = useState("");
   const [behavior, setBehavior] = useState("");
   const [consequence, setConsequence] = useState("");
@@ -1995,7 +1992,9 @@ function AddForm({ isPbs, onAdd }) {
 
   const submit = () => {
     if (!name.trim()) return;
-    onAdd({ name: name.trim(), birth, age: (age.trim() || autoAge), target: target.trim(), ...(isPbs ? { school: school.trim() } : {}) });
+    // 센터: 생년월일 기반 자동 나이 / PBS: 입력한 학년(없으면 자동 나이)
+    const ageValue = isPbs ? (age.trim() || autoAge) : autoAge;
+    onAdd({ name: name.trim(), birth, age: ageValue, target: target.trim(), ...(isPbs ? { school: school.trim() } : {}) });
   };
 
   return (
@@ -2003,7 +2002,7 @@ function AddForm({ isPbs, onAdd }) {
       <div style={{ fontWeight: 700, marginBottom: 14, color: PKD }}>새 케이스 추가</div>
       <Field label="아동 이름" value={name} onChange={setName} placeholder="예: 김○○" />
       <Field label="생년월일" value={birth} onChange={setBirth} type="date" />
-      <Field label={autoAge ? `나이 / 학년  (생년월일 기준 ${autoAge})` : "나이 / 학년"} value={age} onChange={setAge} placeholder={isPbs ? "예: 고1" : (autoAge || "예: 5세 3개월")} />
+      {isPbs && <Field label="학년" value={age} onChange={setAge} placeholder="예: 고1" />}
       {isPbs && <Field label="학교" value={school} onChange={setSchool} placeholder="예: 인천영종고" />}
       <Field label="목표행동" value={target} onChange={setTarget} placeholder="예: 학습지 찢기" />
       <button onClick={submit} style={{ ...btnPrimary, width: "100%", marginTop: 6 }}>추가하기</button>
