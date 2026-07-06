@@ -11,12 +11,24 @@ const bipStore = {
     try {
       const r = await _sb.from("shared_store").select("value").eq("key", SKEY(key)).maybeSingle();
       if (r.error) { return null; }
-      return r.data ? r.data.value : null;
+      if (!r.data) return null;
+      let v = r.data.value;
+      // 컬럼이 text든 jsonb든, 이중 직렬화된 레거시 값이든 안전하게 역직렬화
+      for (let i = 0; i < 2 && typeof v === "string"; i++) {
+        const s = v.trim();
+        if (s === "") return null;
+        if (s[0] === "{" || s[0] === "[" || s[0] === '"') {
+          try { v = JSON.parse(s); } catch (e) { break; }
+        } else { break; } // 순수 문자열(예: adminHash)은 그대로
+      }
+      return v;
     } catch (e) { return null; }
   },
   async set(key, value) {
     try {
-      const r = await _sb.from("shared_store").upsert({ key: SKEY(key), value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      // 항상 JSON 문자열로 저장 → 컬럼 타입과 무관하게 get에서 복원 가능
+      const payload = typeof value === "string" ? value : JSON.stringify(value);
+      const r = await _sb.from("shared_store").upsert({ key: SKEY(key), value: payload, updated_at: new Date().toISOString() }, { onConflict: "key" });
       if (r.error) { return null; }
       return { value };
     } catch (e) { return null; }
@@ -75,7 +87,7 @@ async function verifyPassword(password, storedHash) {
   return false;
 }
 
-const ADMIN_NAME = "관리자";
+const ADMIN_NAME = "민다혜";
 
 // ══════════════════════════════════════════════
 //  간접평가 척도 정의 (FAST · QABF · MAS)
@@ -522,6 +534,8 @@ export default function App() {
   const [cases, setCases] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const didHydrate = React.useRef(false);
+  const hadCasesAtLoad = React.useRef(false);
+  const hadTeachersAtLoad = React.useRef(false);
 
   const [tab, setTab] = useState("center");
   const [selectedId, setSelectedId] = useState(null); // 열람 중인 케이스 id
@@ -534,16 +548,24 @@ export default function App() {
         bipStore.get("cases"),
       ]);
       if (ah) setAdminHash(ah);
-      if (Array.isArray(tc)) setTeachers(tc);
-      if (Array.isArray(cs)) setCases(cs);
+      if (Array.isArray(tc)) { setTeachers(tc); hadTeachersAtLoad.current = tc.length > 0; }
+      if (Array.isArray(cs)) { setCases(cs); hadCasesAtLoad.current = cs.length > 0; }
       didHydrate.current = true;
-      setTimeout(() => setLoaded(true), 0);
+      setLoaded(true);
     })();
   }, []);
 
-  useEffect(() => { if (loaded && didHydrate.current && adminHash) bipStore.set("adminHash", adminHash); }, [adminHash, loaded]);
-  useEffect(() => { if (loaded && didHydrate.current) bipStore.set("teachers", teachers); }, [teachers, loaded]);
-  useEffect(() => { if (loaded && didHydrate.current) bipStore.set("cases", cases); }, [cases, loaded]);
+  useEffect(() => { if (didHydrate.current && adminHash) bipStore.set("adminHash", adminHash); }, [adminHash]);
+  useEffect(() => {
+    if (!didHydrate.current) return;
+    if (teachers.length === 0 && hadTeachersAtLoad.current) return; // 비정상 빈 배열 덮어쓰기 방지
+    bipStore.set("teachers", teachers);
+  }, [teachers]);
+  useEffect(() => {
+    if (!didHydrate.current) return;
+    if (cases.length === 0 && hadCasesAtLoad.current) return; // 비정상 빈 배열 덮어쓰기 방지
+    bipStore.set("cases", cases);
+  }, [cases]);
 
   useEffect(() => {
     try { const r = localStorage.getItem("bipmaker-current"); if (r) setCurrent(JSON.parse(r)); } catch (e) {}
@@ -595,7 +617,12 @@ export default function App() {
 
   // 케이스 삭제
   const removeCase = (caseId) => {
-    setCases((prev) => prev.filter((c) => c.id !== caseId));
+    setCases((prev) => {
+      const next = prev.filter((c) => c.id !== caseId);
+      hadCasesAtLoad.current = next.length > 0; // 의도적 삭제로 0개가 되면 이후 자동저장 허용
+      bipStore.set("cases", next);              // 빈 배열이어도 명시적으로 저장
+      return next;
+    });
     setSelectedId(null);
   };
 
@@ -651,7 +678,7 @@ export default function App() {
           isAdmin={isAdmin}
           cases={visible}
           onSelect={(id) => setSelectedId(id)}
-          onAdd={(nc) => setCases((prev) => [...prev, { ...nc, id: Date.now(), type: tab, owner: current.name, createdAt: today(), records: [], assessments: [] }])}
+          onAdd={(nc) => setCases((prev) => { hadCasesAtLoad.current = true; return [...prev, { ...nc, id: Date.now(), type: tab, owner: current.name, createdAt: today(), records: [], assessments: [] }]; })}
         />
       </div>
 
@@ -716,14 +743,14 @@ function AuthGate({ adminHash, teachers, onSetupAdmin, onLogin }) {
           </>
         ) : (
           <>
-            <Field label="이름" value={name} onChange={setName} placeholder="이름 (관리자는 '관리자')" />
+            <Field label="이름" value={name} onChange={setName} placeholder="이름 (센터장은 '민다혜')" />
             <Field label="비밀번호" value={pw} onChange={setPw} type="password" placeholder="비밀번호" onEnter={doLogin} />
             {err && <div style={{ color: PKD, fontSize: 12, marginBottom: 8 }}>{err}</div>}
             <button onClick={doLogin} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}>
               {busy ? "확인 중..." : "로그인"}
             </button>
             <div style={{ fontSize: 11, color: MUTE, textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>
-              관리자(센터장)는 이름 '관리자', 선생님은 본인 이름으로 로그인.
+              센터장은 이름 '민다혜', 선생님은 본인 이름으로 로그인.
             </div>
           </>
         )}
@@ -776,7 +803,7 @@ function AdminPanel({ teachers, onAddTeacher, onRemoveTeacher }) {
   const add = async () => {
     if (!name.trim()) return setMsg("이름을 입력해 주세요.");
     if (pw.length < 4) return setMsg("비밀번호는 4자 이상이어야 해요.");
-    if (name.trim() === ADMIN_NAME) return setMsg("'관리자'는 선생님 이름으로 쓸 수 없어요.");
+    if (name.trim() === ADMIN_NAME) return setMsg("'민다혜'는 선생님 이름으로 쓸 수 없어요.");
     setBusy(true);
     await onAddTeacher(name.trim(), pw);
     setBusy(false);
@@ -928,7 +955,7 @@ function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAsse
           <div>
             <div style={{ fontWeight: 800, fontSize: 20 }}>{c.name}</div>
             <div style={{ fontSize: 13, color: MUTE, marginTop: 3 }}>
-              {c.age}{isPbs && c.school ? ` · ${c.school}` : ""}
+              {c.birth ? `${c.birth} · ` : ""}{c.age}{isPbs && c.school ? ` · ${c.school}` : ""}
             </div>
           </div>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: isPbs ? "#7B9BD8" : PK, padding: "4px 10px", borderRadius: 20 }}>
@@ -1696,16 +1723,23 @@ ${c.type === "pbs"
 - 번호 목록으로. 서론/결론 없이 목록만.
 - 한국어로.`;
 
-  // 배포 환경: Edge Function relay
-  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai-";
+  // 배포 환경: 공용 claude-relay Edge Function 사용
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, max_tokens: 1500 }),
   });
-  if (!res.ok) throw new Error("AI 서버 응답 오류 (배포 후 Edge Function 연결 필요)");
+  if (!res.ok) {
+    let msg = "AI 서버 응답 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
   const data = await res.json();
-  return data.text || data.completion || "";
+  const text = Array.isArray(data.content)
+    ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+    : (data.text || "");
+  return text;
 }
 
 // ── 종이 설문 사진 인식 (Claude 비전) ───────────
@@ -1744,18 +1778,24 @@ ${scaleGuide}
 반드시 아래 형식의 JSON 배열만 출력하세요(설명·마크다운 금지). 길이는 정확히 ${scale.items.length}:
 [{"n":1,"v":"응답값 또는 null"}, ...]`;
 
-  // 배포 환경: Edge Function relay (비전)
+  // 배포 환경: 공용 claude-relay Edge Function 사용 (이미지 지원 버전)
   let raw;
-  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai-";
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: { media_type: mediaType, data: base64 }, prompt: promptText }),
+    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1500 }),
   });
-  if (!res.ok) throw new Error("사진 인식 서버 오류 (Edge Function 연결 확인)");
+  if (!res.ok) {
+    let msg = "사진 인식 서버 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
   {
     const data = await res.json();
-    raw = data.text || data.completion || "";
+    raw = Array.isArray(data.content)
+      ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+      : (data.text || "");
   }
 
   // JSON 파싱 → answers 배열로 변환
@@ -1935,20 +1975,35 @@ function bipToText(bip, c, agg) {
 // ── 케이스 추가 폼 ──────────────────────────────
 function AddForm({ isPbs, onAdd }) {
   const [name, setName] = useState("");
+  const [birth, setBirth] = useState("");
   const [age, setAge] = useState("");
   const [target, setTarget] = useState("");
   const [school, setSchool] = useState("");
 
+  // 생년월일 → 만 나이(년/개월) 자동 계산
+  const autoAge = React.useMemo(() => {
+    if (!birth) return "";
+    const b = new Date(birth);
+    if (isNaN(b.getTime())) return "";
+    const now = new Date();
+    let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+    if (now.getDate() < b.getDate()) months -= 1;
+    if (months < 0) return "";
+    const y = Math.floor(months / 12), m = months % 12;
+    return m > 0 ? `${y}세 ${m}개월` : `${y}세`;
+  }, [birth]);
+
   const submit = () => {
     if (!name.trim()) return;
-    onAdd({ name: name.trim(), age: age.trim(), target: target.trim(), ...(isPbs ? { school: school.trim() } : {}) });
+    onAdd({ name: name.trim(), birth, age: (age.trim() || autoAge), target: target.trim(), ...(isPbs ? { school: school.trim() } : {}) });
   };
 
   return (
     <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 4px 20px rgba(212,114,138,0.1)", border: `1.5px solid ${PKL}` }}>
       <div style={{ fontWeight: 700, marginBottom: 14, color: PKD }}>새 케이스 추가</div>
       <Field label="아동 이름" value={name} onChange={setName} placeholder="예: 김○○" />
-      <Field label="나이 / 학년" value={age} onChange={setAge} placeholder={isPbs ? "예: 고1" : "예: 5세 3개월"} />
+      <Field label="생년월일" value={birth} onChange={setBirth} type="date" />
+      <Field label={autoAge ? `나이 / 학년  (생년월일 기준 ${autoAge})` : "나이 / 학년"} value={age} onChange={setAge} placeholder={isPbs ? "예: 고1" : (autoAge || "예: 5세 3개월")} />
       {isPbs && <Field label="학교" value={school} onChange={setSchool} placeholder="예: 인천영종고" />}
       <Field label="목표행동" value={target} onChange={setTarget} placeholder="예: 학습지 찢기" />
       <button onClick={submit} style={{ ...btnPrimary, width: "100%", marginTop: 6 }}>추가하기</button>
