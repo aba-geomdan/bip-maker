@@ -1261,11 +1261,13 @@ function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
     const scored = scoreAssessment(sub.scaleId, sub.answers);
     onImport({
       scaleId: sub.scaleId,
+      date: today(),
       answers: sub.answers,
-      result: scored,
+      results: scored.results,
+      sorted: scored.sorted,
+      top: scored.top,
       writer: sub.writer,
       source: "external",
-      date: today(),
       preInfo: sub.preInfo,
     });
     await deleteExternalSubmission(c.id, sub.sid);
