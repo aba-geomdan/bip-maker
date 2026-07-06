@@ -173,6 +173,26 @@ const FAST = {
     { q: "대상자가 아플 때 문제행동이 일어날 가능성이 더 높은가?", f: "auto_neg" },
     { q: "신체적인 문제를 경험하고 있고, 이런 문제가 치료된다면 문제행동은 대개 없어지는가?", f: "auto_neg" },
   ],
+  // 원본 FAST 검사지 앞부분(문항 앞 사전 정보). 16문항 응답 전에 작성.
+  preInfo: [
+    { key: "behaviors", label: "문제 행동", type: "checkbox",
+      options: ["공격성(Aggression)", "자해행동(Self-Injury)", "상동행동(Stereotypy)", "파괴행동(Property destruction)", "기타(Other)"],
+      hint: "상동행동: 반복적으로 나오는 행동(예: 손톱 물기, 제자리 돌기, 이상한 소리내기 등) · 파괴행동: 책 찢기, 장난감·가구 등을 부수는 행동" },
+    { key: "behaviorOther", label: "기타 문제행동 (직접 입력)", type: "text", placeholder: "위에서 '기타'를 선택한 경우 구체적으로 적어주세요" },
+    { key: "frequency", label: "빈도(Frequency)", type: "radio",
+      options: ["매시간 발생", "매일 발생", "매주 발생", "더 적게 발생"] },
+    { key: "severity", label: "심각도(Severity)", type: "radio",
+      options: ["경도 : 파괴적이지만 재산이나 건강에 대한 위험은 거의 없음", "중등도 : 재산 상 손해 또는 경미한 부상", "중도 : 보건이나 안전에 대한 중대한 위협"] },
+    { key: "highDaysTimes", label: "발생 가능성이 가장 높은 상황 — 일/시간(Days/Times)", type: "text" },
+    { key: "highSettings", label: "발생 가능성이 가장 높은 상황 — 상황/활동(Settings/Activities)", type: "text" },
+    { key: "highPersons", label: "발생 가능성이 가장 높은 상황 — 특정인의 존재(Persons present)", type: "text" },
+    { key: "lowDaysTimes", label: "발생 가능성이 가장 낮은 상황 — 일/시간(Days/Times)", type: "text" },
+    { key: "lowSettings", label: "발생 가능성이 가장 낮은 상황 — 상황/활동(Settings/Activities)", type: "text" },
+    { key: "lowPersons", label: "발생 가능성이 가장 낮은 상황 — 특정인의 존재(Persons present)", type: "text" },
+    { key: "antecedent", label: "문제행동이 일어나기 직전에 보통 무슨 일이 일어나는가?", type: "textarea" },
+    { key: "consequence", label: "문제행동이 발생한 직후에 보통 일어나는 일은?", type: "textarea" },
+    { key: "treatment", label: "현재 치료를 받고 있습니까?", type: "textarea" },
+  ],
 };
 
 // ── QABF (25문항, X/0~3점, 5기능 각 5문항) ──────
@@ -229,23 +249,24 @@ const MAS = {
     attention: "관심얻기",
     tangible: "획득",
   },
+  // 표준 MAS(Durand & Crimmins) 순환 순서: 감각·회피·관심·획득 반복 (1~16번)
   items: [
-    { q: "위의 행동은 오랜 시간 혼자 있을 때 나타납니까?", f: "sensory" },        // 1
-    { q: "주변에 아무도 없으면 아주 오랜 시간 동안 반복적으로 일어납니까?", f: "sensory" }, // 2
-    { q: "위의 행동을 하는 것을 즐기는 것으로 보입니까? (소리, 냄새, 맛, 시각적 즐거움)", f: "sensory" }, // 3
-    { q: "위의 행동이 발생할 때, 주위에서 일어나는 일을 의식하지 못합니까?", f: "sensory" }, // 4
-    { q: "위의 행동은 어려운 과업 수행을 요구받을 때 일어납니까?", f: "escape" },   // 5
-    { q: "위의 행동은 어떤 요구를 할 때 일어납니까?", f: "escape" },              // 6
-    { q: "어떤 것을 요구할 때, 상대방을 당황스럽거나 화나게 하려고 위의 행동을 하는 것 같습니까?", f: "escape" }, // 7
-    { q: "주어진 과제를 멈춘 후(1~5분 내) 위의 행동이 중지됩니까?", f: "escape" }, // 8
-    { q: "위의 행동은 다른 사람들과 이야기하고 있을 때 일어납니까?", f: "attention" }, // 9
-    { q: "위의 행동은 대상자에게서 관심을 다른 데로 돌릴 때 일어납니까?", f: "attention" }, // 10
-    { q: "관심을 주지 않을 때, 상대방을 당황스럽거나 화나게 하려고 위의 행동을 하는 것 같습니까?", f: "attention" }, // 11
-    { q: "상대방(타인)과 함께 시간을 보내기 위해 위의 행동을 하는 것 같습니까?", f: "attention" }, // 12
-    { q: "위의 행동은 가질 수 없다고 알고 있는 물건, 음식, 활동 등을 얻고자 할 때 일어납니까?", f: "tangible" }, // 13
-    { q: "위의 행동은 좋아하는 음식, 활동, 물건 등을 제거했을 때 일어납니까?", f: "tangible" }, // 14
-    { q: "위의 행동은 요구 사항(물건, 음식, 활동 등)이 제공된 후에 짧게라도 행동이 멈추었습니까?", f: "tangible" }, // 15
-    { q: "원하는 일을 할 수 없을 때 위의 행동을 하는 것 같습니까?", f: "tangible" }, // 16
+    { q: "위의 행동은 오랜 시간 혼자 있을 때 나타납니까?", f: "sensory" },        // 1 감각
+    { q: "위의 행동은 어려운 과업 수행을 요구받을 때 일어납니까?", f: "escape" },   // 2 회피
+    { q: "위의 행동은 다른 사람들과 이야기하고 있을 때 일어납니까?", f: "attention" }, // 3 관심
+    { q: "위의 행동은 가질 수 없다고 알고 있는 물건, 음식, 활동 등을 얻고자 할 때 일어납니까?", f: "tangible" }, // 4 획득
+    { q: "주변에 아무도 없으면 아주 오랜 시간 동안 반복적으로 일어납니까?", f: "sensory" }, // 5 감각
+    { q: "위의 행동은 어떤 요구를 할 때 일어납니까?", f: "escape" },              // 6 회피
+    { q: "위의 행동은 대상자에게서 관심을 다른 데로 돌릴 때 일어납니까?", f: "attention" }, // 7 관심
+    { q: "위의 행동은 좋아하는 음식, 활동, 물건 등을 제거했을 때 일어납니까?", f: "tangible" }, // 8 획득
+    { q: "위의 행동을 하는 것을 즐기는 것으로 보입니까? (소리, 냄새, 맛, 시각적 즐거움)", f: "sensory" }, // 9 감각
+    { q: "어떤 것을 요구할 때, 상대방을 당황스럽거나 화나게 하려고 위의 행동을 하는 것 같습니까?", f: "escape" }, // 10 회피
+    { q: "관심을 주지 않을 때, 상대방을 당황스럽거나 화나게 하려고 위의 행동을 하는 것 같습니까?", f: "attention" }, // 11 관심
+    { q: "위의 행동은 요구 사항(물건, 음식, 활동 등)이 제공된 후에 짧게라도 행동이 멈추었습니까?", f: "tangible" }, // 12 획득
+    { q: "위의 행동이 발생할 때, 주위에서 일어나는 일을 의식하지 못합니까?", f: "sensory" }, // 13 감각
+    { q: "주어진 과제를 멈춘 후(1~5분 내) 위의 행동이 중지됩니까?", f: "escape" }, // 14 회피
+    { q: "상대방(타인)과 함께 시간을 보내기 위해 위의 행동을 하는 것 같습니까?", f: "attention" }, // 15 관심
+    { q: "원하는 일을 할 수 없을 때 위의 행동을 하는 것 같습니까?", f: "tangible" }, // 16 획득
   ],
 };
 
@@ -1245,6 +1266,7 @@ function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
       writer: sub.writer,
       source: "external",
       date: today(),
+      preInfo: sub.preInfo,
     });
     await deleteExternalSubmission(c.id, sub.sid);
     setSubs((prev) => prev.filter((x) => x.sid !== sub.sid));
@@ -1284,6 +1306,39 @@ function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
         ))}
       </div>
 
+      {/* 받은 설문 (외부 제출) */}
+      {(subsLoading || subs.length > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>
+            📩 받은 설문 <span style={{ color: MUTE, fontWeight: 400, fontSize: 13 }}>({subs.length})</span>
+            <button onClick={loadSubs} style={{ ...btnGhost, padding: "4px 10px", fontSize: 11, marginLeft: 8 }}>새로고침</button>
+          </div>
+          {subsLoading && <div style={{ fontSize: 12.5, color: MUTE, padding: "8px 2px" }}>불러오는 중...</div>}
+          <div style={{ display: "grid", gap: 10 }}>
+            {subs.map((sub) => {
+              const sc = SCALES[sub.scaleId];
+              return (
+                <div key={sub.sid} style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 2px 12px rgba(212,114,138,0.06)", border: `1.5px solid ${PKL}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: PKD }}>{sc ? sc.name : sub.scaleId}</div>
+                      <div style={{ fontSize: 12, color: INK, marginTop: 3 }}>작성자: <b>{sub.writer || "미기재"}</b></div>
+                      <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>제출 {sub.submittedAt ? String(sub.submittedAt).slice(0, 10) : ""}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button onClick={() => dismissSub(sub)} disabled={importing === sub.sid} style={{ ...btnGhost, flex: 1 }}>삭제</button>
+                    <button onClick={() => importSub(sub)} disabled={importing === sub.sid} style={{ ...btnPrimary, flex: 2, opacity: importing === sub.sid ? 0.6 : 1 }}>
+                      {importing === sub.sid ? "반영 중..." : "결과로 반영하기"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 완료된 평가 결과 */}
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>완료된 평가 <span style={{ color: MUTE, fontWeight: 400, fontSize: 13 }}>({assessments.length})</span></div>
       {assessments.length === 0 && (
@@ -1298,14 +1353,91 @@ function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
   );
 }
 
+// ── FAST 앞부분(preInfo) 입력 필드 렌더러 (센터·외부 공용) ──
+function PreInfoFields({ fields, values, onChange }) {
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {fields.map((fld) => {
+        const val = values[fld.key];
+        if (fld.type === "checkbox") {
+          const arr = Array.isArray(val) ? val : [];
+          const toggle = (opt) => {
+            const next = arr.includes(opt) ? arr.filter((x) => x !== opt) : [...arr, opt];
+            onChange(fld.key, next);
+          };
+          return (
+            <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {fld.options.map((opt) => {
+                  const sel = arr.includes(opt);
+                  return (
+                    <button key={opt} onClick={() => toggle(opt)}
+                      style={{ padding: "7px 12px", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: sel ? 700 : 400,
+                        border: sel ? `1.5px solid ${PKD}` : "1.5px solid #eadfe2",
+                        background: sel ? PKL : "#fff", color: sel ? PKD : INK }}>
+                      {sel ? "✓ " : ""}{opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {fld.hint ? <div style={{ fontSize: 11, color: MUTE, marginTop: 8, lineHeight: 1.5 }}>{fld.hint}</div> : null}
+            </div>
+          );
+        }
+        if (fld.type === "radio") {
+          return (
+            <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {fld.options.map((opt) => {
+                  const sel = val === opt;
+                  return (
+                    <button key={opt} onClick={() => onChange(fld.key, opt)}
+                      style={{ textAlign: "left", padding: "8px 12px", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: sel ? 700 : 400,
+                        border: sel ? `1.5px solid ${PKD}` : "1.5px solid #eadfe2",
+                        background: sel ? PKL : "#fff", color: sel ? PKD : INK }}>
+                      {sel ? "● " : "○ "}{opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        if (fld.type === "textarea") {
+          return (
+            <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+              <textarea value={val || ""} onChange={(e) => onChange(fld.key, e.target.value)}
+                placeholder={fld.placeholder || ""} rows={2}
+                style={{ ...inputStyle, resize: "vertical", minHeight: 48, fontFamily: "inherit" }} />
+            </div>
+          );
+        }
+        // text (default)
+        return (
+          <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+            <input value={val || ""} onChange={(e) => onChange(fld.key, e.target.value)}
+              placeholder={fld.placeholder || ""} style={inputStyle} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── 외부 작성 페이지 (로그인 없이, 링크로 접속) ─────
 function ExternalFillPage({ token }) {
   const info = React.useMemo(() => decodeFillToken(token), [token]);
   const scale = info ? SCALES[info.sc] : null;
   const [answers, setAnswers] = useState(() => (scale ? scale.items.map(() => null) : []));
+  const [preInfo, setPreInfo] = useState({}); // FAST 앞부분 응답 (해당 척도에 preInfo 있을 때만)
   const [writer, setWriter] = useState("");
   const [state, setState] = useState("form"); // form | saving | done | error
   const [errMsg, setErrMsg] = useState("");
+  const setPre = (k, v) => setPreInfo((prev) => ({ ...prev, [k]: v }));
 
   if (!info || !scale) {
     return (
@@ -1328,6 +1460,7 @@ function ExternalFillPage({ token }) {
     const res = await saveExternalSubmission(info.cid, {
       scaleId: info.sc, childName: info.cn, target: info.tg,
       writer: writer.trim(), answers,
+      preInfo: (scale.preInfo && scale.preInfo.length) ? preInfo : undefined,
     });
     if (res) setState("done");
     else { setState("error"); setErrMsg("제출에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."); }
@@ -1359,6 +1492,14 @@ function ExternalFillPage({ token }) {
             <input value={writer} onChange={(e) => setWriter(e.target.value)} placeholder="예: 홍길동 (담임교사 / 어머니)" style={inputStyle} />
           </div>
         </div>
+
+        {scale.preInfo && scale.preInfo.length ? (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "4px 2px 10px" }}>문제행동 정보</div>
+            <PreInfoFields fields={scale.preInfo} values={preInfo} onChange={setPre} />
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "18px 2px 10px" }}>기능 평가 문항</div>
+          </div>
+        ) : null}
 
         <div style={{ display: "grid", gap: 10 }}>
           {scale.items.map((item, i) => (
@@ -1432,8 +1573,19 @@ function ExternalLinkBox({ scale, c }) {
 // ── 완료된 평가 결과 카드 ────────────────────────
 function AssessmentResultCard({ a, onRemove }) {
   const [open, setOpen] = useState(false);
+  const [preOpen, setPreOpen] = useState(false);
   const scale = SCALES[a.scaleId];
   const maxSum = Math.max(...a.results.map((r) => r.sum), 1);
+  // preInfo 중 값이 채워진 항목만 (라벨-값 쌍)
+  const preRows = (scale.preInfo && a.preInfo)
+    ? scale.preInfo
+        .map((f) => {
+          const v = a.preInfo[f.key];
+          const text = Array.isArray(v) ? v.join(", ") : v;
+          return text && String(text).trim() ? { label: f.label, text: String(text) } : null;
+        })
+        .filter(Boolean)
+    : [];
 
   return (
     <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
@@ -1473,6 +1625,24 @@ function AssessmentResultCard({ a, onRemove }) {
           ))}
         </div>
       )}
+
+      {preRows.length > 0 && (
+        <>
+          <button onClick={() => setPreOpen((v) => !v)} style={{ marginTop: 10, fontSize: 12.5, color: PKD, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+            {preOpen ? "▲ 문제행동 정보 접기" : "▼ 문제행동 정보 보기"}
+          </button>
+          {preOpen && (
+            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+              {preRows.map((row, i) => (
+                <div key={i} style={{ background: PKL, borderRadius: 8, padding: "8px 12px" }}>
+                  <div style={{ fontSize: 11, color: MUTE, marginBottom: 2 }}>{row.label}</div>
+                  <div style={{ fontSize: 12.5, color: INK, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{row.text}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1484,9 +1654,11 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
   const scale = SCALES[scaleId];
   const opts = SCALE_OPTIONS[scale.scale];
   const [answers, setAnswers] = useState(() => scale.items.map(() => null));
+  const [preInfo, setPreInfo] = useState({}); // FAST 앞부분(해당 척도만)
   const [showResult, setShowResult] = useState(false);
   const [ocrState, setOcrState] = useState("idle"); // idle | loading | done | error
   const [ocrMsg, setOcrMsg] = useState("");
+  const setPre = (k, v) => setPreInfo((prev) => ({ ...prev, [k]: v }));
 
   const answered = answers.filter((a) => a != null && a !== "").length;
   const allDone = answered === scale.items.length;
@@ -1555,6 +1727,7 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
           <button onClick={() => onComplete({
             scaleId, date: today(), answers,
             results: result.results, sorted: result.sorted, top: result.top,
+            preInfo: (scale.preInfo && scale.preInfo.length) ? preInfo : undefined,
           })} style={{ ...btnPrimary, flex: 2 }}>이 결과 저장하기</button>
         </div>
       </div>
@@ -1603,6 +1776,15 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
           </div>
         )}
       </div>
+
+      {/* FAST 앞부분 정보 (해당 척도만) */}
+      {scale.preInfo && scale.preInfo.length ? (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "4px 2px 10px" }}>문제행동 정보</div>
+          <PreInfoFields fields={scale.preInfo} values={preInfo} onChange={setPre} />
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "18px 2px 10px" }}>기능 평가 문항</div>
+        </div>
+      ) : null}
 
       {/* 문항 */}
       <div style={{ display: "grid", gap: 10 }}>
