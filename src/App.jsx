@@ -2208,24 +2208,18 @@ function BIPSection({ c, assessments }) {
 // ── BIP 문서 렌더 ───────────────────────────────
 function BIPDocument({ bip, c, agg }) {
   const [aiState, setAiState] = useState("idle"); // idle | loading | done | error
-  const [aiExtra, setAiExtra] = useState(null); // { antecedent:[], replacement:[], consequence:[] } | { _fallbackText }
+  const [aiBip, setAiBip] = useState(null); // { antecedent:[], replacement:[], consequence:[] } — 있으면 템플릿 대신 사용
   const [aiErr, setAiErr] = useState("");
 
-  const fallbackText = aiExtra && aiExtra._fallbackText ? aiExtra._fallbackText : "";
-  const extra = (key) => (aiExtra && !aiExtra._fallbackText && Array.isArray(aiExtra[key])) ? aiExtra[key] : [];
+  const usingAi = !!aiBip;
+  // 표시용: AI 결과가 있으면 AI 것, 없으면 템플릿
+  const showAnt = usingAi ? aiBip.antecedent : bip.antecedent;
+  const showRep = usingAi ? aiBip.replacement : bip.replacement;
+  const showCon = usingAi ? aiBip.consequence : bip.consequence;
 
   const copyText = () => {
-    let extras = "";
-    if (aiExtra && !aiExtra._fallbackText) {
-      const lines = [];
-      extra("antecedent").forEach((t) => lines.push(`[선행-AI맞춤] ${t}`));
-      extra("replacement").forEach((t) => lines.push(`[대체-AI맞춤] ${t}`));
-      extra("consequence").forEach((t) => lines.push(`[후속-AI맞춤] ${t}`));
-      if (lines.length) extras = `\n\n[ AI 맞춤 제안 ]\n${lines.join("\n")}`;
-    } else if (fallbackText) {
-      extras = `\n\n[ AI 맞춤 제안 ]\n${fallbackText}`;
-    }
-    const txt = bipToText(bip, c, agg) + extras;
+    const b2 = usingAi ? { ...bip, antecedent: showAnt, replacement: showRep, consequence: showCon } : bip;
+    const txt = bipToText(b2, c, agg) + (usingAi ? "\n\n※ 이 계획은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요." : "");
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
   };
 
@@ -2234,39 +2228,58 @@ function BIPDocument({ bip, c, agg }) {
     const tierName = { primary: "1차 기능", secondary: "2차 기능", tertiary: "별도 기능" };
     const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
     const tiers = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor") : []);
-    const li = (arr) => arr.map((t) => `<li>${esc(t)}</li>`).join("");
-    const liExtra = (arr) => arr.map((t) => `<li style="color:#8A6FB0;">🤖 ${esc(t)} <span style="font-size:11px;color:#B79AE0;">(AI 맞춤)</span></li>`).join("");
+    const li = (arr) => arr.map((t) => `<div class="item">${esc(t)}</div>`).join("");
     const title = bip.setting === "school" ? "개별 행동중재계획서 (PBIP)" : "행동중재계획 (BIP)";
+    const aiBadge = usingAi ? `<span style="display:inline-block;background:#F0E8FB;color:#8A6FB0;font-size:10px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;">AI 맞춤 생성</span>` : "";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
 <style>
-body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:32px;max-width:720px;margin:auto;}
-h1{color:#D4728A;font-size:20px;border-bottom:2px solid #F5A0B1;padding-bottom:8px;}
-h2{color:#D4728A;font-size:15px;margin-top:24px;background:#FFF0F3;padding:6px 10px;border-radius:6px;}
-table{border-collapse:collapse;width:100%;margin:12px 0;}
-td{border:1px solid #F5A0B1;padding:7px 10px;font-size:13px;}
-td.k{background:#FFF9FA;color:#9A8A8F;width:80px;font-weight:600;}
-.tier{display:inline-block;background:#F5A0B1;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;margin-right:6px;}
-.hyp{background:#FFF0F3;padding:12px;border-radius:8px;}
-ul{margin:6px 0;padding-left:20px;} li{margin:4px 0;font-size:13.5px;}
-.foot{margin-top:30px;border-top:1px solid #eee;padding-top:10px;color:#9A8A8F;font-size:11px;text-align:center;}
+*{box-sizing:border-box;}
+body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:44px 40px;max-width:740px;margin:auto;}
+h1{font-size:21px;font-weight:800;letter-spacing:-.5px;border-bottom:3px solid #3A2C30;padding-bottom:11px;margin:0 0 6px;}
+.subline{font-size:11px;color:#9A8A8F;letter-spacing:.8px;margin-bottom:30px;}
+.sec{margin-bottom:26px;}
+.secH{font-size:13px;font-weight:800;color:#D4728A;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:9px;}
+.secH .n{background:#D4728A;color:#fff;min-width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
+.item{padding:9px 0 9px 15px;border-left:2px solid #F0E0E5;font-size:13px;line-height:1.65;margin-bottom:3px;}
+.hyp{background:#FAFAFA;border:1px solid #eee;border-left:3px solid #F5A0B1;border-radius:4px;padding:14px 16px;font-size:13.5px;line-height:1.7;margin-bottom:10px;}
+.hyp b{color:#D4728A;}
+.meta{font-size:13px;margin:5px 0;}
+.meta b{color:#3A2C30;}
+.tier{display:inline-block;background:#F5EEF1;color:#B06A82;font-size:11px;padding:2px 9px;border-radius:4px;margin-right:6px;font-weight:600;}
+.foot{margin-top:36px;border-top:1px solid #eee;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;letter-spacing:.3px;}
 </style></head><body>
-<h1>${title}</h1>
-<table>
-<tr><td class="k">대상</td><td>${esc(c.name)}${(c.age || c.school) ? " (" + [c.age, c.school].filter(Boolean).join(", ") + ")" : ""}</td></tr>
-<tr><td class="k">환경</td><td>${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"}</td></tr>
-<tr><td class="k">작성</td><td>검단ABA언어행동연구소 · ${todayKr()}</td></tr>
-</table>
-<h2>1. 행동의 기능 및 가설</h2>
-<p><b>표적행동:</b> ${esc(c.target)}</p>
-<p><b>기능 가설:</b><br>${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} - ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</p>
-<p class="hyp"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</p>
-<p><b>행동의 의미:</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</p>
-<h2>2. 선행중재 (예방 전략)</h2><ul>${li(bip.antecedent)}${liExtra(extra("antecedent"))}</ul>
-<h2>3. 대체행동중재 (교수 전략)</h2><ul>${li(bip.replacement)}${liExtra(extra("replacement"))}</ul>
-<h2>4. 후속결과중재 (반응 전략)</h2><ul>${li(bip.consequence)}${liExtra(extra("consequence"))}</ul>
-<h2>5. 시각지원 자료 (인쇄용)</h2>
+<h1>${title}${aiBadge}</h1>
+<div class="subline">${esc(c.name)}${(c.age || c.school) ? " · " + [c.age, c.school].filter(Boolean).join(", ") : ""} · ${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"} · 검단ABA언어행동연구소 · ${todayKr()}</div>
+
+<div class="sec">
+<div class="secH"><span class="n">1</span>행동의 기능 및 가설</div>
+<div class="meta"><b>표적행동</b> · ${esc(c.target)}</div>
+<div class="meta">${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} — ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</div>
+<div class="hyp" style="margin-top:10px;"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</div>
+<div class="meta" style="margin-top:8px;"><b>행동의 의미</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</div>
+</div>
+
+<div class="sec">
+<div class="secH"><span class="n">2</span>선행중재 (예방 전략)</div>
+${li(showAnt)}
+</div>
+
+<div class="sec">
+<div class="secH"><span class="n">3</span>대체행동중재 (교수 전략)</div>
+${li(showRep)}
+</div>
+
+<div class="sec">
+<div class="secH"><span class="n">4</span>후속결과중재 (반응 전략)</div>
+${li(showCon)}
+</div>
+
+<div class="sec">
+<div class="secH"><span class="n">5</span>시각지원 자료 (인쇄용)</div>
 ${getVisualCards(bip.func).map((card) => visualCardToHtml(card, esc)).join("")}
-${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g, "<br>")}</p>` : ""}
+</div>
+
+${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin-top:8px;">※ 본 계획의 중재안(2~4)은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요.</div>` : ""}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
 </body></html>`;
   };
@@ -2283,13 +2296,15 @@ ${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g,
     setAiState("loading"); setAiErr("");
     try {
       const result = await enhanceBIPWithAI(bip, c);
-      setAiExtra(result);
+      setAiBip(result);
       setAiState("done");
     } catch (e) {
-      setAiErr(e.message || "AI 맞춤 보강 중 문제가 발생했어요.");
+      setAiErr(e.message || "AI 생성 중 문제가 발생했어요. 다시 시도해 주세요.");
       setAiState("error");
     }
   };
+
+  const clearAI = () => { setAiBip(null); setAiState("idle"); setAiErr(""); };
 
   return (
     <div style={{ background: "#fff", borderRadius: 16, padding: 22, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
@@ -2347,18 +2362,15 @@ ${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g,
       </BIPBlock>
 
       <BIPBlock num="2" title="선행중재 (예방 전략)">
-        <BulletList items={bip.antecedent} />
-        <AiExtraList items={extra("antecedent")} />
+        <BulletList items={showAnt} />
       </BIPBlock>
 
       <BIPBlock num="3" title="대체행동중재 (교수 전략)">
-        <BulletList items={bip.replacement} />
-        <AiExtraList items={extra("replacement")} />
+        <BulletList items={showRep} />
       </BIPBlock>
 
       <BIPBlock num="4" title="후속결과중재 (반응 전략)">
-        <BulletList items={bip.consequence} />
-        <AiExtraList items={extra("consequence")} />
+        <BulletList items={showCon} />
       </BIPBlock>
 
       <BIPBlock num="5" title="시각지원 자료 (인쇄용)">
@@ -2370,16 +2382,18 @@ ${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g,
         </div>
       </BIPBlock>
 
-      {/* AI 보강 */}
+      {/* AI 맞춤 생성 */}
       <div style={{ marginTop: 18, borderTop: `1px dashed ${PKL}`, paddingTop: 16 }}>
-        {aiState !== "done" && (
-          <button onClick={runAI} disabled={aiState === "loading"} style={{ ...btnPrimary, width: "100%", opacity: aiState === "loading" ? 0.6 : 1 }}>
-            {aiState === "loading" ? "✨ AI가 이 아동에 맞게 다듬는 중..." : "✨ AI로 이 아동에 맞게 더 구체화하기"}
-          </button>
+        {!usingAi && (
+          <>
+            <button onClick={runAI} disabled={aiState === "loading"} style={{ ...btnPrimary, width: "100%", opacity: aiState === "loading" ? 0.6 : 1 }}>
+              {aiState === "loading" ? "✨ AI가 이 아동에 맞게 작성 중..." : "✨ AI로 이 아동 맞춤 BIP 생성하기"}
+            </button>
+            <div style={{ fontSize: 11, color: MUTE, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
+              위 기본 중재안은 크레딧 없이 즉시 생성돼요. AI 맞춤 생성은 눌렀을 때만, 케이스의 ABC 기록·평가 정보를 반영해 중재안을 새로 작성합니다.
+            </div>
+          </>
         )}
-        <div style={{ fontSize: 11, color: MUTE, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
-          위 중재안은 크레딧 없이 자동 생성돼요. AI 보강은 눌렀을 때만 사용됩니다.
-        </div>
 
         {aiState === "error" && (
           <div style={{ marginTop: 10, padding: "10px 14px", background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, fontSize: 12.5, color: "#C04040" }}>
@@ -2387,22 +2401,19 @@ ${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g,
           </div>
         )}
 
-        {aiState === "done" && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+        {usingAi && (
+          <div style={{ padding: "12px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 15 }}>✨</span>
-              <span style={{ fontWeight: 700, fontSize: 14.5, color: PKD }}>AI 맞춤 보강 완료</span>
-              <button onClick={runAI} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>↻ 다시</button>
+              <span style={{ fontWeight: 700, fontSize: 14, color: "#6B5B8A" }}>AI 맞춤 생성본 표시 중</span>
+              <button onClick={runAI} disabled={aiState === "loading"} style={{ marginLeft: "auto", fontSize: 11, color: "#8A6FB0", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
+                {aiState === "loading" ? "생성 중..." : "↻ 다시 생성"}
+              </button>
+              <button onClick={clearAI} style={{ fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>기본으로</button>
             </div>
-            {fallbackText ? (
-              <div style={{ padding: "14px 16px", background: "#FFFBFC", border: `1px solid ${PKL}`, borderRadius: 12, fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
-                {fallbackText}
-              </div>
-            ) : (
-              <div style={{ padding: "12px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 12, fontSize: 12.5, lineHeight: 1.7, color: "#6B5B8A" }}>
-                🤖 각 중재 영역(선행·대체·후속)에 이 아동 맞춤 항목이 추가됐어요. 위 2~4번 섹션에서 <b>보라색 🤖 표시</b> 항목을 확인하세요. PDF 저장 시에도 함께 포함됩니다.
-              </div>
-            )}
+            <div style={{ fontSize: 11, color: "#8A6FB0", marginTop: 8, lineHeight: 1.6 }}>
+              2~4번 중재안이 이 아동 정보(ABC 기록·평가)를 반영한 AI 생성본으로 바뀌었어요. <b>전문가 검토 후 사용</b>하세요. PDF·복사에도 이 내용이 반영됩니다.
+            </div>
           </div>
         )}
       </div>
@@ -2410,45 +2421,81 @@ ${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g,
   );
 }
 
-// ── Claude API 호출 (AI 보강) ───────────────────
-// ※ GitHub 배포 시: Supabase Edge Function 경유 fetch로 교체
-//   (기존 Reels Maker / AAC 의 relay 패턴과 동일)
+// ── Claude API 호출: 이 아동 맞춤 BIP 전체 재작성 ───
 async function enhanceBIPWithAI(bip, c) {
   const isPbs = c.type === "pbs";
-  const prompt = `당신은 ABA(응용행동분석) 전문가입니다. 아래는 한 아동의 도전행동에 대한 행동중재계획(BIP)입니다.
-표준 중재안은 이미 작성되어 있습니다. 당신의 역할은 이 아동의 구체적 상황에 맞는 "맞춤 항목"을 각 중재 영역에 1~2개씩 추가하는 것입니다.
+
+  // 케이스에 쌓인 ABC 기록을 요약해 프롬프트에 반영 (있으면)
+  const records = (c.records || []).slice(0, 12);
+  let abcSummary = "기록 없음";
+  if (records.length) {
+    abcSummary = records.map((r, i) =>
+      `${i + 1}) ${[r.datetime && `[${r.datetime}]`, r.antecedent && `선행:${r.antecedent}`, r.behavior && `행동:${r.behavior}`, r.consequence && `후속:${r.consequence}`].filter(Boolean).join(" ")}`
+    ).join("\n");
+  }
+
+  // 위험 행동이면 안전 계획을 포함하도록 지시 (표적행동 문자열 기반 추정)
+  const target = String(c.target || "");
+  const isRisky = /공격|자해|폭력|던지|때리|물기|머리|위험|난폭|소리지르|이탈|도주|뛰쳐/.test(target);
+  const displayNm = (() => {
+    const raw = (c.name || "").trim();
+    if (!raw) return "아동";
+    const allHangul = [...raw].every((ch) => { const x = ch.charCodeAt(0); return x >= 0xac00 && x <= 0xd7a3; });
+    if (!allHangul) return raw;
+    let g = raw.length >= 3 ? raw.slice(1) : raw;
+    const last = g.charCodeAt(g.length - 1);
+    const hasJong = (last - 0xac00) % 28 !== 0;
+    return hasJong ? g + "이" : g;
+  })();
+
+  const prompt = `당신은 ABA(응용행동분석) 전문가입니다. 아래 정보를 바탕으로 이 아동에게 딱 맞는 행동중재계획(BIP)의 세 영역(선행중재·대체행동중재·후속결과중재)을 작성하세요.
 
 [아동 정보]
-- 이름: ${c.name}
+- 이름: ${c.name} (문장에서 아동을 지칭할 때는 "${displayNm}"로 부르고, 한국어 조사를 올바르게 붙이세요. 예: "${displayNm}는", "${displayNm}가")
 - 연령/학년: ${c.age || "미기재"}
-- 환경: ${isPbs ? `학교(${c.school || "일반학교"})` : "ABA 센터"}
-- 목표행동: ${c.target || "미기재"}
+- 환경: ${isPbs ? `학교(${c.school || "일반학교"})` : "ABA 센터 (1:1 치료 가능)"}
+- 표적행동: ${c.target || "미기재"}
 
-[추정 기능]
-${bip.funcName}
-${bip.hypothesis}
+[기능평가 결과]
+- 추정 주기능: ${bip.funcName}
+- 기능 가설: ${bip.hypothesis}
 
-[이미 있는 표준 중재안 — 중복 금지]
-· 선행중재: ${bip.antecedent.join(" / ")}
-· 대체행동: ${bip.replacement.join(" / ")}
-· 후속중재: ${bip.consequence.join(" / ")}
+[실제 관찰기록 (ABC)]
+${abcSummary}
 
-[요구사항]
-- 위 표준 항목과 겹치지 않는, 이 아동에게 특화된 실행 항목을 각 영역에 1~2개씩 제안하세요.
+[작성 지침]
+
+■ 각 영역의 역할 (반드시 구분해서 작성)
+- 선행중재(antecedent): 행동이 일어나기 '전에' 환경·상황을 바꿔 도전행동의 동기 자체를 낮추는 예방 전략. (동기조작, 환경조정, 예측가능성 제공 등)
+- 대체행동중재(replacement): 도전행동과 '같은 기능'을 하되 사회적으로 수용 가능하고 더 효율적인 행동을 '가르치는' 교수 전략. ★핵심: 대체행동은 반드시 표적행동과 동일한 기능(같은 강화를 얻음)을 해야 하며, 도전행동보다 쉽고 빠르게 그 강화를 얻을 수 있어야 한다(반응효율성).
+- 후속결과중재(consequence): 행동이 일어난 '후에' 어떻게 반응할지 — 적절행동은 강화하고, 도전행동은 강화하지 않는(소거) 전략.
+
+■ 품질 기준 (아래 대조를 반드시 지킬 것)
+- 나쁜 예(추상적, 금지): "유사한 감각을 주는 활동을 환경에 풍부하게 배치한다"
+- 좋은 예(구체적, 권장): "착석 자리에 커튼과 비슷한 촉감의 술 리본을 붙여, 자리를 뜨지 않고도 촉각을 얻게 한다"
+- 즉 '무엇을 / 언제 / 어떻게'가 드러나고, 이 아동의 실제 상황(관찰기록·표적행동)에 밀착된 문장을 쓸 것. 교과서적 일반론은 금지.
+
+■ 개별화 지침
+- 위 ABC 기록에서 드러나는 이 아동의 구체적 패턴(어떤 자극/상황에서, 무엇을 하고, 어떤 결과가 따르는지)을 반드시 반영하세요. 기록이 있으면 일반론이 아니라 "이 아이"의 사례에 근거해 쓰세요.
+- 표적행동('${c.target || "미기재"}')이 위 추정 주기능(${bip.funcName})을 어떻게 충족하는지 구체적으로 해석하고, 그 해석에 맞는 중재를 쓰세요. 관찰기록이 있으면 그 기록에서 근거를 찾으세요.
+- ${c.age ? `아동의 연령/언어수준(${c.age})에 맞는 대체행동과 의사소통 방법을 쓰세요.` : "연령 정보가 없으니 일반적 수준으로 쓰되 과하게 어렵지 않게."}
 - ${isPbs
-  ? "이곳은 학교입니다. 교사 1명이 학급 전체를 지도하므로, 교사 혼자 학급을 운영하며 실행 가능한 방법(선행조정·또래활용·학급차원 지원·자기관리) 위주로."
-  : "이곳은 ABA 센터로 1:1 지도가 가능한 환경입니다."}
-- 각 항목은 한 문장으로 구체적이고 바로 실행 가능하게.
-- 올바른 ABA 용어를 사용하세요 (예: DRA, DRO, NCR, FCT, 촉구, 용암 등).
+  ? "학교 상황입니다. 교사 1명이 학급 전체를 지도하므로 1:1 개별개입이 어렵습니다. 선행조정·환경세팅·또래활용·학급차원 지원·자기관리 위주로 교사가 혼자 실행 가능하게 쓰세요."
+  : "ABA 센터로 치료사가 1:1 지도 가능한 환경입니다."}
+${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후속결과중재에 위기 상황 대응·안전 확보(주변 정리, 위해 예방, 진정 절차 등) 항목을 최소 1개 포함하세요.\n" : ""}
+■ 형식·용어
+- 각 영역당 4~6개 항목. 각 항목은 관찰·측정 가능하게(누가 봐도 실행 여부를 판단할 수 있게) 한 문장으로 쓰세요. 모호한 표현("적절히", "충분히", "잘") 대신 구체적 조건·빈도·방법을 명시하세요.
+- 올바른 ABA 용어를 정확히 사용하세요(NCR, FCT, DRA, DRO, 촉구·용암, 행동탄력, 소거, 프리맥 등). 단, 용어만 나열하지 말고 이 아동에게 실제로 어떻게 적용하는지를 함께 쓰세요.
+- 관찰기록이 없으면, 표적행동과 기능가설만으로 최대한 구체적으로 추정해 쓰되 무리한 단정은 피하세요.
 
-반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운·서론 금지):
-{"antecedent":["항목1","항목2"],"replacement":["항목1"],"consequence":["항목1","항목2"]}`;
+반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운·서론 절대 금지):
+{"antecedent":["...","..."],"replacement":["...","..."],"consequence":["...","..."]}`;
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, max_tokens: 1500 }),
+    body: JSON.stringify({ prompt, max_tokens: 2500 }),
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -2460,27 +2507,22 @@ ${bip.hypothesis}
     ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
     : (data.text || "");
 
-  // JSON 파싱 시도 → 실패하면 원문 텍스트로 폴백(크래시 방지)
+  // JSON 파싱 → 실패 시 에러(폴백은 호출부에서 템플릿 유지로 처리)
   const cleaned = String(text).replace(/```json|```/g, "").trim();
-  try {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start === -1 || end === -1) throw new Error("no json");
-    const parsed = JSON.parse(cleaned.slice(start, end + 1));
-    const arr = (v) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
-    const result = {
-      antecedent: arr(parsed.antecedent),
-      replacement: arr(parsed.replacement),
-      consequence: arr(parsed.consequence),
-    };
-    // 셋 다 비면 폴백
-    if (!result.antecedent.length && !result.replacement.length && !result.consequence.length) {
-      return { _fallbackText: cleaned };
-    }
-    return result;
-  } catch (e) {
-    return { _fallbackText: cleaned };
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1) throw new Error("AI 응답 형식이 올바르지 않아요. 다시 시도해 주세요.");
+  const parsed = JSON.parse(cleaned.slice(start, end + 1));
+  const arr = (v) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+  const result = {
+    antecedent: arr(parsed.antecedent),
+    replacement: arr(parsed.replacement),
+    consequence: arr(parsed.consequence),
+  };
+  if (!result.antecedent.length && !result.replacement.length && !result.consequence.length) {
+    throw new Error("AI가 내용을 생성하지 못했어요. 다시 시도해 주세요.");
   }
+  return result;
 }
 
 // ── 종이 설문 사진 인식 (Claude 비전) ───────────
@@ -2875,19 +2917,7 @@ function BulletList({ items }) {
 }
 
 // AI 맞춤 추가 항목 (보라색 🤖 표시)
-function AiExtraList({ items }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-      {items.map((t, i) => (
-        <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6, padding: "8px 10px", background: "#F7F3FC", borderRadius: 8, border: "1px solid #E6DAF5" }}>
-          <span style={{ flexShrink: 0 }}>🤖</span>
-          <span style={{ color: "#6B5B8A" }}>{t} <span style={{ fontSize: 11, color: "#B79AE0" }}>(AI 맞춤)</span></span>
-        </div>
-      ))}
-    </div>
-  );
-}
+
 
 // BIP → 복사용 텍스트
 function bipToText(bip, c, agg) {
