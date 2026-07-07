@@ -399,10 +399,10 @@ function FUNC_MEANING(func, name, target, setting) {
   const who = displayName(name);
   const place = setting === "school" ? "학급" : "치료 상황";
   const base = {
-    attention: `${who}의 도전적 행동은 통제 불능의 돌발행동이 아니라, "나에게 관심을 주세요"라는 의사를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
-    escape: `${who}의 도전적 행동은 통제 불능의 돌발행동이 아니라, "이 활동을 하고 싶지 않다"는 거절·회피 의사를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
+    attention: `${who}의 도전적 행동은 예측할 수 없는 돌발적 행동이 아니라, "나에게 관심을 주세요"라는 의사를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
+    escape: `${who}의 도전적 행동은 예측할 수 없는 돌발적 행동이 아니라, "이 활동을 하고 싶지 않다"는 거절·회피 의사를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
     sensory: `${who}의 도전적 행동은 문제 삼아야 할 '나쁜 버릇'이 아니라, 충족되지 못한 감각 욕구가 겉으로 드러난 신호입니다. 안전하고 수용 가능한 대체 감각활동을 제공하면 조절 가능한 행동입니다.`,
-    tangible: `${who}의 도전적 행동은 통제 불능의 돌발행동이 아니라, "그것을 갖고 싶다·하고 싶다"는 요구를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
+    tangible: `${who}의 도전적 행동은 예측할 수 없는 돌발적 행동이 아니라, "그것을 갖고 싶다·하고 싶다"는 요구를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
   };
   return `${base[func] || base.escape} 적절한 대체행동 교수와 강화 수반성 재설정을 통해 ${place}에서 충분히 변화 가능한 표적행동입니다.`;
 }
@@ -413,18 +413,18 @@ const INTERVENTION_LIB = {
   attention: {
     hypothesis: (name, beh) => `${name}${K(name,"은","는")} 주변 어른이나 또래의 관심이 부족할 때 ${beh}${K(beh,"을","를")} 통해 관심을 얻으려는 것으로 추정됩니다. 즉, 이 행동은 '나를 봐 주세요'라는 기능을 합니다.`,
     antecedent: [
-      "규칙적인 관심 제공: 문제행동이 없을 때 미리, 자주(예: 5~10분마다) 긍정적 관심을 준다 (비유관 관심, NCR).",
+      "규칙적인 관심 제공: 도전적 행동이 없을 때 미리, 자주(예: 5~10분마다) 긍정적 관심을 준다 (비유관 관심, NCR).",
       "활동 시작 전 '지금부터 5분 동안 혼자 해보고, 다 하면 선생님이 크게 칭찬해줄게'처럼 관심을 받을 수 있는 시점을 예고한다.",
       "아동이 바르게 행동하는 순간을 놓치지 않고 즉시 언급해 준다 (행동 특정적 칭찬).",
     ],
     replacement: [
       "관심을 적절히 요청하는 방법을 가르친다 (예: 손 들기, '봐 주세요' 말하기, 도움카드 건네기 — 기능적 의사소통 훈련 FCT).",
-      "적절한 요청에는 즉각적이고 풍부하게 반응해, 새 행동이 문제행동보다 '더 빠르고 확실하게' 관심을 얻도록 한다.",
+      "적절한 요청에는 즉각적이고 풍부하게 반응해, 새 행동이 도전적 행동보다 '더 빠르고 확실하게' 관심을 얻도록 한다.",
     ],
     consequence: [
-      "문제행동에는 계획된 무관심(소거)을 적용한다 — 눈맞춤·말·표정 반응을 최소화한다. (단, 안전이 위협되면 최소한의 중립적 개입)",
+      "도전적 행동에는 계획된 무관심(소거)을 적용한다 — 눈맞춤·말·표정 반응을 최소화한다. (단, 안전이 위협되면 최소한의 중립적 개입)",
       "적절한 관심요청 행동에는 즉시 관심으로 반응한다 (차별강화 DRA).",
-      "문제행동이 멈추고 잠시 후 적절 행동이 나올 때 관심을 준다 (타행동 차별강화 DRO).",
+      "도전적 행동이 멈추고 잠시 후 적절 행동이 나올 때 관심을 준다 (타행동 차별강화 DRO).",
     ],
   },
   escape: {
@@ -437,10 +437,10 @@ const INTERVENTION_LIB = {
     ],
     replacement: [
       "적절하게 휴식·도움을 요청하는 방법을 가르친다 (예: '쉬고 싶어요' 카드, '도와주세요' 말하기 — FCT).",
-      "요청 시 즉시 짧은 휴식이나 도움을 제공해, 새 행동이 문제행동보다 효율적으로 회피 기능을 하도록 한다.",
+      "요청 시 즉시 짧은 휴식이나 도움을 제공해, 새 행동이 도전적 행동보다 효율적으로 회피 기능을 하도록 한다.",
     ],
     consequence: [
-      "문제행동으로는 과제에서 벗어나지 못하게 한다 (소거: 문제행동 후에도 과제 지속, escape extinction).",
+      "도전적 행동으로는 과제에서 벗어나지 못하게 한다 (소거: 도전적 행동 후에도 과제 지속, escape extinction).",
       "적절한 요청이나 과제 참여에는 즉시 휴식·강화를 제공한다 (DRA).",
       "정해진 양의 과제를 완수하면 선호 활동을 제공한다 (프리맥 원리).",
     ],
@@ -454,12 +454,12 @@ const INTERVENTION_LIB = {
     ],
     replacement: [
       "사회적으로 수용 가능하고 유사한 감각을 얻는 대체행동을 가르친다 (예: 손 흔들기 → 피젯토이 조작).",
-      "대체행동이 문제행동만큼 혹은 그 이상으로 감각 만족을 주도록 조정한다.",
+      "대체행동이 도전적 행동만큼 혹은 그 이상으로 감각 만족을 주도록 조정한다.",
     ],
     consequence: [
       "가능한 경우 감각 자극을 차단·감소시킨다 (감각 소거, 예: 보호장비·환경 수정 — 안전 범위 내에서).",
       "대체 감각활동에 참여할 때 강화한다 (DRA).",
-      "문제행동이 없는 시간 간격에 강화를 제공한다 (DRO). ※ 자동강화는 소거가 어려우므로 대체행동과 환경조정이 핵심.",
+      "도전적 행동이 없는 시간 간격에 강화를 제공한다 (DRO). ※ 자동강화는 소거가 어려우므로 대체행동과 환경조정이 핵심.",
     ],
   },
   tangible: {
@@ -474,9 +474,9 @@ const INTERVENTION_LIB = {
       "적절한 요청 시 가능한 범위에서 즉시 제공하거나, '기다리기'를 단계적으로 가르친다 (지연 감내 훈련).",
     ],
     consequence: [
-      "문제행동으로는 원하는 물건을 얻지 못하게 한다 (소거).",
+      "도전적 행동으로는 원하는 물건을 얻지 못하게 한다 (소거).",
       "적절한 요청에는 즉시 선호물을 제공한다 (DRA).",
-      "정해진 시간 동안 문제행동 없이 기다리면 선호물을 제공한다 (DRO·지연강화).",
+      "정해진 시간 동안 도전적 행동 없이 기다리면 선호물을 제공한다 (DRO·지연강화).",
     ],
   },
 };
@@ -500,7 +500,7 @@ const INTERVENTION_LIB_SCHOOL = {
       "또래 짝(버디)을 지정해, 교사가 즉시 반응하지 못할 때 또래의 긍정적 관심으로 보완한다 (또래 매개 지원).",
     ],
     consequence: [
-      "문제행동에는 최소한의 반응(계획된 무관심)을 하되, 학급 흐름이 끊기지 않게 비언어적 신호로 처리한다.",
+      "도전적 행동에는 최소한의 반응(계획된 무관심)을 하되, 학급 흐름이 끊기지 않게 비언어적 신호로 처리한다.",
       "바르게 참여하는 순간을 놓치지 않고 즉시 구체적으로 칭찬한다 (행동 특정적 칭찬 — 학급 전체에도 모델이 됨).",
       "개별 즉각강화가 어려우므로, 토큰·스티커판 같은 시각적 누적강화로 지연강화를 운영한다.",
     ],
@@ -512,14 +512,14 @@ const INTERVENTION_LIB_SCHOOL = {
       "이 학생에게는 분량·난이도를 사전에 조정한 과제를 준비한다 (수정된 과제, 또래와 다른 양이어도 무방).",
       "수업 일과와 과제 순서를 시각적 일정표로 제시해 예측 가능성을 높인다.",
       "쉬운 과제로 시작해 성공 경험을 준 뒤 어려운 과제로 넘어간다 (행동 탄력).",
-      "정해진 조건에서 '휴식 패스'를 쓸 수 있게 한다 (교실 안에서 합법적으로 잠깐 쉬는 방법).",
+      "정해진 조건에서 '휴식 패스'를 쓸 수 있게 한다 (교실 안에서 허용된 방식으로 잠깐 쉬는 방법).",
     ],
     replacement: [
       "적절히 도움·휴식을 요청하는 방법을 가르친다 (예: '도와주세요/쉬고 싶어요' 카드, 책상 위 신호판).",
-      "요청 시 짧은 휴식이나 대안 과제를 허용해, 문제행동보다 요청이 더 쉽게 통하도록 만든다.",
+      "요청 시 짧은 휴식이나 대안 과제를 허용해, 도전적 행동보다 요청이 더 쉽게 통하도록 만든다.",
     ],
     consequence: [
-      "가능한 범위에서 문제행동으로 과제를 완전히 회피하지는 못하게 한다 (예: 양을 줄여서라도 최소한 참여 후 종료).",
+      "가능한 범위에서 도전적 행동으로 과제를 완전히 회피하지는 못하게 한다 (예: 양을 줄여서라도 최소한 참여 후 종료).",
       "적절한 요청·참여에는 즉시 휴식·강화를 준다 (DRA).",
       "정해진 분량을 마치면 선호 활동을 하게 한다 (프리맥 — 학급 공통 규칙으로 운영하면 관리 쉬움).",
       "일관된 소거가 어려운 환경이므로, 교사·특수교사·보조인력이 대응 방식을 미리 통일해 둔다.",
@@ -528,19 +528,19 @@ const INTERVENTION_LIB_SCHOOL = {
   sensory: {
     hypothesis: (name, beh) => `${name}의 ${beh}${K(beh,"은","는")} 특정 감각자극 자체가 주는 만족 때문에 유지되는 것으로 추정됩니다(자동강화). 수업 중 자극이 단조롭거나 대기 시간이 길 때 더 나타날 수 있습니다.`,
     antecedent: [
-      "수업 중 사용할 수 있는 조용한 감각도구를 허용한다 (예: 피젯토이, 무릎담요, 씹기 목걸이 — 수업 방해 없는 것으로).",
+      "수업 중 사용할 수 있는 조용한 감각 도구를 허용한다 (예: 피젯토이, 무릎담요, 씹기 목걸이 — 수업 방해 없는 것으로).",
       "대기·전이 시간을 줄이고, 할 일을 명확히 주어 '빈 시간'을 최소화한다.",
       "쉬는 시간이나 정해진 시점에 감각욕구를 충분히 충족할 기회를 준다 (감각 식단).",
       "좌석 위치·조명·소음 등 교실 환경에서 과잉/과소 자극 요인을 조정한다.",
     ],
     replacement: [
       "수업에 방해되지 않으면서 비슷한 감각을 얻는 대체행동을 가르친다 (예: 소리내기 → 피젯 조작, 자리이탈 → 정해진 스트레칭).",
-      "감각도구 사용 규칙(언제·어떻게)을 명확히 정해 자기관리로 연결한다.",
+      "감각 도구 사용 규칙(언제·어떻게)을 명확히 정해 자기관리로 연결한다.",
     ],
     consequence: [
       "자동강화는 소거가 어려우므로, 환경조정과 대체도구가 핵심임을 교사와 공유한다.",
       "대체도구를 적절히 사용할 때 인정·강화한다 (DRA).",
-      "문제행동이 적은 시간대·상황을 파악해, 그 조건을 수업 전반으로 확대 적용한다.",
+      "도전적 행동이 적은 시간대·상황을 파악해, 그 조건을 수업 전반으로 확대 적용한다.",
     ],
   },
   tangible: {
@@ -556,7 +556,7 @@ const INTERVENTION_LIB_SCHOOL = {
       "짧은 기다림부터 점차 늘려 지연을 견디는 힘을 기른다 (지연 감내 훈련).",
     ],
     consequence: [
-      "문제행동으로는 원하는 것을 얻지 못하게 하되, 학급 규칙으로 일관되게 적용한다.",
+      "도전적 행동으로는 원하는 것을 얻지 못하게 하되, 학급 규칙으로 일관되게 적용한다.",
       "적절한 요청·기다림에는 약속대로 선호물·차례를 제공한다 (DRA).",
       "차례를 잘 지키거나 기다린 것을 학급 차원에서 인정·강화한다 (집단강화로 관리 부담 완화).",
     ],
@@ -2234,26 +2234,26 @@ ${scaleGuide}
   return answers;
 }
 
-// ── 워드(.doc) 내보내기용 시각카드 아이콘 SVG 문자열 ──
+// ── PDF 내보내기용 시각카드 아이콘 SVG 문자열 (화면 CardIcon과 동일) ──
 function cardIconSvg(name) {
   const P = {
-    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><circle cx="12" cy="16.5" r="0.6" fill="#D4728A" stroke="none"/>',
-    rest: '<path d="M4 18v-4a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4"/><path d="M4 18h16"/><path d="M7 11V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/>',
-    yes: '<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>',
-    stop: '<path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M9 9l6 6M15 9l-6 6"/>',
-    look: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/>',
-    together: '<circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M4 19v-1a4 4 0 0 1 4-4M20 19v-1a4 4 0 0 0-4-4"/><path d="M10 14h4"/>',
-    me: '<circle cx="12" cy="8" r="3"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/>',
-    wait: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    give: '<path d="M4 13l5 4 3-1 8-5"/><path d="M4 13l3-2 4 1"/><path d="M15 11l2-4 3 1-1 4"/>',
-    want: '<path d="M12 21s-7-4.7-9-9a4.2 4.2 0 0 1 7-3 4.2 4.2 0 0 1 7 3c-1 4.3-5 9-5 9z"/>',
-    fidget: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V5a1.5 1.5 0 0 1 3 0v5M13 10.5V6.5a1.5 1.5 0 0 1 3 0V13"/><path d="M7 11c-1.5.5-2 2-1 3.5l2.5 4A5 5 0 0 0 15 21c3-1 4-3.5 4-6.5V9"/>',
-    corner: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 21h18"/>',
-    happy: '<circle cx="12" cy="12" r="9"/><path d="M8 14a4 4 0 0 0 8 0"/><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/>',
-    sad: '<circle cx="12" cy="12" r="9"/><path d="M8 15a4 4 0 0 1 8 0"/><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/>',
+    help: '<rect x="7" y="9" width="34" height="26" rx="7" fill="#FDE7EC" stroke="#D4728A" stroke-width="2"/><path d="M18 35l-4 6 10-6" fill="#FDE7EC" stroke="#D4728A" stroke-width="2" stroke-linejoin="round"/><path d="M20 18a4 4 0 1 1 5.5 3.7c-1 .5-1.5 1.3-1.5 2.6" fill="none" stroke="#D4728A" stroke-width="2.4" stroke-linecap="round"/><circle cx="24" cy="29" r="1.4" fill="#D4728A"/>',
+    rest: '<rect x="8" y="24" width="32" height="12" rx="3" fill="#BFD8C6" stroke="#5C9A72" stroke-width="2"/><rect x="6" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" stroke-width="2"/><rect x="34" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" stroke-width="2"/><path d="M12 36v3M36 36v3" stroke="#5C9A72" stroke-width="2" stroke-linecap="round"/>',
+    yes: '<circle cx="24" cy="24" r="16" fill="#DCF0E1" stroke="#5C9A72" stroke-width="2.4"/><path d="M16 24l5 5 11-11" fill="none" stroke="#5C9A72" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+    stop: '<path d="M18 6h12l12 12v12L30 42H18L6 30V18z" fill="#F8D2D2" stroke="#D45C5C" stroke-width="2.4" stroke-linejoin="round"/><path d="M18 18l12 12M30 18L18 30" stroke="#D45C5C" stroke-width="3" stroke-linecap="round"/>',
+    look: '<path d="M4 24s8-12 20-12 20 12 20 12-8 12-20 12S4 24 4 24z" fill="#EAF2FB" stroke="#5B8DC9" stroke-width="2.4" stroke-linejoin="round"/><circle cx="24" cy="24" r="6" fill="#5B8DC9"/><circle cx="24" cy="24" r="2.4" fill="#fff"/>',
+    together: '<circle cx="16" cy="17" r="6" fill="#F6C9A0" stroke="#C98A4B" stroke-width="2"/><circle cx="32" cy="17" r="6" fill="#A9C7E8" stroke="#5B8DC9" stroke-width="2"/><path d="M6 40v-3a10 10 0 0 1 20 0" fill="#FBE4CE" stroke="#C98A4B" stroke-width="2" stroke-linejoin="round"/><path d="M22 40v-3a10 10 0 0 1 20 0" fill="#D8E7F6" stroke="#5B8DC9" stroke-width="2" stroke-linejoin="round"/>',
+    me: '<circle cx="24" cy="16" r="7" fill="#F6C9A0" stroke="#C98A4B" stroke-width="2"/><path d="M10 42v-4a14 14 0 0 1 28 0v4z" fill="#FBE4CE" stroke="#C98A4B" stroke-width="2" stroke-linejoin="round"/>',
+    wait: '<circle cx="24" cy="24" r="16" fill="#FFF3D6" stroke="#D9A441" stroke-width="2.4"/><path d="M24 14v10l7 4" fill="none" stroke="#D9A441" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
+    give: '<path d="M16 30l-4-8a2.5 2.5 0 0 1 4.5-2l2.5 5V12a2.5 2.5 0 0 1 5 0v10m0-2a2.5 2.5 0 0 1 5 0v4m0-2a2.5 2.5 0 0 1 5 0v6c0 6-4 10-10 10s-9-3-11-8" fill="#FBE4CE" stroke="#C98A4B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>',
+    want: '<path d="M24 40S7 30 7 18a9 9 0 0 1 17-3 9 9 0 0 1 17 3c0 12-17 22-17 22z" fill="#F8C6D2" stroke="#D4728A" stroke-width="2.2" stroke-linejoin="round"/>',
+    fidget: '<circle cx="24" cy="24" r="13" fill="#D9C9F0" stroke="#8A6FB0" stroke-width="2"/><g fill="#B79AE0"><circle cx="24" cy="9" r="3.5"/><circle cx="24" cy="39" r="3.5"/><circle cx="9" cy="24" r="3.5"/><circle cx="39" cy="24" r="3.5"/><circle cx="13" cy="13" r="3"/><circle cx="35" cy="13" r="3"/><circle cx="13" cy="35" r="3"/><circle cx="35" cy="35" r="3"/></g><circle cx="24" cy="24" r="5" fill="#fff" opacity="0.6"/>',
+    corner: '<path d="M24 8L8 20v20h32V20z" fill="#D8E7F6" stroke="#5B8DC9" stroke-width="2.2" stroke-linejoin="round"/><path d="M6 21L24 7l18 14" fill="none" stroke="#5B8DC9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="19" y="28" width="10" height="12" rx="1.5" fill="#A9C7E8" stroke="#5B8DC9" stroke-width="2"/>',
+    happy: '<circle cx="24" cy="24" r="17" fill="#FFE08A" stroke="#E0A93C" stroke-width="2.2"/><circle cx="17" cy="20" r="2.4" fill="#7A5A1E"/><circle cx="31" cy="20" r="2.4" fill="#7A5A1E"/><path d="M15 28a10 10 0 0 0 18 0" fill="none" stroke="#7A5A1E" stroke-width="2.6" stroke-linecap="round"/>',
+    sad: '<circle cx="24" cy="24" r="17" fill="#CFE0F0" stroke="#5B8DC9" stroke-width="2.2"/><circle cx="17" cy="21" r="2.4" fill="#3E5A73"/><circle cx="31" cy="21" r="2.4" fill="#3E5A73"/><path d="M15 32a10 10 0 0 1 18 0" fill="none" stroke="#3E5A73" stroke-width="2.6" stroke-linecap="round"/><path d="M31 15l4 2" stroke="#3E5A73" stroke-width="2" stroke-linecap="round"/>',
   };
   const body = P[name] || P.help;
-  return `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#D4728A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  return `<svg width="30" height="30" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 
 // 시각카드 1장 → 워드용 HTML 문자열
@@ -2315,14 +2315,14 @@ function getVisualCards(func) {
         { label: "봐 주세요", icon: "look" },
         { label: "같이 해요", icon: "together" },
       ] },
-      { type: "token", title: "칭찬 토큰판", count: 5 },
+      { type: "token", title: "토큰판", count: 5 },
       { type: "choice", title: "차례 카드", options: [
         { label: "내 차례", icon: "me" },
         { label: "기다리기", icon: "wait" },
       ] },
     ],
     tangible: [
-      { type: "sequence", title: "지금-나중에 카드", steps: ["지금은 안돼요", "이따가"] },
+      { type: "sequence", title: "지금-다음 카드", steps: ["지금은 안돼요", "이따가"] },
       { type: "strip", title: "요청 카드", items: [
         { label: "주세요", icon: "give" },
         { label: "하고 싶어요", icon: "want" },
@@ -2331,7 +2331,7 @@ function getVisualCards(func) {
     ],
     sensory: [
       { type: "strip", title: "감각 도구 카드", items: [
-        { label: "만지작 도구 (피젯)", icon: "fidget" },
+        { label: "감각 도구", icon: "fidget" },
         { label: "쉼 공간 (조용한 코너)", icon: "corner" },
       ] },
       { type: "sequence", title: "자기조절 순서", steps: ["멈추기", "숨쉬기", "도구 쓰기"] },
@@ -2353,26 +2353,40 @@ function CardFrame({ title, children }) {
   );
 }
 
-// ── 시각카드용 단순 픽토그램 아이콘 (인라인 SVG, 워드에서도 렌더됨) ──
-function CardIcon({ name, size = 30 }) {
-  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "#D4728A", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
-  const paths = {
-    help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><circle cx="12" cy="16.5" r="0.6" fill="#D4728A" stroke="none" /></>,
-    rest: <><path d="M4 18v-4a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4" /><path d="M4 18h16" /><path d="M7 11V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2" /></>,
-    yes: <><circle cx="12" cy="12" r="9" /><path d="M8 12l2.5 2.5L16 9" /></>,
-    stop: <><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z" /><path d="M9 9l6 6M15 9l-6 6" /></>,
-    look: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.5" /></>,
-    together: <><circle cx="8" cy="8" r="2.5" /><circle cx="16" cy="8" r="2.5" /><path d="M4 19v-1a4 4 0 0 1 4-4M20 19v-1a4 4 0 0 0-4-4" /><path d="M10 14h4" /></>,
-    me: <><circle cx="12" cy="8" r="3" /><path d="M6 20v-1a6 6 0 0 1 12 0v1" /></>,
-    wait: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    give: <><path d="M4 13l5 4 3-1 8-5" /><path d="M4 13l3-2 4 1" /><path d="M15 11l2-4 3 1-1 4" /></>,
-    want: <><path d="M12 21s-7-4.7-9-9a4.2 4.2 0 0 1 7-3 4.2 4.2 0 0 1 7 3c-1 4.3-5 9-5 9z" /></>,
-    fidget: <><path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V5a1.5 1.5 0 0 1 3 0v5M13 10.5V6.5a1.5 1.5 0 0 1 3 0V13" /><path d="M7 11c-1.5.5-2 2-1 3.5l2.5 4A5 5 0 0 0 15 21c3-1 4-3.5 4-6.5V9" /></>,
-    corner: <><path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-6h6v6" /><path d="M3 21h18" /></>,
-    happy: <><circle cx="12" cy="12" r="9" /><path d="M8 14a4 4 0 0 0 8 0" /><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /></>,
-    sad: <><circle cx="12" cy="12" r="9" /><path d="M8 15a4 4 0 0 1 8 0" /><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /></>,
+// ── 시각카드용 컬러 픽토그램 아이콘 (화면용, 워드 대신 PDF에서 렌더) ──
+function CardIcon({ name, size = 34 }) {
+  const svg = { width: size, height: size, viewBox: "0 0 48 48", xmlns: "http://www.w3.org/2000/svg" };
+  const icons = {
+    // 도움 요청 — 말풍선 + 물음표
+    help: <><rect x="7" y="9" width="34" height="26" rx="7" fill="#FDE7EC" stroke="#D4728A" strokeWidth="2" /><path d="M18 35l-4 6 10-6" fill="#FDE7EC" stroke="#D4728A" strokeWidth="2" strokeLinejoin="round" /><path d="M20 18a4 4 0 1 1 5.5 3.7c-1 .5-1.5 1.3-1.5 2.6" fill="none" stroke="#D4728A" strokeWidth="2.4" strokeLinecap="round" /><circle cx="24" cy="29" r="1.4" fill="#D4728A" /></>,
+    // 쉬기 — 소파
+    rest: <><rect x="8" y="24" width="32" height="12" rx="3" fill="#BFD8C6" stroke="#5C9A72" strokeWidth="2" /><rect x="6" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" strokeWidth="2" /><rect x="34" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" strokeWidth="2" /><path d="M12 36v3M36 36v3" stroke="#5C9A72" strokeWidth="2" strokeLinecap="round" /></>,
+    // 예/더하기 — 체크 동그라미(초록)
+    yes: <><circle cx="24" cy="24" r="16" fill="#DCF0E1" stroke="#5C9A72" strokeWidth="2.4" /><path d="M16 24l5 5 11-11" fill="none" stroke="#5C9A72" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></>,
+    // 그만 — 팔각형(빨강)
+    stop: <><path d="M18 6h12l12 12v12L30 42H18L6 30V18z" fill="#F8D2D2" stroke="#D45C5C" strokeWidth="2.4" strokeLinejoin="round" /><path d="M18 18l12 12M30 18L18 30" stroke="#D45C5C" strokeWidth="3" strokeLinecap="round" /></>,
+    // 봐주세요 — 눈
+    look: <><path d="M4 24s8-12 20-12 20 12 20 12-8 12-20 12S4 24 4 24z" fill="#EAF2FB" stroke="#5B8DC9" strokeWidth="2.4" strokeLinejoin="round" /><circle cx="24" cy="24" r="6" fill="#5B8DC9" /><circle cx="24" cy="24" r="2.4" fill="#fff" /></>,
+    // 같이 — 두 사람
+    together: <><circle cx="16" cy="17" r="6" fill="#F6C9A0" stroke="#C98A4B" strokeWidth="2" /><circle cx="32" cy="17" r="6" fill="#A9C7E8" stroke="#5B8DC9" strokeWidth="2" /><path d="M6 40v-3a10 10 0 0 1 20 0" fill="#FBE4CE" stroke="#C98A4B" strokeWidth="2" strokeLinejoin="round" /><path d="M22 40v-3a10 10 0 0 1 20 0" fill="#D8E7F6" stroke="#5B8DC9" strokeWidth="2" strokeLinejoin="round" /></>,
+    // 내 차례 — 사람 + 별
+    me: <><circle cx="24" cy="16" r="7" fill="#F6C9A0" stroke="#C98A4B" strokeWidth="2" /><path d="M10 42v-4a14 14 0 0 1 28 0v4z" fill="#FBE4CE" stroke="#C98A4B" strokeWidth="2" strokeLinejoin="round" /></>,
+    // 기다리기 — 시계
+    wait: <><circle cx="24" cy="24" r="16" fill="#FFF3D6" stroke="#D9A441" strokeWidth="2.4" /><path d="M24 14v10l7 4" fill="none" stroke="#D9A441" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></>,
+    // 주세요 — 손바닥
+    give: <><path d="M16 30l-4-8a2.5 2.5 0 0 1 4.5-2l2.5 5V12a2.5 2.5 0 0 1 5 0v10m0-2a2.5 2.5 0 0 1 5 0v4m0-2a2.5 2.5 0 0 1 5 0v6c0 6-4 10-10 10s-9-3-11-8" fill="#FBE4CE" stroke="#C98A4B" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" /></>,
+    // 하고싶어요 — 하트
+    want: <><path d="M24 40S7 30 7 18a9 9 0 0 1 17-3 9 9 0 0 1 17 3c0 12-17 22-17 22z" fill="#F8C6D2" stroke="#D4728A" strokeWidth="2.2" strokeLinejoin="round" /></>,
+    // 감각 도구 — 별모양 감각공
+    fidget: <><circle cx="24" cy="24" r="13" fill="#D9C9F0" stroke="#8A6FB0" strokeWidth="2" /><g fill="#B79AE0"><circle cx="24" cy="9" r="3.5" /><circle cx="24" cy="39" r="3.5" /><circle cx="9" cy="24" r="3.5" /><circle cx="39" cy="24" r="3.5" /><circle cx="13" cy="13" r="3" /><circle cx="35" cy="13" r="3" /><circle cx="13" cy="35" r="3" /><circle cx="35" cy="35" r="3" /></g><circle cx="24" cy="24" r="5" fill="#fff" opacity="0.6" /></>,
+    // 쉼공간 — 집
+    corner: <><path d="M24 8L8 20v20h32V20z" fill="#D8E7F6" stroke="#5B8DC9" strokeWidth="2.2" strokeLinejoin="round" /><path d="M6 21L24 7l18 14" fill="none" stroke="#5B8DC9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /><rect x="19" y="28" width="10" height="12" rx="1.5" fill="#A9C7E8" stroke="#5B8DC9" strokeWidth="2" /></>,
+    // 괜찮아요 — 웃는 얼굴
+    happy: <><circle cx="24" cy="24" r="17" fill="#FFE08A" stroke="#E0A93C" strokeWidth="2.2" /><circle cx="17" cy="20" r="2.4" fill="#7A5A1E" /><circle cx="31" cy="20" r="2.4" fill="#7A5A1E" /><path d="M15 28a10 10 0 0 0 18 0" fill="none" stroke="#7A5A1E" strokeWidth="2.6" strokeLinecap="round" /></>,
+    // 힘들어요 — 속상한 얼굴
+    sad: <><circle cx="24" cy="24" r="17" fill="#CFE0F0" stroke="#5B8DC9" strokeWidth="2.2" /><circle cx="17" cy="21" r="2.4" fill="#3E5A73" /><circle cx="31" cy="21" r="2.4" fill="#3E5A73" /><path d="M15 32a10 10 0 0 1 18 0" fill="none" stroke="#3E5A73" strokeWidth="2.6" strokeLinecap="round" /><path d="M31 15l4 2" stroke="#3E5A73" strokeWidth="2" strokeLinecap="round" /></>,
   };
-  return <svg {...common}>{paths[name] || paths.help}</svg>;
+  return <svg {...svg}>{icons[name] || icons.help}</svg>;
 }
 
 function VisualCard({ card }) {
