@@ -1381,4 +1381,1266 @@ function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
         </div>
       )}
       <div style={{ display: "grid", gap: 10 }}>
-        {assessments.map((a) => <AssessmentResultCard key={a.id} a={a} onRemove={() 
+        {assessments.map((a) => <AssessmentResultCard key={a.id} a={a} onRemove={() => onRemove(a.id)} />)}
+      </div>
+    </div>
+  );
+}
+
+// ── FAST 앞부분(preInfo) 입력 필드 렌더러 (센터·외부 공용) ──
+function PreInfoFields({ fields, values, onChange }) {
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {fields.map((fld) => {
+        const val = values[fld.key];
+        if (fld.type === "checkbox") {
+          const arr = Array.isArray(val) ? val : [];
+          const toggle = (opt) => {
+            const next = arr.includes(opt) ? arr.filter((x) => x !== opt) : [...arr, opt];
+            onChange(fld.key, next);
+          };
+          return (
+            <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {fld.options.map((opt) => {
+                  const sel = arr.includes(opt);
+                  return (
+                    <button key={opt} onClick={() => toggle(opt)}
+                      style={{ padding: "7px 12px", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: sel ? 700 : 400,
+                        border: sel ? `1.5px solid ${PKD}` : "1.5px solid #eadfe2",
+                        background: sel ? PKL : "#fff", color: sel ? PKD : INK }}>
+                      {sel ? "✓ " : ""}{opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {fld.hint ? <div style={{ fontSize: 11, color: MUTE, marginTop: 8, lineHeight: 1.5 }}>{fld.hint}</div> : null}
+            </div>
+          );
+        }
+        if (fld.type === "radio") {
+          return (
+            <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {fld.options.map((opt) => {
+                  const sel = val === opt;
+                  return (
+                    <button key={opt} onClick={() => onChange(fld.key, opt)}
+                      style={{ textAlign: "left", padding: "8px 12px", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: sel ? 700 : 400,
+                        border: sel ? `1.5px solid ${PKD}` : "1.5px solid #eadfe2",
+                        background: sel ? PKL : "#fff", color: sel ? PKD : INK }}>
+                      {sel ? "● " : "○ "}{opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        if (fld.type === "textarea") {
+          return (
+            <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+              <textarea value={val || ""} onChange={(e) => onChange(fld.key, e.target.value)}
+                placeholder={fld.placeholder || ""} rows={2}
+                style={{ ...inputStyle, resize: "vertical", minHeight: 48, fontFamily: "inherit" }} />
+            </div>
+          );
+        }
+        // text (default)
+        return (
+          <div key={fld.key} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 8 }}>{fld.label}</div>
+            <input value={val || ""} onChange={(e) => onChange(fld.key, e.target.value)}
+              placeholder={fld.placeholder || ""} style={inputStyle} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── 외부 작성 페이지 (로그인 없이, 링크로 접속) ─────
+function ExternalFillPage({ token }) {
+  const info = React.useMemo(() => decodeFillToken(token), [token]);
+  const scale = info ? SCALES[info.sc] : null;
+  const [answers, setAnswers] = useState(() => (scale ? scale.items.map(() => null) : []));
+  const [preInfo, setPreInfo] = useState({}); // FAST 앞부분 응답 (해당 척도에 preInfo 있을 때만)
+  const [writer, setWriter] = useState("");
+  const [state, setState] = useState("form"); // form | saving | done | error
+  const [errMsg, setErrMsg] = useState("");
+  const setPre = (k, v) => setPreInfo((prev) => ({ ...prev, [k]: v }));
+
+  if (!info || !scale) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: PKL, padding: 20, fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 380, textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>😕</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>링크가 올바르지 않아요</div>
+          <div style={{ fontSize: 13, color: MUTE, lineHeight: 1.6 }}>링크가 손상되었거나 만료되었을 수 있어요. 보내주신 분께 새 링크를 요청해 주세요.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const opts = SCALE_OPTIONS[scale.scale];
+  const answeredCount = answers.filter((a) => a != null).length;
+
+  const submit = async () => {
+    if (!writer.trim()) { setErrMsg("작성자 이름을 입력해 주세요."); return; }
+    setState("saving"); setErrMsg("");
+    const res = await saveExternalSubmission(info.cid, {
+      scaleId: info.sc, childName: info.cn, target: info.tg,
+      writer: writer.trim(), answers,
+      preInfo: (scale.preInfo && scale.preInfo.length) ? preInfo : undefined,
+    });
+    if (res) setState("done");
+    else { setState("error"); setErrMsg("제출에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."); }
+  };
+
+  if (state === "done") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: PKL, padding: 20, fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 32, maxWidth: 380, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>✅</div>
+          <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>제출 완료</div>
+          <div style={{ fontSize: 13.5, color: MUTE, lineHeight: 1.6 }}>{info.cn} 아동의 {scale.name} 설문이 제출되었어요.<br />창을 닫으셔도 됩니다. 감사합니다 🙏</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${PKL} 0%, #fff 100%)`, fontFamily: "'Pretendard', -apple-system, sans-serif", padding: "20px 16px 60px" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 22, marginBottom: 14, boxShadow: "0 4px 20px rgba(212,114,138,0.1)" }}>
+          <div style={{ fontWeight: 800, fontSize: 19, color: PKD }}>{scale.name}</div>
+          <div style={{ fontSize: 12.5, color: MUTE, marginTop: 3 }}>{scale.fullName}</div>
+          <div style={{ marginTop: 12, padding: "12px 14px", background: PKL, borderRadius: 10, fontSize: 13, color: INK, lineHeight: 1.6 }}>
+            <b>{info.cn}</b> 아동{info.tg ? <> · 목표행동: <b>{info.tg}</b></> : null}에 대해, 아래 문항을 읽고 평소 모습에 가장 가까운 것을 골라주세요.
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: MUTE, marginBottom: 5, fontWeight: 600 }}>작성자 이름 <span style={{ color: PKD }}>*</span></div>
+            <input value={writer} onChange={(e) => setWriter(e.target.value)} placeholder="예: 홍길동 (담임교사 / 어머니)" style={inputStyle} />
+          </div>
+        </div>
+
+        {scale.preInfo && scale.preInfo.length ? (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "4px 2px 10px" }}>문제행동 정보</div>
+            <PreInfoFields fields={scale.preInfo} values={preInfo} onChange={setPre} />
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "18px 2px 10px" }}>기능 평가 문항</div>
+          </div>
+        ) : null}
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {scale.items.map((item, i) => (
+            <div key={i} style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+              <div style={{ fontSize: 13.5, color: INK, lineHeight: 1.5, marginBottom: 10 }}>
+                <span style={{ color: PKD, fontWeight: 700 }}>{i + 1}.</span> {item.q}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {opts.map((o) => {
+                  const sel = answers[i] === o.v;
+                  return (
+                    <button key={o.v} onClick={() => setAnswers((prev) => { const n = [...prev]; n[i] = o.v; return n; })}
+                      style={{ padding: "7px 12px", borderRadius: 9, fontSize: 12.5, cursor: "pointer", fontWeight: sel ? 700 : 400,
+                        border: sel ? `1.5px solid ${PKD}` : "1.5px solid #eadfe2",
+                        background: sel ? PKL : "#fff", color: sel ? PKD : INK }}>
+                      {o.label}{o.hint ? <span style={{ fontSize: 10.5, color: MUTE, marginLeft: 3 }}>{o.hint}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {errMsg && <div style={{ color: PKD, fontSize: 12.5, marginTop: 12, textAlign: "center" }}>{errMsg}</div>}
+
+        <div style={{ position: "sticky", bottom: 0, marginTop: 16, padding: "12px 0", background: "linear-gradient(0deg, #fff 70%, transparent)" }}>
+          <div style={{ fontSize: 11.5, color: MUTE, textAlign: "center", marginBottom: 8 }}>{answeredCount} / {scale.items.length} 문항 응답</div>
+          <button onClick={submit} disabled={state === "saving"} style={{ ...btnPrimary, width: "100%", opacity: state === "saving" ? 0.6 : 1 }}>
+            {state === "saving" ? "제출 중..." : "제출하기"}
+          </button>
+          <div style={{ fontSize: 10.5, color: MUTE, textAlign: "center", marginTop: 10 }}>{COPYRIGHT}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 외부 작성 링크 생성 박스 ────────────────────
+function ExternalLinkBox({ scale, c }) {
+  const [copied, setCopied] = useState(false);
+  // 케이스 정보를 토큰에 담아 실제 작동하는 링크 생성
+  const token = encodeFillToken({ cid: c.id, cn: c.name, tg: c.target || "", sc: scale.id });
+  const base = (typeof window !== "undefined" && window.location)
+    ? `${window.location.origin}${window.location.pathname}`
+    : "https://aba-geomdan.github.io/bip-maker/";
+  const url = `${base}#/fill/${scale.id.toLowerCase()}/${token}`;
+
+  const copy = () => {
+    if (navigator.clipboard) navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div style={{ marginTop: 10, padding: "12px 14px", background: "#FFF9FA", border: `1px dashed ${PK}`, borderRadius: 10 }}>
+      <div style={{ fontSize: 12, color: INK, lineHeight: 1.6, marginBottom: 8 }}>
+        이 링크를 외부 교사·부모에게 보내면, 앱 설치 없이 <b>{scale.name}</b> 설문을 직접 작성하고 제출할 수 있어요. 제출 결과는 이 케이스에 들어옵니다.
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input readOnly value={url} style={{ ...inputStyle, fontSize: 11.5, color: MUTE }} onFocus={(e) => e.target.select()} />
+        <button onClick={copy} style={{ ...btnPrimary, flexShrink: 0, padding: "8px 12px", fontSize: 12 }}>{copied ? "복사됨 ✓" : "복사"}</button>
+      </div>
+      <div style={{ fontSize: 11, color: MUTE, marginTop: 8, lineHeight: 1.5 }}>
+        📩 제출된 설문은 <b>평가 탭</b> 아래 <b>받은 설문</b>에서 확인하고 결과로 반영할 수 있어요.
+      </div>
+    </div>
+  );
+}
+
+// ── 완료된 평가 결과 카드 ────────────────────────
+function AssessmentResultCard({ a, onRemove }) {
+  const [open, setOpen] = useState(false);
+  const [preOpen, setPreOpen] = useState(false);
+  const scale = SCALES[a.scaleId];
+  const maxSum = Math.max(...a.results.map((r) => r.sum), 1);
+  // preInfo 중 값이 채워진 항목만 (라벨-값 쌍)
+  const preRows = (scale.preInfo && a.preInfo)
+    ? scale.preInfo
+        .map((f) => {
+          const v = a.preInfo[f.key];
+          const text = Array.isArray(v) ? v.join(", ") : v;
+          return text && String(text).trim() ? { label: f.label, text: String(text) } : null;
+        })
+        .filter(Boolean)
+    : [];
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <span style={{ fontWeight: 800, fontSize: 15, color: PKD }}>{scale.name}</span>
+          <span style={{ fontSize: 11, color: MUTE, marginLeft: 8 }}>{a.date}{a.by ? ` · ${a.by}` : ""}</span>
+        </div>
+        <button onClick={onRemove} style={{ fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>삭제</button>
+      </div>
+
+      {/* 주요 기능 강조 */}
+      <div style={{ marginTop: 10, padding: "10px 14px", background: PKL, borderRadius: 10 }}>
+        <span style={{ fontSize: 12, color: MUTE }}>추정 주요 기능 </span>
+        <span style={{ fontSize: 15, fontWeight: 800, color: PKD }}>{a.top.name}</span>
+        <span style={{ fontSize: 12, color: MUTE }}> (합계 {a.top.sum}점)</span>
+      </div>
+
+      <button onClick={() => setOpen((v) => !v)} style={{ marginTop: 10, fontSize: 12.5, color: PKD, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+        {open ? "▲ 기능별 점수 접기" : "▼ 기능별 점수 보기"}
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+          {a.sorted.map((r, i) => (
+            <div key={r.f}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 }}>
+                <span style={{ fontWeight: i === 0 ? 700 : 400, color: i === 0 ? PKD : INK }}>
+                  {i === 0 ? "🥇 " : `${i + 1}. `}{r.name}
+                </span>
+                <span style={{ color: MUTE }}>합계 {r.sum} · 평균 {r.avg.toFixed(1)}</span>
+              </div>
+              <div style={{ height: 8, background: PKL, borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: `${(r.sum / maxSum) * 100}%`, height: "100%", background: i === 0 ? PKD : PK, borderRadius: 4 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {preRows.length > 0 && (
+        <>
+          <button onClick={() => setPreOpen((v) => !v)} style={{ marginTop: 10, fontSize: 12.5, color: PKD, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+            {preOpen ? "▲ 문제행동 정보 접기" : "▼ 문제행동 정보 보기"}
+          </button>
+          {preOpen && (
+            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+              {preRows.map((row, i) => (
+                <div key={i} style={{ background: PKL, borderRadius: 8, padding: "8px 12px" }}>
+                  <div style={{ fontSize: 11, color: MUTE, marginBottom: 2 }}>{row.label}</div>
+                  <div style={{ fontSize: 12.5, color: INK, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{row.text}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+//  평가 진행 (문항 응답 → 채점)
+// ══════════════════════════════════════════════
+function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) {
+  const scale = SCALES[scaleId];
+  const opts = SCALE_OPTIONS[scale.scale];
+  const [answers, setAnswers] = useState(() => scale.items.map(() => null));
+  const [preInfo, setPreInfo] = useState({}); // FAST 앞부분(해당 척도만)
+  const [showResult, setShowResult] = useState(false);
+  const [ocrState, setOcrState] = useState("idle"); // idle | loading | done | error
+  const [ocrMsg, setOcrMsg] = useState("");
+  const setPre = (k, v) => setPreInfo((prev) => ({ ...prev, [k]: v }));
+
+  const answered = answers.filter((a) => a != null && a !== "").length;
+  const allDone = answered === scale.items.length;
+
+  const setAnswer = (i, v) => setAnswers((prev) => { const n = [...prev]; n[i] = v; return n; });
+
+  const finish = () => setShowResult(true);
+
+  const result = showResult ? scoreAssessment(scaleId, answers) : null;
+
+  // 종이 설문 사진 → AI가 읽어서 응답 자동 채움
+  const onPhoto = async (file) => {
+    if (!file) return;
+    setOcrState("loading"); setOcrMsg("사진을 읽는 중이에요...");
+    try {
+      const filled = await readAssessmentPhoto(scaleId, file);
+      setAnswers((prev) => {
+        const n = [...prev];
+        let cnt = 0;
+        filled.forEach((v, i) => { if (v != null && i < n.length) { n[i] = v; cnt++; } });
+        setOcrMsg(`✓ ${cnt}개 문항을 자동으로 채웠어요. 빈 문항이나 틀린 곳은 직접 확인·수정해 주세요.`);
+        return n;
+      });
+      setOcrState("done");
+    } catch (e) {
+      setOcrMsg(e.message || "사진 인식에 실패했어요. 직접 입력해 주세요.");
+      setOcrState("error");
+    }
+  };
+
+  if (showResult && result) {
+    const maxSum = Math.max(...result.results.map((r) => r.sum), 1);
+    return (
+      <div>
+        <button onClick={onCancel} style={{ background: "none", border: "none", color: PKD, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "16px 0 10px" }}>‹ 취소</button>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 2px 12px rgba(212,114,138,0.06)", textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 30, marginBottom: 6 }}>✅</div>
+          <div style={{ fontWeight: 800, fontSize: 18 }}>{scale.name} 평가 완료</div>
+          <div style={{ fontSize: 13, color: MUTE, marginTop: 4 }}>{childName} · {target}</div>
+          <div style={{ marginTop: 16, padding: "14px 16px", background: PKL, borderRadius: 12 }}>
+            <div style={{ fontSize: 12, color: MUTE }}>추정 주요 기능</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: PKD, marginTop: 2 }}>{result.top.name}</div>
+            <div style={{ fontSize: 12, color: MUTE, marginTop: 2 }}>합계 {result.top.sum}점 · 평균 {result.top.avg.toFixed(1)}</div>
+          </div>
+        </div>
+
+        <div style={{ background: "#fff", borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(212,114,138,0.06)", marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>기능별 점수</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {result.sorted.map((r, i) => (
+              <div key={r.f}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
+                  <span style={{ fontWeight: i === 0 ? 700 : 400, color: i === 0 ? PKD : INK }}>{i === 0 ? "🥇 " : `${i + 1}. `}{r.name}</span>
+                  <span style={{ color: MUTE }}>합계 {r.sum} · 평균 {r.avg.toFixed(1)}</span>
+                </div>
+                <div style={{ height: 10, background: PKL, borderRadius: 5, overflow: "hidden" }}>
+                  <div style={{ width: `${(r.sum / maxSum) * 100}%`, height: "100%", background: i === 0 ? PKD : PK, borderRadius: 5 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{ ...btnGhost, flex: 1 }}>취소</button>
+          <button onClick={() => onComplete({
+            scaleId, date: today(), answers,
+            results: result.results, sorted: result.sorted, top: result.top,
+            preInfo: (scale.preInfo && scale.preInfo.length) ? preInfo : undefined,
+          })} style={{ ...btnPrimary, flex: 2 }}>이 결과 저장하기</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={onCancel} style={{ background: "none", border: "none", color: PKD, fontSize: 14, fontWeight: 600, cursor: "pointer", padding: "16px 0 10px" }}>‹ 취소</button>
+
+      {/* 헤더 + 진행률 */}
+      <div style={{ background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 2px 12px rgba(212,114,138,0.06)", marginBottom: 16, position: "sticky", top: 62, zIndex: 5 }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: PKD }}>{scale.name}</div>
+        <div style={{ fontSize: 12, color: MUTE, marginTop: 2 }}>{scale.fullName}</div>
+        <div style={{ fontSize: 12, color: INK, marginTop: 8 }}>대상: <b>{childName}</b> · 목표행동: <b>{target}</b></div>
+        <div style={{ marginTop: 10, height: 8, background: PKL, borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ width: `${(answered / scale.items.length) * 100}%`, height: "100%", background: PK, borderRadius: 4, transition: "width .2s" }} />
+        </div>
+        <div style={{ fontSize: 11, color: MUTE, marginTop: 5, textAlign: "right" }}>{answered} / {scale.items.length} 문항</div>
+      </div>
+
+      {/* 척도 안내 */}
+      <div style={{ background: "#FFF9FA", borderRadius: 10, padding: "10px 14px", fontSize: 11.5, color: MUTE, marginBottom: 14, lineHeight: 1.6 }}>
+        {scale.scale === "yn" && "각 문항에 예 / 아니오 / 해당없음으로 답해 주세요."}
+        {scale.scale === "q0123" && "각 상황에서 목표행동이 얼마나 자주 나타나는지 선택하세요. (X 해당없음 · 0 전혀아님 ~ 3 자주)"}
+        {scale.scale === "s0to6" && "각 문항에서 목표행동이 얼마나 자주 나타나는지 선택하세요. (0 전혀아님 ~ 6 언제나)"}
+      </div>
+
+      {/* 종이 설문 사진 자동입력 */}
+      <div style={{ background: "#fff", borderRadius: 12, padding: 14, marginBottom: 14, border: `1.5px dashed ${PK}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 18 }}>📷</span>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: PKD }}>종이 설문 사진으로 자동입력</div>
+            <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>외부에서 받은 종이 설문을 찍어 올리면 AI가 응답을 채워요.</div>
+          </div>
+          <label style={{ ...btnPrimary, cursor: ocrState === "loading" ? "wait" : "pointer", opacity: ocrState === "loading" ? 0.6 : 1, display: "inline-block" }}>
+            {ocrState === "loading" ? "읽는 중..." : "사진 올리기"}
+            <input type="file" accept="image/*" style={{ display: "none" }} disabled={ocrState === "loading"}
+              onChange={(e) => onPhoto(e.target.files && e.target.files[0])} />
+          </label>
+        </div>
+        {ocrMsg && (
+          <div style={{ marginTop: 10, fontSize: 12, color: ocrState === "error" ? "#C04040" : ocrState === "done" ? "#2e8b57" : MUTE, lineHeight: 1.5 }}>
+            {ocrMsg}
+          </div>
+        )}
+      </div>
+
+      {/* FAST 앞부분 정보 (해당 척도만) */}
+      {scale.preInfo && scale.preInfo.length ? (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "4px 2px 10px" }}>문제행동 정보</div>
+          <PreInfoFields fields={scale.preInfo} values={preInfo} onChange={setPre} />
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "18px 2px 10px" }}>기능 평가 문항</div>
+        </div>
+      ) : null}
+
+      {/* 문항 */}
+      <div style={{ display: "grid", gap: 10 }}>
+        {scale.items.map((item, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 14, boxShadow: "0 1px 6px rgba(212,114,138,0.05)", border: answers[i] != null ? `1.5px solid ${PKL}` : `1.5px solid transparent` }}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.5, marginBottom: 10 }}>
+              <span style={{ color: PK, fontWeight: 800 }}>{i + 1}.</span> {item.q}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {opts.map((o) => (
+                <button key={o.v} onClick={() => setAnswer(i, o.v)} title={o.hint || ""}
+                  style={{
+                    flex: scale.scale === "yn" ? 1 : "0 0 auto", minWidth: scale.scale === "yn" ? 0 : 42,
+                    padding: "9px 10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                    border: `1.5px solid ${answers[i] === o.v ? PKD : PKL}`,
+                    background: answers[i] === o.v ? PKD : "#fff",
+                    color: answers[i] === o.v ? "#fff" : MUTE,
+                  }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 하단 완료 버튼 */}
+      <div style={{ marginTop: 18, position: "sticky", bottom: 0, paddingBottom: 8 }}>
+        <button onClick={finish} disabled={!allDone}
+          style={{ ...btnPrimary, width: "100%", padding: "14px", fontSize: 15, opacity: allDone ? 1 : 0.5, cursor: allDone ? "pointer" : "not-allowed" }}>
+          {allDone ? "채점하고 결과 보기" : `${scale.items.length - answered}문항 더 응답해 주세요`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════
+//  중재안(BIP) 섹션 — 템플릿 기반 생성
+// ══════════════════════════════════════════════
+function BIPSection({ c, assessments }) {
+  const agg = aggregateFunction(assessments);
+  const [chosenFunc, setChosenFunc] = useState(null);
+
+  // 평가가 없으면 안내
+  if (!agg || !agg.primary) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 20px", color: MUTE, background: "#fff", borderRadius: 16 }}>
+        <div style={{ fontSize: 28, marginBottom: 8 }}>🧩</div>
+        중재안을 만들려면 먼저 <b style={{ color: PKD }}>간접평가</b>를 1개 이상 완료해 주세요.<br />
+        <span style={{ fontSize: 13 }}>평가 결과의 주요 기능에 맞춰 중재안이 자동 생성됩니다.</span>
+      </div>
+    );
+  }
+
+  // 사용할 기능: 사용자가 고른 것 우선, 없으면 집계 1위
+  const activeFunc = chosenFunc || agg.primary;
+  const bip = generateBIP(activeFunc, c.name, c.target, c.type);
+
+  return (
+    <div>
+      {/* 평가 요약 */}
+      <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 2px 12px rgba(212,114,138,0.06)", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>📊 평가 종합 ({assessments.length}개)</div>
+        <div style={{ display: "grid", gap: 6 }}>
+          {agg.detail.map((d, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+              <span style={{ color: MUTE }}>{SCALES[d.scale].name}</span>
+              <span style={{ fontWeight: 600 }}>{d.raw} → {UNIFIED_FUNC_NAME[d.func].split(" (")[0]}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, padding: "8px 12px", background: PKL, borderRadius: 8, fontSize: 12.5 }}>
+          종합 추정 주요기능: <b style={{ color: PKD }}>{UNIFIED_FUNC_NAME[agg.primary].split(" (")[0]}</b>
+          {agg.detail.length > 1 && agg.ranked[1][1] > 0 && (
+            <span style={{ color: MUTE }}> (평가 간 결과가 나뉘면 아래에서 기능을 직접 선택하세요)</span>
+          )}
+        </div>
+      </div>
+
+      {/* 기능 선택 (평가 결과가 갈릴 때 수동 조정) */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: MUTE, marginBottom: 6, fontWeight: 600 }}>중재 대상 기능 선택</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 6 }}>
+          {Object.keys(UNIFIED_FUNC_NAME).map((f) => (
+            <button key={f} onClick={() => setChosenFunc(f)}
+              style={{ padding: "10px 8px", borderRadius: 9, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+                border: `1.5px solid ${activeFunc === f ? PKD : PKL}`,
+                background: activeFunc === f ? PKD : "#fff",
+                color: activeFunc === f ? "#fff" : MUTE,
+                position: "relative" }}>
+              {UNIFIED_FUNC_NAME[f].split(" (")[0]}
+              {agg.tally[f] > 0 && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.8 }}>({agg.tally[f]})</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 생성된 BIP */}
+      <BIPDocument bip={bip} c={c} />
+    </div>
+  );
+}
+
+// ── BIP 문서 렌더 ───────────────────────────────
+function BIPDocument({ bip, c, agg }) {
+  const [aiState, setAiState] = useState("idle"); // idle | loading | done | error
+  const [aiText, setAiText] = useState("");
+  const [aiErr, setAiErr] = useState("");
+
+  const copyText = () => {
+    const txt = bipToText(bip, c, agg) + (aiText ? `\n\n[ AI 보강 ]\n${aiText}` : "");
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+  };
+
+  const buildHtml = () => {
+    const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const tierName = { primary: "1차 기능", secondary: "2차 기능", tertiary: "별도 기능" };
+    const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
+    const tiers = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor") : []);
+    const li = (arr) => arr.map((t) => `<li>${esc(t)}</li>`).join("");
+    const title = bip.setting === "school" ? "개별 행동중재계획서 (PBIP)" : "행동중재계획 (BIP)";
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
+<style>
+body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:32px;max-width:720px;margin:auto;}
+h1{color:#D4728A;font-size:20px;border-bottom:2px solid #F5A0B1;padding-bottom:8px;}
+h2{color:#D4728A;font-size:15px;margin-top:24px;background:#FFF0F3;padding:6px 10px;border-radius:6px;}
+table{border-collapse:collapse;width:100%;margin:12px 0;}
+td{border:1px solid #F5A0B1;padding:7px 10px;font-size:13px;}
+td.k{background:#FFF9FA;color:#9A8A8F;width:80px;font-weight:600;}
+.tier{display:inline-block;background:#F5A0B1;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;margin-right:6px;}
+.hyp{background:#FFF0F3;padding:12px;border-radius:8px;}
+ul{margin:6px 0;padding-left:20px;} li{margin:4px 0;font-size:13.5px;}
+.foot{margin-top:30px;border-top:1px solid #eee;padding-top:10px;color:#9A8A8F;font-size:11px;text-align:center;}
+</style></head><body>
+<h1>${title}</h1>
+<table>
+<tr><td class="k">대상</td><td>${esc(c.name)}${(c.age || c.school) ? " (" + [c.age, c.school].filter(Boolean).join(", ") + ")" : ""}</td></tr>
+<tr><td class="k">환경</td><td>${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"}</td></tr>
+<tr><td class="k">작성</td><td>검단ABA언어행동연구소 · ${todayKr()}</td></tr>
+</table>
+<h2>1. 행동의 기능 및 가설</h2>
+<p><b>표적행동:</b> ${esc(c.target)}</p>
+<p><b>기능 가설:</b><br>${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} - ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</p>
+<p class="hyp"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</p>
+<p><b>행동의 의미:</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</p>
+<h2>2. 선행중재 (예방 전략)</h2><ul>${li(bip.antecedent)}</ul>
+<h2>3. 대체행동중재 (교수 전략)</h2><ul>${li(bip.replacement)}</ul>
+<h2>4. 후속결과중재 (반응 전략)</h2><ul>${li(bip.consequence)}</ul>
+<h2>5. 시각지원 자료 (인쇄용)</h2>
+${getVisualCards(bip.func).map((card) => visualCardToHtml(card, esc)).join("")}
+${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""}
+<div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
+</body></html>`;
+  };
+
+  const doPrint = () => {
+    const w = window.open("", "_blank");
+    if (!w) { alert("팝업이 차단되었어요. 팝업 허용 후 다시 시도해 주세요."); return; }
+    w.document.write(buildHtml());
+    w.document.close();
+    setTimeout(() => w.print(), 400);
+  };
+
+  const doSaveWord = () => {
+    const blob = new Blob(["\ufeff", buildHtml()], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${c.name}_행동중재계획.doc`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const runAI = async () => {
+    setAiState("loading"); setAiErr("");
+    try {
+      const text = await enhanceBIPWithAI(bip, c);
+      setAiText(text);
+      setAiState("done");
+    } catch (e) {
+      setAiErr(e.message || "AI 보강 중 문제가 발생했어요.");
+      setAiState("error");
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, padding: 22, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 4 }}>
+        <button onClick={copyText} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>📋 복사</button>
+        <button onClick={doPrint} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>🖨 인쇄</button>
+        <button onClick={doSaveWord} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>📄 Word 저장</button>
+      </div>
+      {/* 대상 정보 표 */}
+      <div style={{ border: `1px solid ${PKL}`, borderRadius: 10, overflow: "hidden", marginBottom: 12, marginTop: 6 }}>
+        <InfoRow label="대상" value={`${c.name}${(c.age||c.school)? " ("+[c.age,c.school].filter(Boolean).join(", ")+")":""}`} />
+        <InfoRow label="환경" value={bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"} />
+        <InfoRow label="작성" value={`검단ABA언어행동연구소 · ${todayKr()}`} last />
+      </div>
+
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: bip.setting === "school" ? "#5B7BB5" : PKD, background: bip.setting === "school" ? "#EEF3FB" : PKL, padding: "5px 11px", borderRadius: 20, marginBottom: 16 }}>
+        {bip.setting === "school" ? "🏫 학교(PBS) 맞춤 — 개별교수 제약 반영" : "🏛 센터(ABA) 맞춤"}
+      </div>
+
+      <BIPBlock num="1" title="행동의 기능 및 가설" accent>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 5 }}>표적행동 (도전적 행동)</div>
+          <div style={{ padding: "10px 12px", background: "#FFF9FA", borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+            {c.target || "목표행동 미설정"}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 6 }}>기능 가설</div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {agg && agg.tiers.filter((t) => t.tier === "primary" || t.tier === "secondary" || t.tier === "tertiary").map((t) => (
+              <div key={t.func} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: "#fff", background: TIER_COLOR[t.tier], padding: "3px 9px", borderRadius: 10, minWidth: 58, textAlign: "center", marginTop: 1 }}>
+                  {TIER_LABEL[t.tier]}
+                </span>
+                <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  <b style={{ color: PKD }}>{UNIFIED_FUNC_NAME[t.func].split(" (")[0]}</b>
+                  {" — "}{FUNC_HYPOTHESIS_SHORT[t.func]}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding: "12px 14px", background: PKL, borderRadius: 10, fontSize: 13.5, lineHeight: 1.7, marginBottom: 12 }}>
+          <span style={{ fontWeight: 700, color: PKD }}>주 기능: {bip.funcName}</span><br />
+          {bip.hypothesis}
+        </div>
+
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 5 }}>행동의 의미</div>
+          <div style={{ fontSize: 13, lineHeight: 1.7, color: INK }}>
+            {FUNC_MEANING(bip.func, c.name, c.target, bip.setting)}
+          </div>
+        </div>
+      </BIPBlock>
+
+      <BIPBlock num="2" title="선행중재 (예방 전략)">
+        <BulletList items={bip.antecedent} />
+      </BIPBlock>
+
+      <BIPBlock num="3" title="대체행동중재 (교수 전략)">
+        <BulletList items={bip.replacement} />
+      </BIPBlock>
+
+      <BIPBlock num="4" title="후속결과중재 (반응 전략)">
+        <BulletList items={bip.consequence} />
+      </BIPBlock>
+
+      <BIPBlock num="5" title="시각지원 자료 (인쇄용)">
+        <div style={{ fontSize: 12, color: MUTE, marginBottom: 12, lineHeight: 1.6 }}>
+          이 기능에 맞춰 자동 생성된 시각카드예요. 화면 그대로 인쇄해 교실·가정에서 사용할 수 있어요.
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          {getVisualCards(bip.func).map((card, i) => <VisualCard key={i} card={card} />)}
+        </div>
+      </BIPBlock>
+
+      {/* AI 보강 */}
+      <div style={{ marginTop: 18, borderTop: `1px dashed ${PKL}`, paddingTop: 16 }}>
+        {aiState !== "done" && (
+          <button onClick={runAI} disabled={aiState === "loading"} style={{ ...btnPrimary, width: "100%", opacity: aiState === "loading" ? 0.6 : 1 }}>
+            {aiState === "loading" ? "✨ AI가 이 아동에 맞게 다듬는 중..." : "✨ AI로 이 아동에 맞게 더 구체화하기"}
+          </button>
+        )}
+        <div style={{ fontSize: 11, color: MUTE, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
+          위 중재안은 크레딧 없이 자동 생성돼요. AI 보강은 눌렀을 때만 사용됩니다.
+        </div>
+
+        {aiState === "error" && (
+          <div style={{ marginTop: 10, padding: "10px 14px", background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, fontSize: 12.5, color: "#C04040" }}>
+            {aiErr}
+          </div>
+        )}
+
+        {aiState === "done" && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <span style={{ fontSize: 15 }}>✨</span>
+              <span style={{ fontWeight: 700, fontSize: 14.5, color: PKD }}>AI 보강 (이 아동 맞춤)</span>
+              <button onClick={runAI} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>↻ 다시</button>
+            </div>
+            <div style={{ padding: "14px 16px", background: "#FFFBFC", border: `1px solid ${PKL}`, borderRadius: 12, fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
+              {aiText}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Claude API 호출 (AI 보강) ───────────────────
+// ※ GitHub 배포 시: Supabase Edge Function 경유 fetch로 교체
+//   (기존 Reels Maker / AAC 의 relay 패턴과 동일)
+async function enhanceBIPWithAI(bip, c) {
+  const prompt = `당신은 ABA(응용행동분석) 전문가입니다. 아래는 한 아동의 도전행동에 대한 행동중재계획(BIP) 초안입니다.
+이 아동의 구체적 상황에 맞게 중재안을 더 실질적이고 구체적으로 다듬어 주세요.
+
+[아동 정보]
+- 이름: ${c.name}
+- 연령/학년: ${c.age || "미기재"}
+- 환경: ${c.type === "pbs" ? `학교(${c.school || "일반학교"})` : "ABA 센터"}
+- 목표행동: ${c.target || "미기재"}
+
+[추정 기능]
+${bip.funcName}
+${bip.hypothesis}
+
+[현재 중재안 요약]
+· 선행중재: ${bip.antecedent.join(" / ")}
+· 대체행동: ${bip.replacement.join(" / ")}
+· 후속중재: ${bip.consequence.join(" / ")}
+
+위 내용을 바탕으로, 이 아동(${c.name}, ${c.type === "pbs" ? "학교" : "센터"} 상황)에게 바로 적용할 수 있는 구체적인 실행 팁 3~5가지를 제시해 주세요.
+${c.type === "pbs"
+  ? "- 이곳은 학교입니다. 교사 1명이 학급 전체를 지도하므로 1:1 개별교수나 즉각적 개입이 어렵습니다. 이 제약을 반드시 고려해, 선행중재·환경조정·또래활용·학급차원 지원·자기관리처럼 교사 혼자서도 학급을 운영하며 실행 가능한 방법 위주로 제안하세요."
+  : "- 이곳은 ABA 센터로, 치료사가 아동을 1:1로 지도할 수 있는 환경입니다."}
+- 교사/치료사가 오늘 당장 해볼 수 있는 수준으로 구체적으로.
+- 각 항목은 한 문장~두 문장으로 간결하게.
+- 번호 목록으로. 서론/결론 없이 목록만.
+- 한국어로.`;
+
+  // 배포 환경: 공용 claude-relay Edge Function 사용
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  const res = await fetch(SUPABASE_FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ prompt, max_tokens: 1500 }),
+  });
+  if (!res.ok) {
+    let msg = "AI 서버 응답 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const text = Array.isArray(data.content)
+    ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+    : (data.text || "");
+  return text;
+}
+
+// ── 종이 설문 사진 인식 (Claude 비전) ───────────
+// 이미지 + 문항목록 → 각 문항 응답값 배열(JSON)
+async function readAssessmentPhoto(scaleId, file) {
+  const scale = SCALES[scaleId];
+  const opts = SCALE_OPTIONS[scale.scale];
+  const validValues = opts.map((o) => o.v).join(", ");
+
+  // 파일 → base64
+  const base64 = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = () => reject(new Error("사진을 불러오지 못했어요."));
+    r.readAsDataURL(file);
+  });
+  const mediaType = file.type || "image/jpeg";
+
+  const itemsText = scale.items.map((it, i) => `${i + 1}. ${it.q}`).join("\n");
+  const scaleGuide =
+    scale.scale === "yn" ? "각 문항 응답은 'yes'(예), 'no'(아니오), 'na'(해당없음) 중 하나."
+    : scale.scale === "q0123" ? "각 문항 응답은 'x'(해당없음), '0','1','2','3' 중 하나."
+    : "각 문항 응답은 '0','1','2','3','4','5','6' 중 하나.";
+
+  const promptText = `이 이미지는 '${scale.name}' 도전행동 간접평가 설문지를 작성한 것입니다.
+아래 ${scale.items.length}개 문항 각각에 대해, 이미지에서 체크/표시된 응답을 읽어주세요.
+
+[문항 목록]
+${itemsText}
+
+[응답 규칙]
+${scaleGuide}
+- 유효한 응답값: ${validValues}
+- 이미지에서 명확히 읽히지 않는 문항은 null.
+
+반드시 아래 형식의 JSON 배열만 출력하세요(설명·마크다운 금지). 길이는 정확히 ${scale.items.length}:
+[{"n":1,"v":"응답값 또는 null"}, ...]`;
+
+  // 배포 환경: 공용 claude-relay Edge Function 사용 (이미지 지원 버전)
+  let raw;
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  const res = await fetch(SUPABASE_FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1500 }),
+  });
+  if (!res.ok) {
+    let msg = "사진 인식 서버 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  {
+    const data = await res.json();
+    raw = Array.isArray(data.content)
+      ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+      : (data.text || "");
+  }
+
+  // JSON 파싱 → answers 배열로 변환
+  const cleaned = String(raw).replace(/```json|```/g, "").trim();
+  let parsed;
+  try {
+    const start = cleaned.indexOf("[");
+    const end = cleaned.lastIndexOf("]");
+    parsed = JSON.parse(cleaned.slice(start, end + 1));
+  } catch (e) {
+    throw new Error("사진에서 응답을 해석하지 못했어요. 더 선명한 사진으로 다시 시도하거나 직접 입력해 주세요.");
+  }
+
+  const validSet = new Set(opts.map((o) => o.v));
+  const answers = scale.items.map(() => null);
+  parsed.forEach((row) => {
+    const idx = (Number(row.n) || 0) - 1;
+    const v = row.v;
+    if (idx >= 0 && idx < answers.length && v != null && validSet.has(String(v))) {
+      answers[idx] = String(v);
+    }
+  });
+  return answers;
+}
+
+// ── 워드(.doc) 내보내기용 시각카드 아이콘 SVG 문자열 ──
+function cardIconSvg(name) {
+  const P = {
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><circle cx="12" cy="16.5" r="0.6" fill="#D4728A" stroke="none"/>',
+    rest: '<path d="M4 18v-4a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4"/><path d="M4 18h16"/><path d="M7 11V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/>',
+    yes: '<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>',
+    stop: '<path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M9 9l6 6M15 9l-6 6"/>',
+    look: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/>',
+    together: '<circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M4 19v-1a4 4 0 0 1 4-4M20 19v-1a4 4 0 0 0-4-4"/><path d="M10 14h4"/>',
+    me: '<circle cx="12" cy="8" r="3"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/>',
+    wait: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    give: '<path d="M4 13l5 4 3-1 8-5"/><path d="M4 13l3-2 4 1"/><path d="M15 11l2-4 3 1-1 4"/>',
+    want: '<path d="M12 21s-7-4.7-9-9a4.2 4.2 0 0 1 7-3 4.2 4.2 0 0 1 7 3c-1 4.3-5 9-5 9z"/>',
+    fidget: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V5a1.5 1.5 0 0 1 3 0v5M13 10.5V6.5a1.5 1.5 0 0 1 3 0V13"/><path d="M7 11c-1.5.5-2 2-1 3.5l2.5 4A5 5 0 0 0 15 21c3-1 4-3.5 4-6.5V9"/>',
+    corner: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M3 21h18"/>',
+    happy: '<circle cx="12" cy="12" r="9"/><path d="M8 14a4 4 0 0 0 8 0"/><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/>',
+    sad: '<circle cx="12" cy="12" r="9"/><path d="M8 15a4 4 0 0 1 8 0"/><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none"/>',
+  };
+  const body = P[name] || P.help;
+  return `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#D4728A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+// 시각카드 1장 → 워드용 HTML 문자열
+function visualCardToHtml(card, esc) {
+  const frame = (inner) =>
+    `<div style="border:1px solid #FFF0F3;border-radius:12px;padding:12px;margin:8px 0;">
+      <div style="font-size:12px;font-weight:700;color:#D4728A;margin-bottom:8px;">${esc(card.title)}</div>${inner}</div>`;
+  if (card.type === "sequence") {
+    const cells = card.steps.map((s, i) =>
+      `<td style="border:2px solid #F5A0B1;background:#FFF0F3;border-radius:10px;padding:12px 8px;text-align:center;font-weight:700;font-size:13px;">${esc(s)}</td>` +
+      (i < card.steps.length - 1 ? `<td style="border:none;text-align:center;color:#D4728A;font-size:18px;">&#8594;</td>` : "")
+    ).join("");
+    return frame(`<table style="border-collapse:collapse;width:100%;"><tr>${cells}</tr></table>`);
+  }
+  if (card.type === "strip") {
+    const rows = card.items.map((it) => {
+      const label = typeof it === "string" ? it : it.label;
+      const icon = typeof it === "string" ? "" : cardIconSvg(it.icon);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FFF0F3;border:2px solid #F5A0B1;border-radius:10px;margin:6px 0;">
+        <span style="display:inline-block;width:32px;height:32px;background:#fff;border-radius:8px;text-align:center;line-height:32px;">${icon}</span>
+        <span style="font-size:14px;font-weight:700;color:#3A2C30;">${esc(label)}</span></div>`;
+    }).join("");
+    return frame(rows);
+  }
+  if (card.type === "choice") {
+    const cols = card.options.map((op, i) => {
+      const label = typeof op === "string" ? op : op.label;
+      const icon = typeof op === "string" ? "" : cardIconSvg(op.icon);
+      const bg = i === 0 ? "#EAF5EC" : "#FDECEC", bd = i === 0 ? "#7FB77E" : "#E89AAC";
+      return `<td style="width:50%;text-align:center;padding:14px 8px;background:${bg};border:2px solid ${bd};border-radius:12px;">
+        <div>${icon}</div><div style="font-size:14px;font-weight:800;color:#3A2C30;margin-top:4px;">${esc(label)}</div></td>`;
+    }).join(`<td style="width:8px;border:none;"></td>`);
+    return frame(`<table style="border-collapse:separate;width:100%;"><tr>${cols}</tr></table>`);
+  }
+  if (card.type === "token") {
+    const dots = Array.from({ length: card.count }).map(() =>
+      `<span style="display:inline-block;width:32px;height:32px;border:2px dashed #F5A0B1;border-radius:50%;color:#E89AAC;text-align:center;line-height:30px;font-size:16px;margin:3px;">&#9733;</span>`
+    ).join("");
+    return frame(`<div style="text-align:center;">${dots}<div style="font-size:11px;color:#9A8A8F;margin-top:4px;">모으면 좋아하는 활동!</div></div>`);
+  }
+  return "";
+}
+
+function getVisualCards(func) {
+  const sets = {
+    escape: [
+      { type: "sequence", title: "활동 순서판", steps: ["앉기", "3개 하기", "쉬기"] },
+      { type: "strip", title: "도움 요청 카드", items: [
+        { label: "도와주세요", icon: "help" },
+        { label: "쉬고 싶어요", icon: "rest" },
+      ] },
+      { type: "choice", title: "선택판", options: [
+        { label: "더 할래요", icon: "yes" },
+        { label: "그만할래요", icon: "stop" },
+      ] },
+    ],
+    attention: [
+      { type: "strip", title: "관심 요청 카드", items: [
+        { label: "봐 주세요", icon: "look" },
+        { label: "같이 해요", icon: "together" },
+      ] },
+      { type: "token", title: "칭찬 토큰판", count: 5 },
+      { type: "choice", title: "차례 카드", options: [
+        { label: "내 차례", icon: "me" },
+        { label: "기다리기", icon: "wait" },
+      ] },
+    ],
+    tangible: [
+      { type: "sequence", title: "지금-나중에 카드", steps: ["지금은 안돼요", "이따가"] },
+      { type: "strip", title: "요청 카드", items: [
+        { label: "주세요", icon: "give" },
+        { label: "하고 싶어요", icon: "want" },
+      ] },
+      { type: "token", title: "기다리기 토큰판", count: 3 },
+    ],
+    sensory: [
+      { type: "strip", title: "감각 도구 카드", items: [
+        { label: "만지작 도구 (피젯)", icon: "fidget" },
+        { label: "쉼 공간 (조용한 코너)", icon: "corner" },
+      ] },
+      { type: "sequence", title: "자기조절 순서", steps: ["멈추기", "숨쉬기", "도구 쓰기"] },
+      { type: "choice", title: "지금 기분", options: [
+        { label: "괜찮아요", icon: "happy" },
+        { label: "힘들어요", icon: "sad" },
+      ] },
+    ],
+  };
+  return sets[func] || sets.escape;
+}
+
+function CardFrame({ title, children }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid #FFF0F3", borderRadius: 14, padding: 14, boxShadow: "0 1px 6px rgba(212,114,138,0.05)" }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#D4728A", marginBottom: 10 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+// ── 시각카드용 단순 픽토그램 아이콘 (인라인 SVG, 워드에서도 렌더됨) ──
+function CardIcon({ name, size = 30 }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "#D4728A", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
+  const paths = {
+    help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><circle cx="12" cy="16.5" r="0.6" fill="#D4728A" stroke="none" /></>,
+    rest: <><path d="M4 18v-4a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4" /><path d="M4 18h16" /><path d="M7 11V9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2" /></>,
+    yes: <><circle cx="12" cy="12" r="9" /><path d="M8 12l2.5 2.5L16 9" /></>,
+    stop: <><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z" /><path d="M9 9l6 6M15 9l-6 6" /></>,
+    look: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" /><circle cx="12" cy="12" r="2.5" /></>,
+    together: <><circle cx="8" cy="8" r="2.5" /><circle cx="16" cy="8" r="2.5" /><path d="M4 19v-1a4 4 0 0 1 4-4M20 19v-1a4 4 0 0 0-4-4" /><path d="M10 14h4" /></>,
+    me: <><circle cx="12" cy="8" r="3" /><path d="M6 20v-1a6 6 0 0 1 12 0v1" /></>,
+    wait: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    give: <><path d="M4 13l5 4 3-1 8-5" /><path d="M4 13l3-2 4 1" /><path d="M15 11l2-4 3 1-1 4" /></>,
+    want: <><path d="M12 21s-7-4.7-9-9a4.2 4.2 0 0 1 7-3 4.2 4.2 0 0 1 7 3c-1 4.3-5 9-5 9z" /></>,
+    fidget: <><path d="M7 11V6a1.5 1.5 0 0 1 3 0v4M10 10V5a1.5 1.5 0 0 1 3 0v5M13 10.5V6.5a1.5 1.5 0 0 1 3 0V13" /><path d="M7 11c-1.5.5-2 2-1 3.5l2.5 4A5 5 0 0 0 15 21c3-1 4-3.5 4-6.5V9" /></>,
+    corner: <><path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-6h6v6" /><path d="M3 21h18" /></>,
+    happy: <><circle cx="12" cy="12" r="9" /><path d="M8 14a4 4 0 0 0 8 0" /><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /></>,
+    sad: <><circle cx="12" cy="12" r="9" /><path d="M8 15a4 4 0 0 1 8 0" /><circle cx="9" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /><circle cx="15" cy="9.5" r="0.7" fill="#D4728A" stroke="none" /></>,
+  };
+  return <svg {...common}>{paths[name] || paths.help}</svg>;
+}
+
+function VisualCard({ card }) {
+  if (card.type === "sequence") {
+    const n = card.steps.length, W = 300, bw = (W - 20 - (n - 1) * 24) / n;
+    return (
+      <CardFrame title={card.title}>
+        <svg viewBox={`0 0 ${W} 96`} style={{ width: "100%", height: "auto" }}>
+          {card.steps.map((s, i) => {
+            const x = 10 + i * (bw + 24);
+            return (
+              <g key={i}>
+                <rect x={x} y={18} width={bw} height={60} rx={10} fill="#FFF0F3" stroke="#F5A0B1" strokeWidth="2" />
+                <text x={x + bw / 2} y={13} textAnchor="middle" fontSize="11" fill="#9A8A8F">{i + 1}</text>
+                <text x={x + bw / 2} y={53} textAnchor="middle" fontSize="13" fontWeight="700" fill="#3A2C30">{s}</text>
+                {i < n - 1 && <text x={x + bw + 12} y={53} textAnchor="middle" fontSize="18" fill="#D4728A">{"\u2192"}</text>}
+              </g>
+            );
+          })}
+        </svg>
+      </CardFrame>
+    );
+  }
+  if (card.type === "strip") {
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ display: "grid", gap: 8 }}>
+          {card.items.map((it, i) => {
+            const label = typeof it === "string" ? it : it.label;
+            const icon = typeof it === "string" ? null : it.icon;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "#FFF0F3", border: "2px solid #F5A0B1", borderRadius: 12 }}>
+                <span style={{ width: 34, height: 34, borderRadius: 9, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {icon ? <CardIcon name={icon} size={22} /> : <span style={{ color: "#D4728A", fontWeight: 800 }}>{i + 1}</span>}
+                </span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#3A2C30" }}>{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </CardFrame>
+    );
+  }
+  if (card.type === "choice") {
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ display: "flex", gap: 10 }}>
+          {card.options.map((op, i) => {
+            const label = typeof op === "string" ? op : op.label;
+            const icon = typeof op === "string" ? null : op.icon;
+            return (
+              <div key={i} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: i === 0 ? "#EAF5EC" : "#FDECEC", border: `2px solid ${i === 0 ? "#7FB77E" : "#E89AAC"}`, borderRadius: 14 }}>
+                {icon && <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CardIcon name={icon} size={30} /></div>}
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#3A2C30" }}>{label}</div>
+              </div>
+            );
+          })}
+        </div>
+      </CardFrame>
+    );
+  }
+  if (card.type === "token") {
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", padding: "8px 0" }}>
+          {Array.from({ length: card.count }).map((_, i) => (
+            <div key={i} style={{ width: 40, height: 40, borderRadius: "50%", border: "2px dashed #F5A0B1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#E89AAC" }}>{"\u2605"}</div>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", fontSize: 11.5, color: "#9A8A8F", marginTop: 4 }}>모으면 좋아하는 활동!</div>
+      </CardFrame>
+    );
+  }
+  return null;
+}
+
+function BIPBlock({ num, title, children, accent }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 7, background: accent ? PKD : PK, color: "#fff", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{num}</span>
+        <span style={{ fontWeight: 700, fontSize: 14.5 }}>{title}</span>
+      </div>
+      <div style={{ paddingLeft: 32 }}>{children}</div>
+    </div>
+  );
+}
+
+function BulletList({ items }) {
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {items.map((t, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6 }}>
+          <span style={{ color: PK, flexShrink: 0, fontWeight: 800 }}>·</span>
+          <span>{t}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// BIP → 복사용 텍스트
+function bipToText(bip, c, agg) {
+  const line = "-".repeat(30);
+  const tierName = { primary: "1차 기능", secondary: "2차 기능", tertiary: "별도 기능" };
+  const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
+  const tierLines = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor").map((t) => "  [" + tierName[t.tier] + "] " + fn(t.func)) : []);
+  return [
+    bip.setting === "school" ? "[ 개별 행동중재계획서 (PBIP) ]" : "[ 행동중재계획 (BIP) ]",
+    "대상: " + c.name,
+    line,
+    "1. 행동의 기능 및 가설",
+    "표적행동: " + (c.target || "-"),
+    ...tierLines,
+    "주 기능: " + bip.funcName,
+    bip.hypothesis,
+    FUNC_MEANING(bip.func, c.name, c.target, bip.setting),
+    "",
+    "2. 선행중재",
+    ...bip.antecedent.map((t) => "  - " + t),
+    "",
+    "3. 대체행동중재",
+    ...bip.replacement.map((t) => "  - " + t),
+    "",
+    "4. 후속결과중재",
+    ...bip.consequence.map((t) => "  - " + t),
+    line,
+    "© 검단ABA언어행동연구소 (민다혜)",
+  ].join(String.fromCharCode(10));
+}
+
+// ── 케이스 추가 폼 ──────────────────────────────
+function AddForm({ isPbs, onAdd }) {
+  const [name, setName] = useState("");
+  const [birth, setBirth] = useState("");
+  const [age, setAge] = useState("");
+  const [target, setTarget] = useState("");
+  const [school, setSchool] = useState("");
+
+  // 생년월일 → 만 나이(년/개월) 자동 계산
+  const autoAge = React.useMemo(() => {
+    if (!birth) return "";
+    const b = new Date(birth);
+    if (isNaN(b.getTime())) return "";
+    const now = new Date();
+    let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+    if (now.getDate() < b.getDate()) months -= 1;
+    if (months < 0) return "";
+    const y = Math.floor(months / 12), m = months % 12;
+    return m > 0 ? `${y}세 ${m}개월` : `${y}세`;
+  }, [birth]);
+
+  const submit = () => {
+    if (!name.trim()) return;
+    // 센터: 생년월일 기반 자동 나이 / PBS: 입력한 학년(없으면 자동 나이)
+    const ageValue = isPbs ? (age.trim() || autoAge) : autoAge;
+    onAdd({ name: name.trim(), birth, age: ageValue, target: target.trim(), ...(isPbs ? { school: school.trim() } : {}) });
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 4px 20px rgba(212,114,138,0.1)", border: `1.5px solid ${PKL}` }}>
+      <div style={{ fontWeight: 700, marginBottom: 14, color: PKD }}>새 케이스 추가</div>
+      <Field label="아동 이름" value={name} onChange={setName} placeholder="예: 김○○" />
+      <Field label="생년월일" value={birth} onChange={setBirth} type="date" />
+      {isPbs && <Field label="학년" value={age} onChange={setAge} placeholder="예: 고1" />}
+      {isPbs && <Field label="학교" value={school} onChange={setSchool} placeholder="예: 인천영종고" />}
+      <Field label="목표행동" value={target} onChange={setTarget} placeholder="예: 학습지 찢기" />
+      <button onClick={submit} style={{ ...btnPrimary, width: "100%", marginTop: 6 }}>추가하기</button>
+    </div>
+  );
+}
+
+// ── 확인 모달 (브라우저 confirm 대체) ───────────
+function ConfirmModal({ title, message, confirmLabel = "확인", onConfirm, onCancel }) {
+  return (
+    <div onClick={onCancel} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, padding: 24, maxWidth: 340, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+        <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 8 }}>{title}</div>
+        <div style={{ fontSize: 13.5, color: MUTE, lineHeight: 1.6, marginBottom: 20 }}>{message}</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{ ...btnGhost, flex: 1 }}>취소</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer", background: "#D85A5A", color: "#fff", fontWeight: 700, fontSize: 14 }}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 푸터 (저작권) ───────────────────────────────
+function Footer() {
+  return (
+    <div style={{ textAlign: "center", padding: "18px 16px 24px", fontSize: 11, color: MUTE, borderTop: `1px solid ${PKL}`, background: "#fff" }}>
+      {COPYRIGHT}
+    </div>
+  );
+}
+
+// ── 공통 UI 조각 ────────────────────────────────
+const inputStyle = { width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 9, border: `1.5px solid ${PKL}`, fontSize: 14, outline: "none", background: "#FFFBFB" };
+
+// 문서 정보 행 (라벨-값)
+function InfoRow({ label, value, last }) {
+  return (
+    <div style={{ display: "flex", borderBottom: last ? "none" : `1px solid ${PKL}`, fontSize: 12.5 }}>
+      <div style={{ flexShrink: 0, width: 68, padding: "8px 10px", background: "#FFF9FA", color: MUTE, fontWeight: 600 }}>{label}</div>
+      <div style={{ flex: 1, padding: "8px 12px", color: INK }}>{value}</div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder, type = "text", onEnter }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: MUTE, marginBottom: 5, fontWeight: 600 }}>{label}</div>
+      <input type={type} value={value} placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && onEnter) onEnter(); }}
+        style={inputStyle}
+        onFocus={(e) => (e.target.style.borderColor = PK)}
+        onBlur={(e) => (e.target.style.borderColor = PKL)}
+      />
+    </div>
+  );
+}
+
+function TabBtn({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: "12px 8px", borderRadius: 12, border: "none", cursor: "pointer",
+      fontWeight: 700, fontSize: 14, transition: "all .15s",
+      background: active ? PK : "#fff", color: active ? "#fff" : MUTE,
+      boxShadow: active ? "0 4px 14px rgba(245,160,177,0.4)" : "0 1px 4px rgba(0,0,0,0.04)",
+    }}>{children}</button>
+  );
+}
+
+function Badge({ children }) {
+  return <span style={{ display: "inline-block", minWidth: 18, padding: "1px 6px", borderRadius: 10, fontSize: 11, background: "rgba(255,255,255,0.3)", marginLeft: 4 }}>{children}</span>;
+}
+
+const btnPrimary = { padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer", background: PK, color: "#fff", fontWeight: 700, fontSize: 14, boxShadow: "0 4px 12px rgba(245,160,177,0.35)" };
+
+const btnGhost = { padding: "10px 16px", borderRadius: 10, border: `1.5px solid ${PK}`, cursor: "pointer", background: "#fff", color: PKD, fontWeight: 700, fontSize: 14 };
+
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function todayKr() {
+  const d = new Date();
+  return `${d.getFullYear()}. ${d.getMonth() + 1}.`;
+}
+
+function nowLocal() {
+  const d = new Date();
+  const mm = d.getMonth() + 1, dd = d.getDate();
+  const hh = String(d.getHours()).padStart(2, "0"), mi = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}월 ${dd}일 ${hh}:${mi}`;
+}
