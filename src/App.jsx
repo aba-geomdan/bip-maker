@@ -2234,48 +2234,52 @@ function BIPDocument({ bip, c, agg }) {
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
 <style>
 *{box-sizing:border-box;}
-body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:44px 40px;max-width:740px;margin:auto;}
-h1{font-size:21px;font-weight:800;letter-spacing:-.5px;border-bottom:3px solid #3A2C30;padding-bottom:11px;margin:0 0 6px;}
-.subline{font-size:11px;color:#9A8A8F;letter-spacing:.8px;margin-bottom:30px;}
-.sec{margin-bottom:26px;}
-.secH{font-size:13px;font-weight:800;color:#D4728A;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:9px;}
-.secH .n{background:#D4728A;color:#fff;min-width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
-.item{padding:9px 0 9px 15px;border-left:2px solid #F0E0E5;font-size:13px;line-height:1.65;margin-bottom:3px;}
-.hyp{background:#FAFAFA;border:1px solid #eee;border-left:3px solid #F5A0B1;border-radius:4px;padding:14px 16px;font-size:13.5px;line-height:1.7;margin-bottom:10px;}
-.hyp b{color:#D4728A;}
-.meta{font-size:13px;margin:5px 0;}
+body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:740px;margin:auto;}
+.topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
+h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 6px;}
+.subline{font-size:11.5px;color:#B08A94;letter-spacing:.4px;margin-bottom:26px;padding-bottom:14px;border-bottom:1px solid #F3E3E8;}
+.sec{margin-bottom:22px;}
+.secH{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#FFF0F3,#FFF9FA 80%);border-left:4px solid #D4728A;border-radius:0 8px 8px 0;padding:9px 14px;margin-bottom:12px;}
+.secH .n{background:#D4728A;color:#fff;min-width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
+.secH .t{font-size:14.5px;font-weight:800;color:#C4557A;}
+.item{position:relative;padding:11px 14px 11px 30px;background:#FFFBFC;border:1px solid #F5E4EA;border-radius:9px;font-size:13px;line-height:1.65;margin-bottom:7px;}
+.item::before{content:"";position:absolute;left:13px;top:16px;width:7px;height:7px;border-radius:50%;background:#F5A0B1;}
+.hyp{background:linear-gradient(135deg,#FFF0F3,#FFF6F8);border:1px solid #F3C9D5;border-radius:10px;padding:15px 17px;font-size:13.5px;line-height:1.7;margin:10px 0;}
+.hyp b{color:#C4557A;}
+.meta{font-size:13px;margin:6px 0;padding:0 2px;}
 .meta b{color:#3A2C30;}
-.tier{display:inline-block;background:#F5EEF1;color:#B06A82;font-size:11px;padding:2px 9px;border-radius:4px;margin-right:6px;font-weight:600;}
-.foot{margin-top:36px;border-top:1px solid #eee;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;letter-spacing:.3px;}
+.tier{display:inline-block;background:#D4728A;color:#fff;font-size:11px;padding:2px 10px;border-radius:20px;margin-right:6px;font-weight:600;}
+.foot{margin-top:34px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;letter-spacing:.3px;}
 </style></head><body>
+<div class="topbar"></div>
 <h1>${title}${aiBadge}</h1>
 <div class="subline">${esc(c.name)}${(c.age || c.school) ? " · " + [c.age, c.school].filter(Boolean).join(", ") : ""} · ${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"} · 검단ABA언어행동연구소 · ${todayKr()}</div>
 
 <div class="sec">
-<div class="secH"><span class="n">1</span>행동의 기능 및 가설</div>
+<div class="secH"><span class="n">1</span><span class="t">행동의 기능 및 가설</span></div>
 <div class="meta"><b>표적행동</b> · ${esc(c.target)}</div>
 <div class="meta">${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} — ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</div>
-<div class="hyp" style="margin-top:10px;"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</div>
-<div class="meta" style="margin-top:8px;"><b>행동의 의미</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</div>
+<div class="hyp"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</div>
+<div class="meta"><b>행동의 의미</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</div>
 </div>
 
 <div class="sec">
-<div class="secH"><span class="n">2</span>선행중재 (예방 전략)</div>
+<div class="secH"><span class="n">2</span><span class="t">선행중재 (예방 전략)</span></div>
 ${li(showAnt)}
 </div>
 
 <div class="sec">
-<div class="secH"><span class="n">3</span>대체행동중재 (교수 전략)</div>
+<div class="secH"><span class="n">3</span><span class="t">대체행동중재 (교수 전략)</span></div>
 ${li(showRep)}
 </div>
 
 <div class="sec">
-<div class="secH"><span class="n">4</span>후속결과중재 (반응 전략)</div>
+<div class="secH"><span class="n">4</span><span class="t">후속결과중재 (반응 전략)</span></div>
 ${li(showCon)}
 </div>
 
 <div class="sec">
-<div class="secH"><span class="n">5</span>시각지원 자료 (인쇄용)</div>
+<div class="secH"><span class="n">5</span><span class="t">시각지원 자료 (인쇄용)</span></div>
 ${getVisualCards(bip.func).map((card) => visualCardToHtml(card, esc)).join("")}
 </div>
 
