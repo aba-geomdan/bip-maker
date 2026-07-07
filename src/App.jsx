@@ -35,6 +35,38 @@ const bipStore = {
   },
 };
 
+// ── 한글 조사 자동 선택 (받침 유무 판별) ──────────
+// 마지막 글자에 받침이 있으면 josa[0], 없으면 josa[1].
+// 사용: `${name}${K(name,"은","는")}` → "김주현은" / "민다혜는"
+function hasJongseong(str) {
+  if (!str) return false;
+  const ch = String(str).trim().slice(-1);
+  const code = ch.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return false; // 한글 음절 아님
+  return (code - 0xac00) % 28 !== 0; // 받침 인덱스 0이면 받침 없음
+}
+function K(word, withJong, withoutJong) {
+  return hasJongseong(word) ? withJong : withoutJong;
+}
+
+// 문서 표시용 이름: 성(첫 글자)을 떼고, 받침 있으면 '이'를 붙여 부드럽게.
+// 김주현 → 주현이 / 이민수 → 민수 / (2글자 이하는 성 안 뗌)
+// 안전장치: 빈값·공백은 '아동', 비한글(영문 등)은 원본 그대로.
+function isHangulSyllable(ch) {
+  if (!ch) return false;
+  const code = ch.charCodeAt(0);
+  return code >= 0xac00 && code <= 0xd7a3;
+}
+function displayName(fullName) {
+  const raw = (fullName || "").trim();
+  if (!raw) return "아동";
+  // 전부 한글 음절인 이름만 성 떼기 대상 (영문·숫자 섞이면 원본 유지)
+  const allHangul = [...raw].every(isHangulSyllable);
+  if (!allHangul) return raw;
+  let given = raw.length >= 3 ? raw.slice(1) : raw; // 3글자 이상만 성 제거
+  return hasJongseong(given) ? given + "이" : given;
+}
+
 // ── 외부 작성 링크: 토큰 인코딩/디코딩 ──────────────
 // 토큰 안에 케이스 식별 정보를 담아 서버 없이 링크만으로 작동시킨다.
 // { cid: 케이스id, cn: 아동이름, tg: 목표행동, sc: 척도id }
@@ -364,7 +396,7 @@ const FUNC_HYPOTHESIS_SHORT = {
 
 // 행동의 의미 서술 (임상적 재해석)
 function FUNC_MEANING(func, name, target, setting) {
-  const who = name || "아동";
+  const who = displayName(name);
   const place = setting === "school" ? "학급" : "치료 상황";
   const base = {
     attention: `${who}의 도전적 행동은 통제 불능의 돌발행동이 아니라, "나에게 관심을 주세요"라는 의사를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
@@ -379,7 +411,7 @@ function FUNC_MEANING(func, name, target, setting) {
 // 기능별 중재 라이브러리 — ABA 표준 4구성
 const INTERVENTION_LIB = {
   attention: {
-    hypothesis: (name, beh) => `${name}은(는) 주변 어른이나 또래의 관심이 부족할 때 ${beh}을(를) 통해 관심을 얻으려는 것으로 추정됩니다. 즉, 이 행동은 '나를 봐 주세요'라는 기능을 합니다.`,
+    hypothesis: (name, beh) => `${name}${K(name,"은","는")} 주변 어른이나 또래의 관심이 부족할 때 ${beh}${K(beh,"을","를")} 통해 관심을 얻으려는 것으로 추정됩니다. 즉, 이 행동은 '나를 봐 주세요'라는 기능을 합니다.`,
     antecedent: [
       "규칙적인 관심 제공: 문제행동이 없을 때 미리, 자주(예: 5~10분마다) 긍정적 관심을 준다 (비유관 관심, NCR).",
       "활동 시작 전 '지금부터 5분 동안 혼자 해보고, 다 하면 선생님이 크게 칭찬해줄게'처럼 관심을 받을 수 있는 시점을 예고한다.",
@@ -396,7 +428,7 @@ const INTERVENTION_LIB = {
     ],
   },
   escape: {
-    hypothesis: (name, beh) => `${name}은(는) 어렵거나 하기 싫은 과제·요구가 제시될 때 그 상황에서 벗어나기 위해 ${beh}을(를) 보이는 것으로 추정됩니다. 즉, 이 행동은 '이걸 그만하고 싶어요'라는 기능을 합니다.`,
+    hypothesis: (name, beh) => `${name}${K(name,"은","는")} 어렵거나 하기 싫은 과제·요구가 제시될 때 그 상황에서 벗어나기 위해 ${beh}${K(beh,"을","를")} 보이는 것으로 추정됩니다. 즉, 이 행동은 '이걸 그만하고 싶어요'라는 기능을 합니다.`,
     antecedent: [
       "과제 난이도를 아동 수준에 맞게 조정하고, 성공 경험을 먼저 제공한다 (행동 탄력, behavioral momentum: 쉬운 과제 → 어려운 과제).",
       "과제를 짧게 나누고 중간에 계획된 휴식을 미리 제공한다.",
@@ -414,7 +446,7 @@ const INTERVENTION_LIB = {
     ],
   },
   sensory: {
-    hypothesis: (name, beh) => `${name}의 ${beh}은(는) 특정 감각적 자극 자체가 주는 만족 때문에 유지되는 것으로 추정됩니다(자동강화). 주변에 사람이 없어도 나타나는 경향이 이를 뒷받침합니다.`,
+    hypothesis: (name, beh) => `${name}의 ${beh}${K(beh,"은","는")} 특정 감각적 자극 자체가 주는 만족 때문에 유지되는 것으로 추정됩니다(자동강화). 주변에 사람이 없어도 나타나는 경향이 이를 뒷받침합니다.`,
     antecedent: [
       "유사한 감각을 주는 적절한 대체 활동을 환경에 풍부하게 배치한다 (환경 풍요화, 예: 촉각 놀잇감, 씹기 도구).",
       "선호 감각활동을 정해진 시간에 계획적으로 제공한다 (비유관 감각자극 제공).",
@@ -431,7 +463,7 @@ const INTERVENTION_LIB = {
     ],
   },
   tangible: {
-    hypothesis: (name, beh) => `${name}은(는) 원하는 물건·음식·활동을 얻지 못하거나 빼앗겼을 때 이를 얻기 위해 ${beh}을(를) 보이는 것으로 추정됩니다. 즉, '그걸 갖고 싶어요'라는 기능을 합니다.`,
+    hypothesis: (name, beh) => `${name}${K(name,"은","는")} 원하는 물건·음식·활동을 얻지 못하거나 빼앗겼을 때 이를 얻기 위해 ${beh}${K(beh,"을","를")} 보이는 것으로 추정됩니다. 즉, '그걸 갖고 싶어요'라는 기능을 합니다.`,
     antecedent: [
       "선호물 이용 규칙과 시간을 시각적으로 미리 안내한다 (예: 타이머, '이따가' 카드).",
       "전이(선호물 종료) 전에 예고하고, 다음에 다시 할 수 있음을 알려준다.",
@@ -456,7 +488,7 @@ const INTERVENTION_LIB = {
 // ══════════════════════════════════════════════
 const INTERVENTION_LIB_SCHOOL = {
   attention: {
-    hypothesis: (name, beh) => `${name}은(는) 교실에서 교사나 또래의 관심이 부족할 때 ${beh}을(를) 통해 관심을 얻으려는 것으로 추정됩니다. 학급 전체를 지도하는 교사가 개별 관심을 주기 어려운 상황이 이 행동을 강화할 수 있습니다.`,
+    hypothesis: (name, beh) => `${name}${K(name,"은","는")} 교실에서 교사나 또래의 관심이 부족할 때 ${beh}${K(beh,"을","를")} 통해 관심을 얻으려는 것으로 추정됩니다. 학급 전체를 지도하는 교사가 개별 관심을 주기 어려운 상황이 이 행동을 강화할 수 있습니다.`,
     antecedent: [
       "수업 중 정기적으로 관심을 주는 시점을 미리 정한다 (예: 순회지도 동선에 이 학생 좌석을 포함, 활동 전환마다 짧게 눈맞춤·격려).",
       "교사와 가까운 좌석에 배치하고, 바르게 참여할 때 자연스럽게 관심을 받을 수 있게 한다.",
@@ -474,7 +506,7 @@ const INTERVENTION_LIB_SCHOOL = {
     ],
   },
   escape: {
-    hypothesis: (name, beh) => `${name}은(는) 수업 과제가 어렵거나 길게 느껴질 때 그 상황에서 벗어나기 위해 ${beh}을(를) 보이는 것으로 추정됩니다. 개별 난이도 조정이 어려운 학급 수업 특성상 회피 동기가 커질 수 있습니다.`,
+    hypothesis: (name, beh) => `${name}${K(name,"은","는")} 수업 과제가 어렵거나 길게 느껴질 때 그 상황에서 벗어나기 위해 ${beh}${K(beh,"을","를")} 보이는 것으로 추정됩니다. 개별 난이도 조정이 어려운 학급 수업 특성상 회피 동기가 커질 수 있습니다.`,
     antecedent: [
       "과제를 작은 단위로 나누고, 완료 지점을 시각적으로 표시한다 (예: 체크리스트, '여기까지' 표시).",
       "이 학생에게는 분량·난이도를 사전에 조정한 과제를 준비한다 (수정된 과제, 또래와 다른 양이어도 무방).",
@@ -494,7 +526,7 @@ const INTERVENTION_LIB_SCHOOL = {
     ],
   },
   sensory: {
-    hypothesis: (name, beh) => `${name}의 ${beh}은(는) 특정 감각자극 자체가 주는 만족 때문에 유지되는 것으로 추정됩니다(자동강화). 수업 중 자극이 단조롭거나 대기 시간이 길 때 더 나타날 수 있습니다.`,
+    hypothesis: (name, beh) => `${name}의 ${beh}${K(beh,"은","는")} 특정 감각자극 자체가 주는 만족 때문에 유지되는 것으로 추정됩니다(자동강화). 수업 중 자극이 단조롭거나 대기 시간이 길 때 더 나타날 수 있습니다.`,
     antecedent: [
       "수업 중 사용할 수 있는 조용한 감각도구를 허용한다 (예: 피젯토이, 무릎담요, 씹기 목걸이 — 수업 방해 없는 것으로).",
       "대기·전이 시간을 줄이고, 할 일을 명확히 주어 '빈 시간'을 최소화한다.",
@@ -512,7 +544,7 @@ const INTERVENTION_LIB_SCHOOL = {
     ],
   },
   tangible: {
-    hypothesis: (name, beh) => `${name}은(는) 원하는 물건·활동을 얻지 못하거나 순서를 기다려야 할 때 ${beh}을(를) 보이는 것으로 추정됩니다. 학급에서는 자원(교구·컴퓨터·차례)이 공유되므로 이런 상황이 자주 생깁니다.`,
+    hypothesis: (name, beh) => `${name}${K(name,"은","는")} 원하는 물건·활동을 얻지 못하거나 순서를 기다려야 할 때 ${beh}${K(beh,"을","를")} 보이는 것으로 추정됩니다. 학급에서는 자원(교구·컴퓨터·차례)이 공유되므로 이런 상황이 자주 생깁니다.`,
     antecedent: [
       "차례·이용 규칙을 시각적으로 명확히 안내한다 (예: 순서판, 타이머, '다음은 내 차례' 카드).",
       "전이(활동 종료) 전에 예고하고, 다음 이용 시점을 알려준다.",
@@ -579,7 +611,7 @@ function aggregateFunction(assessments) {
 function generateBIP(func, childName, targetBeh, setting) {
   const lib = (setting === "pbs" ? INTERVENTION_LIB_SCHOOL : INTERVENTION_LIB)[func];
   if (!lib) return null;
-  const name = childName || "아동";
+  const name = displayName(childName);
   const beh = targetBeh || "목표행동";
   return {
     func,
