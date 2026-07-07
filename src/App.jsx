@@ -1983,16 +1983,6 @@ ${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""
     setTimeout(() => w.print(), 400);
   };
 
-  const doSaveWord = () => {
-    const blob = new Blob(["\ufeff", buildHtml()], { type: "application/msword" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${c.name}_행동중재계획.doc`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const runAI = async () => {
     setAiState("loading"); setAiErr("");
     try {
@@ -2009,8 +1999,7 @@ ${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""
     <div style={{ background: "#fff", borderRadius: 16, padding: 22, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 4 }}>
         <button onClick={copyText} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>📋 복사</button>
-        <button onClick={doPrint} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>🖨 인쇄</button>
-        <button onClick={doSaveWord} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>📄 Word 저장</button>
+        <button onClick={doPrint} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>📄 PDF 저장</button>
       </div>
       {/* 대상 정보 표 */}
       <div style={{ border: `1px solid ${PKL}`, borderRadius: 10, overflow: "hidden", marginBottom: 12, marginTop: 6 }}>
