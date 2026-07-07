@@ -1024,9 +1024,48 @@ function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAsse
   const [section, setSection] = useState("record"); // record | assess | bip
   const [runningScale, setRunningScale] = useState(null); // 진행 중인 척도 id
   const [confirmDel, setConfirmDel] = useState(false);
+  const [abcSubs, setAbcSubs] = useState([]);        // 받은 외부 ABC 제출
+  const [abcSubsLoading, setAbcSubsLoading] = useState(false);
+  const [abcImporting, setAbcImporting] = useState(null); // 반영 중인 sid
   const records = c.records || [];
   const assessments = c.assessments || [];
   const isPbs = c.type === "pbs";
+
+  // 받은 외부 제출 중 ABC만 불러오기
+  const loadAbcSubs = React.useCallback(async () => {
+    setAbcSubsLoading(true);
+    const list = await listExternalSubmissions(c.id);
+    const abcOnly = (list || []).filter((s) => s.scaleId === "ABC");
+    abcOnly.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+    setAbcSubs(abcOnly);
+    setAbcSubsLoading(false);
+  }, [c.id]);
+
+  useEffect(() => { loadAbcSubs(); }, [loadAbcSubs]);
+
+  // 받은 ABC 1건 → 케이스 기록으로 반영 + 원본 삭제
+  const importAbc = async (sub) => {
+    setAbcImporting(sub.sid);
+    const r = sub.record || {};
+    onAddRecord({
+      datetime: r.when || "",
+      antecedent: r.antecedent || "",
+      behavior: r.behavior || "",
+      consequence: r.consequence || "",
+      count: "1",
+      severity: "",
+      by: sub.writer || "외부",
+      source: "external",
+    });
+    await deleteExternalSubmission(c.id, sub.sid);
+    setAbcSubs((prev) => prev.filter((x) => x.sid !== sub.sid));
+    setAbcImporting(null);
+  };
+
+  const dismissAbc = async (sub) => {
+    await deleteExternalSubmission(c.id, sub.sid);
+    setAbcSubs((prev) => prev.filter((x) => x.sid !== sub.sid));
+  };
 
   // 요약 통계
   const totalCount = records.reduce((s, r) => s + (Number(r.count) || 1), 0);
@@ -1118,6 +1157,43 @@ function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAsse
 
           {showForm && <RecordForm onSave={(rec) => { onAddRecord(rec); setShowForm(false); }} />}
 
+          <AbcLinkBox c={c} />
+
+          {(abcSubsLoading || abcSubs.length > 0) && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: PKD }}>
+                📩 받은 ABC 기록 <span style={{ color: MUTE, fontWeight: 400, fontSize: 12.5 }}>({abcSubs.length})</span>
+                <button onClick={loadAbcSubs} style={{ ...btnGhost, padding: "3px 9px", fontSize: 11, marginLeft: 8 }}>새로고침</button>
+              </div>
+              {abcSubsLoading && <div style={{ fontSize: 12.5, color: MUTE, padding: "6px 2px" }}>불러오는 중...</div>}
+              <div style={{ display: "grid", gap: 10 }}>
+                {abcSubs.map((sub) => {
+                  const r = sub.record || {};
+                  return (
+                    <div key={sub.sid} style={{ background: "#fff", borderRadius: 12, padding: 14, border: `1.5px solid ${PKL}`, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+                      <div style={{ fontSize: 11.5, color: MUTE, marginBottom: 8 }}>
+                        작성자 <b style={{ color: INK }}>{sub.writer || "외부"}</b>
+                        {r.when ? ` · ${r.when}` : ""}
+                        {sub.submittedAt ? ` · 제출 ${String(sub.submittedAt).slice(0, 10)}` : ""}
+                      </div>
+                      <div style={{ display: "grid", gap: 4, fontSize: 12.5, lineHeight: 1.6 }}>
+                        {r.antecedent ? <div><b style={{ color: PKD }}>A</b> {r.antecedent}</div> : null}
+                        {r.behavior ? <div><b style={{ color: PKD }}>B</b> {r.behavior}</div> : null}
+                        {r.consequence ? <div><b style={{ color: PKD }}>C</b> {r.consequence}</div> : null}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <button onClick={() => dismissAbc(sub)} disabled={abcImporting === sub.sid} style={{ ...btnGhost, flex: 1, fontSize: 12.5 }}>삭제</button>
+                        <button onClick={() => importAbc(sub)} disabled={abcImporting === sub.sid} style={{ ...btnPrimary, flex: 2, fontSize: 12.5, opacity: abcImporting === sub.sid ? 0.6 : 1 }}>
+                          {abcImporting === sub.sid ? "반영 중..." : "이 기록에 반영하기"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {records.length === 0 && !showForm && (
             <div style={{ textAlign: "center", padding: "40px 20px", color: MUTE, background: "#fff", borderRadius: 16 }}>
               아직 기록이 없어요.<br /><span style={{ fontSize: 13 }}>+ 기록 추가로 도전행동을 관찰 기록해 보세요.</span>
@@ -1176,6 +1252,28 @@ function RecordForm({ onSave }) {
   const [count, setCount] = useState("1");
   const [severity, setSeverity] = useState("");
   const [err, setErr] = useState("");
+  const [photoState, setPhotoState] = useState("idle"); // idle | reading | error
+  const [photoMsg, setPhotoMsg] = useState("");
+  const fileRef = React.useRef(null);
+
+  const onPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (fileRef.current) fileRef.current.value = ""; // 같은 파일 재선택 허용
+    if (!file) return;
+    setPhotoState("reading"); setPhotoMsg(""); setErr("");
+    try {
+      const r = await readAbcPhoto(file);
+      if (r.when) setDatetime(r.when);
+      if (r.antecedent) setAntecedent(r.antecedent);
+      if (r.behavior) setBehavior(r.behavior);
+      if (r.consequence) setConsequence(r.consequence);
+      setPhotoState("idle");
+      setPhotoMsg("사진에서 내용을 불러왔어요. 확인 후 수정·저장해 주세요.");
+    } catch (ex) {
+      setPhotoState("error");
+      setPhotoMsg(ex.message || "사진 인식에 실패했어요.");
+    }
+  };
 
   const save = () => {
     if (!behavior.trim()) return setErr("행동(B)은 꼭 입력해 주세요.");
@@ -1188,6 +1286,17 @@ function RecordForm({ onSave }) {
   return (
     <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 4px 20px rgba(212,114,138,0.1)", border: `1.5px solid ${PKL}` }}>
       <div style={{ fontWeight: 700, marginBottom: 14, color: PKD }}>새 도전행동 기록</div>
+
+      <div style={{ marginBottom: 14 }}>
+        <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
+        <button onClick={() => fileRef.current && fileRef.current.click()} disabled={photoState === "reading"}
+          style={{ ...btnGhost, width: "100%", justifyContent: "center", padding: "10px", fontSize: 13, opacity: photoState === "reading" ? 0.6 : 1 }}>
+          {photoState === "reading" ? "사진 읽는 중..." : "📷 사진으로 채우기 (손글씨·메모 인식)"}
+        </button>
+        {photoMsg ? (
+          <div style={{ fontSize: 11.5, marginTop: 6, lineHeight: 1.5, color: photoState === "error" ? "#D85A5A" : "#5C9A72" }}>{photoMsg}</div>
+        ) : null}
+      </div>
 
       <Field label="날짜 / 시간" value={datetime} onChange={setDatetime} placeholder="예: 5월 23일 3:00" />
 
@@ -1279,9 +1388,11 @@ function AssessmentSection({ c, assessments, onStart, onRemove, onImport }) {
   const loadSubs = React.useCallback(async () => {
     setSubsLoading(true);
     const list = await listExternalSubmissions(c.id);
+    // ABC 제출은 기록 탭에서 처리하므로 평가 탭에서는 척도 설문만
+    const scaleOnly = (list || []).filter((s) => s.scaleId !== "ABC");
     // 최신순
-    list.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
-    setSubs(list);
+    scaleOnly.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+    setSubs(scaleOnly);
     setSubsLoading(false);
   }, [c.id]);
 
@@ -1462,9 +1573,110 @@ function PreInfoFields({ fields, values, onChange }) {
   );
 }
 
+// ── ABC 외부 작성 페이지 (로그인 없이, 여러 건 반복 제출) ─────
+function AbcFillPage({ info }) {
+  const [writer, setWriter] = useState("");
+  const [antecedent, setAntecedent] = useState("");
+  const [behavior, setBehavior] = useState("");
+  const [consequence, setConsequence] = useState("");
+  const [when, setWhen] = useState("");
+  const [state, setState] = useState("form"); // form | saving | error
+  const [errMsg, setErrMsg] = useState("");
+  const [savedCount, setSavedCount] = useState(0);
+
+  const pageWrap = { minHeight: "100vh", background: PKL, padding: 20, fontFamily: "'Pretendard', -apple-system, sans-serif" };
+
+  if (!info) {
+    return (
+      <div style={{ ...pageWrap, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 380, textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>😕</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>링크가 올바르지 않아요</div>
+          <div style={{ fontSize: 13, color: MUTE, lineHeight: 1.6 }}>링크가 손상되었거나 만료되었을 수 있어요. 보내주신 분께 새 링크를 요청해 주세요.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const submit = async () => {
+    if (!writer.trim()) { setErrMsg("작성자 이름을 입력해 주세요."); return; }
+    if (!behavior.trim()) { setErrMsg("행동(B) 내용을 입력해 주세요."); return; }
+    setState("saving"); setErrMsg("");
+    const res = await saveExternalSubmission(info.cid, {
+      scaleId: "ABC", childName: info.cn, target: info.tg, writer: writer.trim(),
+      record: {
+        antecedent: antecedent.trim(),
+        behavior: behavior.trim(),
+        consequence: consequence.trim(),
+        when: when.trim(),
+      },
+    });
+    if (res) {
+      setSavedCount((n) => n + 1);
+      setAntecedent(""); setBehavior(""); setConsequence(""); setWhen("");
+      setState("form");
+    } else {
+      setState("error"); setErrMsg("제출에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");
+    }
+  };
+
+  const field = (label, val, setter, ph, rows = 2) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 6 }}>{label}</div>
+      <textarea value={val} onChange={(e) => setter(e.target.value)} placeholder={ph} rows={rows}
+        style={{ ...inputStyle, resize: "vertical", minHeight: rows * 22, fontFamily: "inherit" }} />
+    </div>
+  );
+
+  return (
+    <div style={pageWrap}>
+      <div style={{ maxWidth: 480, margin: "0 auto" }}>
+        <div style={{ background: "#fff", borderRadius: 16, padding: "20px 18px", marginBottom: 14 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: PKD }}>{info.cn} 아동 · ABC 관찰 기록</div>
+          <div style={{ fontSize: 12.5, color: MUTE, marginTop: 4, lineHeight: 1.6 }}>
+            문제 상황이 있을 때마다 <b>선행–행동–후속</b>을 기록해 주세요. 한 건 제출 후에도 이 창에서 계속 이어서 기록할 수 있어요.
+          </div>
+          {info.tg ? <div style={{ fontSize: 12, color: INK, marginTop: 8, padding: "6px 10px", background: PKL, borderRadius: 8 }}>관찰 대상 행동: <b>{info.tg}</b></div> : null}
+        </div>
+
+        {savedCount > 0 && (
+          <div style={{ background: "#EAF5EC", border: "1px solid #7FB77E", borderRadius: 12, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#3A2C30" }}>
+            ✅ 지금까지 <b>{savedCount}건</b> 제출됐어요. 계속 기록하셔도 됩니다.
+          </div>
+        )}
+
+        <div style={{ background: "#fff", borderRadius: 16, padding: "18px 16px" }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginBottom: 6 }}>작성자 이름</div>
+            <input value={writer} onChange={(e) => setWriter(e.target.value)} placeholder="예: 김담임" style={inputStyle} />
+          </div>
+          {field("① 언제 (시간·상황)", when, setWhen, "예: 2교시 수학시간, 오전 10시경", 1)}
+          {field("② 선행사건 A (행동 직전에 무슨 일이?)", antecedent, setAntecedent, "예: 어려운 문제를 풀라고 하자")}
+          {field("③ 행동 B (관찰된 행동)", behavior, setBehavior, "예: 소리를 지르며 책상에 엎드림")}
+          {field("④ 후속결과 C (행동 직후 어떻게 됐나?)", consequence, setConsequence, "예: 교사가 다가와 달래고 문제를 미룸")}
+
+          {errMsg ? <div style={{ color: "#D85A5A", fontSize: 12.5, marginBottom: 10 }}>{errMsg}</div> : null}
+
+          <button onClick={submit} disabled={state === "saving"}
+            style={{ ...btnPrimary, width: "100%", padding: "12px", fontSize: 14, opacity: state === "saving" ? 0.6 : 1 }}>
+            {state === "saving" ? "제출 중..." : "이 기록 제출하기"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 외부 작성 페이지 (로그인 없이, 링크로 접속) ─────
 function ExternalFillPage({ token }) {
   const info = React.useMemo(() => decodeFillToken(token), [token]);
+  // ABC 링크는 별도 페이지로 분기 (훅 호출 전에 처리)
+  if (info && info.sc === "ABC") return <AbcFillPage info={info} />;
+  return <ScaleFillPage info={info} />;
+}
+
+// ── 척도(설문) 외부 작성 페이지 ─────
+function ScaleFillPage({ info }) {
   const scale = info ? SCALES[info.sc] : null;
   const [answers, setAnswers] = useState(() => (scale ? scale.items.map(() => null) : []));
   const [preInfo, setPreInfo] = useState({}); // FAST 앞부분 응답 (해당 척도에 preInfo 있을 때만)
@@ -1600,6 +1812,45 @@ function ExternalLinkBox({ scale, c }) {
       <div style={{ fontSize: 11, color: MUTE, marginTop: 8, lineHeight: 1.5 }}>
         📩 제출된 설문은 <b>평가 탭</b> 아래 <b>받은 설문</b>에서 확인하고 결과로 반영할 수 있어요.
       </div>
+    </div>
+  );
+}
+
+// ── ABC 외부 작성 링크 박스 (기록 탭용) ──────────
+function AbcLinkBox({ c }) {
+  const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+  const token = encodeFillToken({ cid: c.id, cn: c.name, tg: c.target || "", sc: "ABC" });
+  const base = (typeof window !== "undefined" && window.location)
+    ? `${window.location.origin}${window.location.pathname}`
+    : "https://aba-geomdan.github.io/bip-maker/";
+  const url = `${base}#/fill/abc/${token}`;
+
+  const copy = () => {
+    if (navigator.clipboard) navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <button onClick={() => setOpen((v) => !v)} style={{ ...btnGhost, width: "100%", justifyContent: "center", padding: "10px 12px", fontSize: 13 }}>
+        {open ? "▲ 외부 작성 링크 닫기" : "🔗 외부 교사에게 ABC 기록 링크 보내기"}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10, padding: "12px 14px", background: "#FFF9FA", border: `1px dashed ${PK}`, borderRadius: 10 }}>
+          <div style={{ fontSize: 12, color: INK, lineHeight: 1.6, marginBottom: 8 }}>
+            이 링크를 외부 교사·부모에게 보내면, 앱 설치 없이 <b>{c.name}</b> 아동의 ABC(선행–행동–후속)를 직접 기록·제출할 수 있어요. <b>같은 링크를 계속 열어</b> 사건이 생길 때마다 한 건씩 제출하면 됩니다.
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input readOnly value={url} style={{ ...inputStyle, fontSize: 11.5, color: MUTE }} onFocus={(e) => e.target.select()} />
+            <button onClick={copy} style={{ ...btnPrimary, flexShrink: 0, padding: "8px 12px", fontSize: 12 }}>{copied ? "복사됨 ✓" : "복사"}</button>
+          </div>
+          <div style={{ fontSize: 11, color: MUTE, marginTop: 8, lineHeight: 1.5 }}>
+            📩 제출된 기록은 아래 <b>받은 ABC 기록</b>에서 확인하고 이 케이스에 반영할 수 있어요.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1926,11 +2177,24 @@ function BIPSection({ c, assessments }) {
 // ── BIP 문서 렌더 ───────────────────────────────
 function BIPDocument({ bip, c, agg }) {
   const [aiState, setAiState] = useState("idle"); // idle | loading | done | error
-  const [aiText, setAiText] = useState("");
+  const [aiExtra, setAiExtra] = useState(null); // { antecedent:[], replacement:[], consequence:[] } | { _fallbackText }
   const [aiErr, setAiErr] = useState("");
 
+  const fallbackText = aiExtra && aiExtra._fallbackText ? aiExtra._fallbackText : "";
+  const extra = (key) => (aiExtra && !aiExtra._fallbackText && Array.isArray(aiExtra[key])) ? aiExtra[key] : [];
+
   const copyText = () => {
-    const txt = bipToText(bip, c, agg) + (aiText ? `\n\n[ AI 보강 ]\n${aiText}` : "");
+    let extras = "";
+    if (aiExtra && !aiExtra._fallbackText) {
+      const lines = [];
+      extra("antecedent").forEach((t) => lines.push(`[선행-AI맞춤] ${t}`));
+      extra("replacement").forEach((t) => lines.push(`[대체-AI맞춤] ${t}`));
+      extra("consequence").forEach((t) => lines.push(`[후속-AI맞춤] ${t}`));
+      if (lines.length) extras = `\n\n[ AI 맞춤 제안 ]\n${lines.join("\n")}`;
+    } else if (fallbackText) {
+      extras = `\n\n[ AI 맞춤 제안 ]\n${fallbackText}`;
+    }
+    const txt = bipToText(bip, c, agg) + extras;
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
   };
 
@@ -1940,6 +2204,7 @@ function BIPDocument({ bip, c, agg }) {
     const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
     const tiers = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor") : []);
     const li = (arr) => arr.map((t) => `<li>${esc(t)}</li>`).join("");
+    const liExtra = (arr) => arr.map((t) => `<li style="color:#8A6FB0;">🤖 ${esc(t)} <span style="font-size:11px;color:#B79AE0;">(AI 맞춤)</span></li>`).join("");
     const title = bip.setting === "school" ? "개별 행동중재계획서 (PBIP)" : "행동중재계획 (BIP)";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
 <style>
@@ -1965,12 +2230,12 @@ ul{margin:6px 0;padding-left:20px;} li{margin:4px 0;font-size:13.5px;}
 <p><b>기능 가설:</b><br>${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} - ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</p>
 <p class="hyp"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</p>
 <p><b>행동의 의미:</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</p>
-<h2>2. 선행중재 (예방 전략)</h2><ul>${li(bip.antecedent)}</ul>
-<h2>3. 대체행동중재 (교수 전략)</h2><ul>${li(bip.replacement)}</ul>
-<h2>4. 후속결과중재 (반응 전략)</h2><ul>${li(bip.consequence)}</ul>
+<h2>2. 선행중재 (예방 전략)</h2><ul>${li(bip.antecedent)}${liExtra(extra("antecedent"))}</ul>
+<h2>3. 대체행동중재 (교수 전략)</h2><ul>${li(bip.replacement)}${liExtra(extra("replacement"))}</ul>
+<h2>4. 후속결과중재 (반응 전략)</h2><ul>${li(bip.consequence)}${liExtra(extra("consequence"))}</ul>
 <h2>5. 시각지원 자료 (인쇄용)</h2>
 ${getVisualCards(bip.func).map((card) => visualCardToHtml(card, esc)).join("")}
-${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""}
+${fallbackText ? `<h2>AI 맞춤 제안</h2><p>${esc(fallbackText).replace(/\n/g, "<br>")}</p>` : ""}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
 </body></html>`;
   };
@@ -1986,11 +2251,11 @@ ${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""
   const runAI = async () => {
     setAiState("loading"); setAiErr("");
     try {
-      const text = await enhanceBIPWithAI(bip, c);
-      setAiText(text);
+      const result = await enhanceBIPWithAI(bip, c);
+      setAiExtra(result);
       setAiState("done");
     } catch (e) {
-      setAiErr(e.message || "AI 보강 중 문제가 발생했어요.");
+      setAiErr(e.message || "AI 맞춤 보강 중 문제가 발생했어요.");
       setAiState("error");
     }
   };
@@ -2052,14 +2317,17 @@ ${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""
 
       <BIPBlock num="2" title="선행중재 (예방 전략)">
         <BulletList items={bip.antecedent} />
+        <AiExtraList items={extra("antecedent")} />
       </BIPBlock>
 
       <BIPBlock num="3" title="대체행동중재 (교수 전략)">
         <BulletList items={bip.replacement} />
+        <AiExtraList items={extra("replacement")} />
       </BIPBlock>
 
       <BIPBlock num="4" title="후속결과중재 (반응 전략)">
         <BulletList items={bip.consequence} />
+        <AiExtraList items={extra("consequence")} />
       </BIPBlock>
 
       <BIPBlock num="5" title="시각지원 자료 (인쇄용)">
@@ -2092,12 +2360,18 @@ ${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""
           <div style={{ marginTop: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <span style={{ fontSize: 15 }}>✨</span>
-              <span style={{ fontWeight: 700, fontSize: 14.5, color: PKD }}>AI 보강 (이 아동 맞춤)</span>
+              <span style={{ fontWeight: 700, fontSize: 14.5, color: PKD }}>AI 맞춤 보강 완료</span>
               <button onClick={runAI} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>↻ 다시</button>
             </div>
-            <div style={{ padding: "14px 16px", background: "#FFFBFC", border: `1px solid ${PKL}`, borderRadius: 12, fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
-              {aiText}
-            </div>
+            {fallbackText ? (
+              <div style={{ padding: "14px 16px", background: "#FFFBFC", border: `1px solid ${PKL}`, borderRadius: 12, fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
+                {fallbackText}
+              </div>
+            ) : (
+              <div style={{ padding: "12px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 12, fontSize: 12.5, lineHeight: 1.7, color: "#6B5B8A" }}>
+                🤖 각 중재 영역(선행·대체·후속)에 이 아동 맞춤 항목이 추가됐어요. 위 2~4번 섹션에서 <b>보라색 🤖 표시</b> 항목을 확인하세요. PDF 저장 시에도 함께 포함됩니다.
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2109,34 +2383,36 @@ ${aiText ? `<h2>AI 보강</h2><p>${esc(aiText).replace(/\n/g, "<br>")}</p>` : ""
 // ※ GitHub 배포 시: Supabase Edge Function 경유 fetch로 교체
 //   (기존 Reels Maker / AAC 의 relay 패턴과 동일)
 async function enhanceBIPWithAI(bip, c) {
-  const prompt = `당신은 ABA(응용행동분석) 전문가입니다. 아래는 한 아동의 도전행동에 대한 행동중재계획(BIP) 초안입니다.
-이 아동의 구체적 상황에 맞게 중재안을 더 실질적이고 구체적으로 다듬어 주세요.
+  const isPbs = c.type === "pbs";
+  const prompt = `당신은 ABA(응용행동분석) 전문가입니다. 아래는 한 아동의 도전행동에 대한 행동중재계획(BIP)입니다.
+표준 중재안은 이미 작성되어 있습니다. 당신의 역할은 이 아동의 구체적 상황에 맞는 "맞춤 항목"을 각 중재 영역에 1~2개씩 추가하는 것입니다.
 
 [아동 정보]
 - 이름: ${c.name}
 - 연령/학년: ${c.age || "미기재"}
-- 환경: ${c.type === "pbs" ? `학교(${c.school || "일반학교"})` : "ABA 센터"}
+- 환경: ${isPbs ? `학교(${c.school || "일반학교"})` : "ABA 센터"}
 - 목표행동: ${c.target || "미기재"}
 
 [추정 기능]
 ${bip.funcName}
 ${bip.hypothesis}
 
-[현재 중재안 요약]
+[이미 있는 표준 중재안 — 중복 금지]
 · 선행중재: ${bip.antecedent.join(" / ")}
 · 대체행동: ${bip.replacement.join(" / ")}
 · 후속중재: ${bip.consequence.join(" / ")}
 
-위 내용을 바탕으로, 이 아동(${c.name}, ${c.type === "pbs" ? "학교" : "센터"} 상황)에게 바로 적용할 수 있는 구체적인 실행 팁 3~5가지를 제시해 주세요.
-${c.type === "pbs"
-  ? "- 이곳은 학교입니다. 교사 1명이 학급 전체를 지도하므로 1:1 개별교수나 즉각적 개입이 어렵습니다. 이 제약을 반드시 고려해, 선행중재·환경조정·또래활용·학급차원 지원·자기관리처럼 교사 혼자서도 학급을 운영하며 실행 가능한 방법 위주로 제안하세요."
-  : "- 이곳은 ABA 센터로, 치료사가 아동을 1:1로 지도할 수 있는 환경입니다."}
-- 교사/치료사가 오늘 당장 해볼 수 있는 수준으로 구체적으로.
-- 각 항목은 한 문장~두 문장으로 간결하게.
-- 번호 목록으로. 서론/결론 없이 목록만.
-- 한국어로.`;
+[요구사항]
+- 위 표준 항목과 겹치지 않는, 이 아동에게 특화된 실행 항목을 각 영역에 1~2개씩 제안하세요.
+- ${isPbs
+  ? "이곳은 학교입니다. 교사 1명이 학급 전체를 지도하므로, 교사 혼자 학급을 운영하며 실행 가능한 방법(선행조정·또래활용·학급차원 지원·자기관리) 위주로."
+  : "이곳은 ABA 센터로 1:1 지도가 가능한 환경입니다."}
+- 각 항목은 한 문장으로 구체적이고 바로 실행 가능하게.
+- 올바른 ABA 용어를 사용하세요 (예: DRA, DRO, NCR, FCT, 촉구, 용암 등).
 
-  // 배포 환경: 공용 claude-relay Edge Function 사용
+반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운·서론 금지):
+{"antecedent":["항목1","항목2"],"replacement":["항목1"],"consequence":["항목1","항목2"]}`;
+
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
@@ -2152,7 +2428,28 @@ ${c.type === "pbs"
   const text = Array.isArray(data.content)
     ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
     : (data.text || "");
-  return text;
+
+  // JSON 파싱 시도 → 실패하면 원문 텍스트로 폴백(크래시 방지)
+  const cleaned = String(text).replace(/```json|```/g, "").trim();
+  try {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start === -1 || end === -1) throw new Error("no json");
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
+    const arr = (v) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+    const result = {
+      antecedent: arr(parsed.antecedent),
+      replacement: arr(parsed.replacement),
+      consequence: arr(parsed.consequence),
+    };
+    // 셋 다 비면 폴백
+    if (!result.antecedent.length && !result.replacement.length && !result.consequence.length) {
+      return { _fallbackText: cleaned };
+    }
+    return result;
+  } catch (e) {
+    return { _fallbackText: cleaned };
+  }
 }
 
 // ── 종이 설문 사진 인식 (Claude 비전) ───────────
@@ -2232,6 +2529,64 @@ ${scaleGuide}
     }
   });
   return answers;
+}
+
+// ── ABC 관찰기록 사진 인식 → {when, antecedent, behavior, consequence} ──
+async function readAbcPhoto(file) {
+  const base64 = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = () => reject(new Error("사진을 불러오지 못했어요."));
+    r.readAsDataURL(file);
+  });
+  const mediaType = file.type || "image/jpeg";
+
+  const promptText = `이 이미지는 아동의 도전행동을 관찰 기록한 ABC 기록지(또는 손으로 쓴 메모)입니다.
+이미지에서 다음 항목을 읽어 정리해 주세요.
+
+- when: 언제/어떤 상황(시간·수업·장소 등). 없으면 빈 문자열.
+- antecedent: 선행사건 A (행동 직전에 일어난 일). 없으면 빈 문자열.
+- behavior: 행동 B (관찰된 도전행동). 없으면 빈 문자열.
+- consequence: 후속결과 C (행동 직후 일어난 일/어른의 반응). 없으면 빈 문자열.
+
+[규칙]
+- 이미지에 적힌 내용을 최대한 그대로 옮기되, 문장은 자연스럽게 다듬어도 됩니다.
+- 지어내지 말고, 이미지에서 읽히는 것만 채우세요. 안 보이면 빈 문자열.
+
+반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운 금지):
+{"when":"","antecedent":"","behavior":"","consequence":""}`;
+
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  const res = await fetch(SUPABASE_FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1200 }),
+  });
+  if (!res.ok) {
+    let msg = "사진 인식 서버 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const raw = Array.isArray(data.content)
+    ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+    : (data.text || "");
+
+  const cleaned = String(raw).replace(/```json|```/g, "").trim();
+  let parsed;
+  try {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    parsed = JSON.parse(cleaned.slice(start, end + 1));
+  } catch (e) {
+    throw new Error("사진에서 내용을 해석하지 못했어요. 더 선명한 사진으로 다시 시도하거나 직접 입력해 주세요.");
+  }
+  return {
+    when: String(parsed.when || "").trim(),
+    antecedent: String(parsed.antecedent || "").trim(),
+    behavior: String(parsed.behavior || "").trim(),
+    consequence: String(parsed.consequence || "").trim(),
+  };
 }
 
 // ── PDF 내보내기용 시각카드 아이콘 SVG 문자열 (화면 CardIcon과 동일) ──
@@ -2482,6 +2837,21 @@ function BulletList({ items }) {
         <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6 }}>
           <span style={{ color: PK, flexShrink: 0, fontWeight: 800 }}>·</span>
           <span>{t}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// AI 맞춤 추가 항목 (보라색 🤖 표시)
+function AiExtraList({ items }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+      {items.map((t, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6, padding: "8px 10px", background: "#F7F3FC", borderRadius: 8, border: "1px solid #E6DAF5" }}>
+          <span style={{ flexShrink: 0 }}>🤖</span>
+          <span style={{ color: "#6B5B8A" }}>{t} <span style={{ fontSize: 11, color: "#B79AE0" }}>(AI 맞춤)</span></span>
         </div>
       ))}
     </div>
