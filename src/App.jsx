@@ -411,79 +411,79 @@ function FUNC_MEANING(func, name, target, setting) {
 // 부모님용 쉬운 버전 — 전문용어 없이, "~해주세요" 톤, 예시 풍부
 const PARENT_BIP = {
   attention: {
-    why: "우리 아이가 이런 행동을 하는 건 말썽을 부리려는 게 아니라, \"나를 봐주세요\", \"관심 가져주세요\"라는 마음을 표현하는 거예요. 아직 그 마음을 적절한 말이나 행동으로 표현하는 법을 몰라서, 문제행동으로 관심을 얻으려는 것이랍니다.",
+    why: "아이가 이런 행동을 하는 것은 말썽을 부리려는 것이 아니라, \"나를 봐주세요\", \"관심을 가져주세요\"라는 마음의 표현입니다. 아직 그 마음을 적절한 말이나 행동으로 나타내는 법을 배우지 못해, 문제행동으로 관심을 얻으려는 것입니다.",
     prevent: [
-      "아이가 얌전히 잘 있을 때 먼저 다가가 관심을 주세요. 문제행동을 하기 전에 미리, 자주(5~10분마다) \"우리 ○○ 잘하고 있네~\" 하고 눈맞춤하며 칭찬해주세요.",
-      "관심을 언제 받을 수 있는지 미리 알려주세요. 예: \"이거 다 하면 엄마가 안아줄게\"처럼 예고하면 아이가 안심하고 기다릴 수 있어요.",
-      "잘하는 순간을 놓치지 말고 바로 말해주세요. \"혼자서 신발 신었네!\", \"동생한테 양보했구나!\"처럼 구체적으로 칭찬해주세요.",
-      "야단치는 것보다 칭찬을 훨씬 많이(4배 이상) 해주세요. 아이는 혼나는 것도 '관심'으로 느껴서, 야단이 오히려 문제행동을 늘릴 수 있어요.",
+      "아이가 얌전히 잘 있을 때 먼저 다가가 관심을 주세요. 문제행동이 나오기 전에 미리, 자주(5~10분마다) \"잘하고 있구나\" 하고 눈을 맞추며 칭찬해주세요.",
+      "관심을 언제 받을 수 있는지 미리 알려주세요. 예를 들어 \"이거 다 하면 안아줄게\"처럼 예고해주면 아이가 안심하고 기다릴 수 있습니다.",
+      "잘하는 순간을 놓치지 말고 바로 말해주세요. \"혼자서 신발을 신었구나\", \"동생에게 양보했구나\"처럼 구체적으로 칭찬해주세요.",
+      "야단치기보다 칭찬을 훨씬 많이(4배 이상) 해주세요. 아이는 혼나는 것도 관심으로 느끼기 때문에, 야단이 오히려 문제행동을 늘릴 수 있습니다.",
     ],
     teach: [
-      "관심이 필요할 때 적절히 표현하는 법을 가르쳐주세요. 예: 손 들기, \"봐 주세요\" 말하기, 엄마 어깨 톡톡 두드리기.",
-      "아이가 바르게 표현하면 하던 일을 멈추고 바로 반응해주세요. 그래야 아이가 \"이렇게 하면 빨리 봐주시는구나\"를 배워요.",
-      "조금씩 기다리는 것도 가르쳐주세요. \"잠깐만, 이것만 하고 봐줄게\" 하고 짧게 시작해 점점 기다리는 시간을 늘려주세요.",
+      "관심이 필요할 때 적절히 표현하는 법을 가르쳐주세요. 예: 손 들기, \"봐 주세요\"라고 말하기, 어깨를 가볍게 두드리기.",
+      "아이가 바르게 표현하면 하던 일을 멈추고 바로 반응해주세요. 그래야 아이가 \"이렇게 하면 봐주시는구나\"를 배웁니다.",
+      "조금씩 기다리는 것도 가르쳐주세요. \"잠깐만, 이것만 하고 봐줄게\"처럼 짧게 시작해 기다리는 시간을 점차 늘려주세요.",
     ],
     respond: [
-      "문제행동을 할 때는 최대한 반응을 줄여주세요(위험하지 않다면). 눈맞춤·잔소리·표정 반응을 줄이면, 그 행동으로는 관심을 못 얻는다는 걸 배워요.",
-      "대신 문제행동이 멈추고 바르게 행동하는 순간, 바로 크게 관심과 칭찬을 주세요.",
-      "처음엔 문제행동이 잠깐 더 심해질 수 있어요(원래 통하던 방법이라). 흔들리지 말고 일관되게 반응해주시면 곧 줄어들어요.",
+      "문제행동을 할 때는 반응을 최대한 줄여주세요(위험하지 않은 경우). 눈맞춤, 잔소리, 표정 반응을 줄이면 그 행동으로는 관심을 얻지 못한다는 것을 배웁니다.",
+      "대신 문제행동이 멈추고 바르게 행동하는 순간, 바로 충분한 관심과 칭찬을 주세요.",
+      "처음에는 문제행동이 잠시 더 심해질 수 있습니다(그동안 통하던 방법이기 때문입니다). 흔들리지 말고 일관되게 반응해주시면 점차 줄어듭니다.",
     ],
   },
   escape: {
-    why: "우리 아이가 이런 행동을 하는 건 \"이거 너무 어려워요\", \"하기 싫어요\", \"그만하고 싶어요\"라는 마음의 표현이에요. 힘든 상황에서 벗어나고 싶은데, 그걸 적절히 말하는 법을 몰라서 문제행동으로 표현하는 거랍니다.",
+    why: "아이가 이런 행동을 하는 것은 \"이거 너무 어려워요\", \"하기 싫어요\", \"그만하고 싶어요\"라는 마음의 표현입니다. 힘든 상황에서 벗어나고 싶지만 그것을 적절히 말하는 법을 배우지 못해, 문제행동으로 표현하는 것입니다.",
     prevent: [
-      "과제를 아이 수준에 맞게 조절해주세요. 너무 어려우면 잘게 나누고, 쉬운 것부터 성공하게 해서 자신감을 먼저 주세요.",
-      "중간중간 쉬는 시간을 미리 넣어주세요. \"세 개 하고 한 번 쉬자\"처럼요.",
-      "선택할 기회를 주세요. \"수학 먼저 할래, 책 먼저 볼래?\"처럼 아이가 고르게 하면 훨씬 덜 거부해요.",
-      "무엇을 얼마나 하는지 그림이나 순서표로 보여주세요. 끝이 보이면 아이가 훨씬 잘 견뎌요. (\"먼저 이거, 그다음 이거\")",
+      "과제를 아이 수준에 맞게 조절해주세요. 너무 어려우면 잘게 나누고, 쉬운 것부터 성공하게 해 자신감을 먼저 갖게 해주세요.",
+      "중간중간 쉬는 시간을 미리 넣어주세요. \"세 개 하고 한 번 쉬자\"처럼 정해두면 좋습니다.",
+      "선택할 기회를 주세요. \"수학 먼저 할까, 책 먼저 볼까?\"처럼 아이가 고르게 하면 거부가 줄어듭니다.",
+      "무엇을 얼마나 하는지 그림이나 순서표로 보여주세요. 끝이 보이면 아이가 훨씬 잘 견딥니다(\"먼저 이거, 그다음 이거\").",
     ],
     teach: [
-      "\"쉬고 싶어요\", \"도와주세요\"를 말이나 카드로 표현하게 가르쳐주세요. 도망가는 대신 도움을 청하는 법을 알려주는 거예요.",
-      "아이가 이렇게 표현하면 바로 짧게 쉬게 하거나 도와주세요. 그래야 \"이렇게 말하면 되는구나\"를 배워요.",
+      "\"쉬고 싶어요\", \"도와주세요\"를 말이나 카드로 표현하도록 가르쳐주세요. 벗어나는 대신 도움을 청하는 법을 알려주는 것입니다.",
+      "아이가 이렇게 표현하면 바로 짧게 쉬게 하거나 도와주세요. 그래야 \"이렇게 말하면 되는구나\"를 배웁니다.",
       "조금씩 참는 것도 가르쳐주세요. \"이거 하나만 더 하고 쉬자\"처럼 아주 조금씩 늘려가세요.",
     ],
     respond: [
-      "문제행동을 한다고 해서 과제를 아예 없애주지는 마세요. 그러면 \"이렇게 하면 안 해도 되는구나\"를 배우게 돼요. 대신 도와주거나 양을 줄여서라도 마무리하게 해주세요.",
+      "문제행동을 한다고 해서 과제를 아예 없애지는 마세요. 그러면 \"이렇게 하면 안 해도 되는구나\"를 배우게 됩니다. 대신 도와주거나 양을 줄여서라도 마무리하게 해주세요.",
       "바르게 요청하거나 과제에 참여하면 바로 쉬게 해주고 칭찬해주세요.",
-      "정해진 만큼 하면 좋아하는 활동을 하게 해주세요. \"이거 끝나면 좋아하는 블록 놀이 하자\"처럼요.",
+      "정해진 만큼 하면 좋아하는 활동을 하게 해주세요. \"이거 끝나면 좋아하는 블록 놀이를 하자\"처럼 안내해주세요.",
     ],
   },
   sensory: {
-    why: "우리 아이가 이런 행동을 하는 건 몸이 원하는 감각(만지는 느낌, 움직이는 느낌, 보는 느낌 등)을 채우려는 거예요. 말썽이 아니라, 아이 몸이 그 자극을 필요로 하는 것이랍니다. 그래서 주변에 아무도 없어도 이 행동이 나타나곤 해요.",
+    why: "아이가 이런 행동을 하는 것은 몸이 원하는 감각(만지는 느낌, 움직이는 느낌, 보는 느낌 등)을 채우려는 것입니다. 말썽이 아니라 아이의 몸이 그 자극을 필요로 하는 것입니다. 그래서 주변에 아무도 없을 때에도 이 행동이 나타나곤 합니다.",
     prevent: [
-      "아이가 좋아하는 감각을 안전하게 채울 수 있는 물건을 가까이 두세요. 예: 만지는 걸 좋아하면 촉감 장난감·말랑이, 움직임을 좋아하면 트램폴린·짐볼을 손 닿는 곳에.",
-      "정해진 시간에 미리 감각 놀이를 시켜주세요. 예: 20~30분마다 몇 분씩 좋아하는 감각 활동을 하면, 문제행동으로 자극을 찾을 필요가 줄어요.",
-      "하루 일과 속에 몸을 움직이고 감각을 채우는 시간을 규칙적으로 넣어주세요. (전문가·치료사와 상의해 시간표를 만들면 좋아요.)",
-      "심심하거나 지루한 시간이 길어지지 않게 해주세요. 그럴 때 감각 추구 행동이 더 나오기 쉬워요.",
+      "아이가 좋아하는 감각을 안전하게 채울 수 있는 물건을 가까이 두세요. 예: 촉감을 좋아하면 촉감 장난감이나 말랑이, 움직임을 좋아하면 트램폴린이나 짐볼을 손 닿는 곳에 두세요.",
+      "정해진 시간에 미리 감각 놀이를 하게 해주세요. 예를 들어 20~30분마다 몇 분씩 좋아하는 감각 활동을 하면, 문제행동으로 자극을 찾을 필요가 줄어듭니다.",
+      "하루 일과 속에 몸을 움직이고 감각을 채우는 시간을 규칙적으로 넣어주세요(전문가나 치료사와 상의해 시간표를 만들면 좋습니다).",
+      "심심하거나 지루한 시간이 길어지지 않게 해주세요. 그럴 때 감각 추구 행동이 더 나오기 쉽습니다.",
     ],
     teach: [
       "문제행동 대신 비슷한 감각을 얻는 다른 행동을 가르쳐주세요. 예: 물건을 입에 넣는 대신 씹기 장난감 물기, 손을 흔드는 대신 말랑이 만지기.",
-      "\"만지고 싶어요\", \"움직이고 싶어요\"를 말이나 카드로 표현하게 알려주세요. 그러면 정해진 자리에서 감각 도구를 쓰게 해주세요.",
-      "스스로 진정하는 순서를 알려주세요. 예: '멈추기 → 숨쉬기 → 도구 쓰기' 그림 카드로 연습해요.",
+      "\"만지고 싶어요\", \"움직이고 싶어요\"를 말이나 카드로 표현하도록 알려주세요. 그러면 정해진 자리에서 감각 도구를 쓰게 해주세요.",
+      "스스로 진정하는 순서를 알려주세요. 예: '멈추기 → 숨쉬기 → 도구 쓰기' 그림 카드로 연습합니다.",
     ],
     respond: [
       "아이가 바르게 감각 도구를 요청하거나 사용하면 바로 칭찬해주세요.",
-      "문제행동을 할 때는 담담하게 반응하고, 가능하면 그 행동이 주는 자극을 줄여주세요(안전한 범위에서). 예: 소리가 좋아서라면 조용한 환경, 촉감이라면 다른 재질로 바꿔주기.",
-      "좋아하는 감각 활동도 가끔 종류를 바꿔주세요. 늘 똑같으면 아이가 금방 싫증 내요.",
+      "문제행동을 할 때는 차분하게 반응하고, 가능하면 그 행동이 주는 자극을 줄여주세요(안전한 범위에서). 예: 소리 때문이라면 조용한 환경으로, 촉감 때문이라면 다른 재질로 바꿔주세요.",
+      "좋아하는 감각 활동도 가끔 종류를 바꿔주세요. 늘 똑같으면 아이가 금방 싫증을 냅니다.",
     ],
   },
   tangible: {
-    why: "우리 아이가 이런 행동을 하는 건 \"그거 갖고 싶어요\", \"그거 하고 싶어요\"라는 마음의 표현이에요. 원하는 걸 얻고 싶은데, 적절히 요청하는 법을 몰라서 문제행동으로 표현하는 거랍니다.",
+    why: "아이가 이런 행동을 하는 것은 \"그거 갖고 싶어요\", \"그거 하고 싶어요\"라는 마음의 표현입니다. 원하는 것을 얻고 싶지만 적절히 요청하는 법을 배우지 못해, 문제행동으로 표현하는 것입니다.",
     prevent: [
       "언제 가질 수 있는지 미리 알려주세요. 예: 타이머나 \"이따가\" 카드로 \"조금 있다가 줄게\"를 눈에 보이게 해주세요.",
-      "좋아하는 것을 끝내야 할 때 미리 예고해주세요. \"5분 뒤에 정리할 거야, 이따 또 할 수 있어\"처럼요.",
-      "원하는 걸 적절히 요청할 기회를 자주 만들어주세요.",
+      "좋아하는 것을 끝내야 할 때 미리 예고해주세요. \"5분 뒤에 정리할 거야, 이따 또 할 수 있어\"처럼 안내해주세요.",
+      "원하는 것을 적절히 요청할 기회를 자주 만들어주세요.",
       "\"안 돼\"만 반복하기보다, 언제 어떻게 얻을 수 있는지 함께 알려주세요. 예: \"지금은 안 되지만, 밥 먹고 나서 하자\".",
     ],
     teach: [
-      "원하는 걸 적절히 표현하는 법을 가르쳐주세요. 예: 그림카드 주기, \"주세요\" 말하기, 손으로 가리키기.",
-      "\"기다리기\"를 조금씩 가르쳐주세요. 처음엔 아주 짧게, 점점 기다리는 시간을 늘려가세요.",
-      "차례 지키기, 나눠 쓰기도 함께 알려주세요. 특히 형제나 친구와 있을 때 필요해요.",
+      "원하는 것을 적절히 표현하는 법을 가르쳐주세요. 예: 그림카드 건네기, \"주세요\"라고 말하기, 손으로 가리키기.",
+      "\"기다리기\"를 조금씩 가르쳐주세요. 처음에는 아주 짧게 시작해 기다리는 시간을 점차 늘려가세요.",
+      "차례 지키기와 나눠 쓰기도 함께 알려주세요. 특히 형제나 친구와 함께 있을 때 필요합니다.",
     ],
     respond: [
-      "문제행동을 할 때는 원하는 걸 주지 마세요. 그러면 \"이렇게 하면 얻는구나\"를 배우게 돼요.",
-      "대신 바르게 요청하면 바로 주세요. \"주세요\"라고 말하거나 카드를 주면 즉시 반응해주세요.",
-      "정해진 시간 동안 잘 기다리면 원하는 걸 주세요. 기다림이 통한다는 걸 배우게 해주세요.",
+      "문제행동을 할 때는 원하는 것을 주지 마세요. 그러면 \"이렇게 하면 얻는구나\"를 배우게 됩니다.",
+      "대신 바르게 요청하면 바로 주세요. \"주세요\"라고 말하거나 카드를 건네면 즉시 반응해주세요.",
+      "정해진 시간 동안 잘 기다리면 원하는 것을 주세요. 기다림이 통한다는 것을 배우게 해주세요.",
     ],
   },
 };
@@ -2374,10 +2374,10 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
 @media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}}
 body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:740px;margin:auto;}
 .topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
-.brandrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
-.brandrow img{width:52px;height:52px;object-fit:contain;}
-.brandrow .bt{font-size:13px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
-.brandrow .bs{font-size:10px;color:#B08A94;margin-top:1px;}
+.brandrow{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+.brandrow img{width:62px;height:62px;object-fit:contain;}
+.brandrow .bt{font-size:16px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
+.brandrow .bs{font-size:11.5px;color:#B08A94;margin-top:2px;}
 .infobox{display:flex;flex-wrap:wrap;gap:0;border:1.5px solid #F3C9D5;border-radius:10px;overflow:hidden;margin-bottom:26px;}
 .infobox .cell{display:flex;min-width:33.33%;flex:1;}
 .infobox .ck{background:#FFF0F3;color:#C4557A;font-weight:700;font-size:12px;padding:10px 12px;min-width:56px;display:flex;align-items:center;}
@@ -2403,7 +2403,6 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 <div class="infobox">
 <div class="cell"><div class="ck">대상</div><div class="cv">${esc(c.name)}${(c.age || c.school) ? " (" + [c.age, c.school].filter(Boolean).join(", ") + ")" : ""}</div></div>
 <div class="cell"><div class="ck">환경</div><div class="cv">${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"}</div></div>
-<div class="cell"><div class="ck">작성</div><div class="cv">${todayKr()}</div></div>
 <div class="cell"><div class="ck">중재안 제공일</div><div class="cv">${esc(isoToKr(provideDate))}</div></div>
 </div>
 
@@ -2455,10 +2454,10 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
 @media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}}
 body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:720px;margin:auto;}
 .topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
-.brandrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
-.brandrow img{width:50px;height:50px;object-fit:contain;}
-.brandrow .bt{font-size:13px;font-weight:700;color:#C4557A;}
-.brandrow .bs{font-size:10px;color:#B08A94;margin-top:1px;}
+.brandrow{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+.brandrow img{width:62px;height:62px;object-fit:contain;}
+.brandrow .bt{font-size:16px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
+.brandrow .bs{font-size:11.5px;color:#B08A94;margin-top:2px;}
 h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 .intro{font-size:12.5px;color:#9A7A82;background:#FFF9FA;border-radius:10px;padding:11px 14px;margin:14px 0 22px;line-height:1.7;}
 .pblock{margin-bottom:20px;break-inside:avoid;}
@@ -2473,7 +2472,7 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 <div class="topbar"></div>
 <div class="brandrow"><img src="${LOGO_B64}" alt="로고"/><div><div class="bt">검단ABA언어행동연구소</div><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div></div>
 <h1>${esc(nm)} 가정 지원 안내</h1>
-<div class="intro">이 안내는 <b>${esc(nm)} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 자료예요. 집에서 이렇게 도와주시면 ${esc(nm)}에게 큰 힘이 됩니다.</div>
+<div class="intro">이 안내는 <b>${esc(nm)} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 자료입니다. 집에서 이렇게 도와주시면 ${esc(nm)}에게 큰 힘이 됩니다.</div>
 <div class="pblock">
   <div class="ph"><span class="pt" style="color:#D4728A">${esc(nm)}는 왜 이런 행동을 할까요?</span></div>
   <div class="pdesc" style="background:#FFF0F3">${esc(pc.why)}</div>
@@ -2532,7 +2531,6 @@ ${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC"
       <div style={{ border: `1px solid ${PKL}`, borderRadius: 10, overflow: "hidden", marginBottom: 12, marginTop: 6 }}>
         <InfoRow label="대상" value={`${c.name}${(c.age||c.school)? " ("+[c.age,c.school].filter(Boolean).join(", ")+")":""}`} />
         <InfoRow label="환경" value={bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"} />
-        <InfoRow label="작성" value={`검단ABA언어행동연구소 · ${todayKr()}`} />
         <InfoRow label="제공일" last value={
           <input type="date" value={provideDate}
             onChange={(e) => changeProvideDate(e.target.value)}
@@ -2816,7 +2814,7 @@ async function enhanceParentBIP(bip, c) {
     return ((last - 0xac00) % 28 !== 0) ? g + "이" : g;
   })();
 
-  const prompt = `당신은 따뜻한 ABA 부모교육 전문가입니다. 아래 아이의 정보를 바탕으로, 부모님이 집에서 읽고 바로 실천할 수 있는 쉬운 가정 지원 안내를 작성하세요.
+  const prompt = `당신은 신뢰감 있는 ABA 부모교육 전문가입니다. 아래 아이의 정보를 바탕으로, 부모님이 집에서 읽고 바로 실천할 수 있는 가정 지원 안내를 작성하세요.
 
 [아이 정보]
 - 이름(애칭): ${displayNm}
@@ -2828,11 +2826,11 @@ async function enhanceParentBIP(bip, c) {
 ${abcSummary}
 
 [작성 지침]
-- 전문용어(NCR, DRA, 소거, 촉구 등)를 절대 쓰지 마세요. 대신 부모님이 이해할 쉬운 말로 풀어 쓰세요.
-- 따뜻하고 격려하는 말투("~해주세요", "~하면 좋아요")로 쓰세요. 부모를 탓하는 느낌이 들지 않게.
+- 전문용어(NCR, DRA, 소거, 촉구 등)를 절대 쓰지 마세요. 대신 부모님이 이해할 수 있는 쉬운 말로 풀어 쓰세요.
+- 차분하고 신뢰감 있는 존댓말로 쓰세요. 지나치게 가볍거나 들뜬 말투(과한 물결표, 감탄, 애칭 남발)는 피하되, 부모를 탓하는 느낌도 들지 않게 하세요. 실천 지침은 "~해주세요" 형태로, 설명 문장은 "~입니다 / ~것입니다" 형태로 정돈해 쓰세요.
 - 위 관찰기록이 있으면 그 상황을 예로 들어 구체적으로 쓰세요.
 - 아이를 "${displayNm}"로 부르고 한국어 조사를 올바르게 쓰세요.
-- why: 이 행동을 왜 하는지 2~3문장으로 따뜻하게 설명(말썽이 아니라 마음의 표현이라는 관점).
+- why: 이 행동을 왜 하는지 2~3문장으로 차분하게 설명(말썽이 아니라 마음의 표현이라는 관점).
 - prevent(미리 예방): 집에서 미리 할 수 있는 구체적 방법 3~4개.
 - teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개.
 - respond(반응 방법): 문제행동과 바른행동에 어떻게 반응할지 2~3개.
@@ -3328,7 +3326,7 @@ function ParentView({ content, childName }) {
   return (
     <div>
       <div style={{ fontSize: 12.5, color: MUTE, marginBottom: 16, lineHeight: 1.6, background: "#FFF9FA", borderRadius: 10, padding: "10px 12px" }}>
-        이 내용은 <b>{nm} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 안내예요. 집에서 이렇게 도와주시면 큰 힘이 됩니다.
+        이 내용은 <b>{nm} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 안내입니다. 집에서 이렇게 도와주시면 큰 힘이 됩니다.
       </div>
       <Block title={`${nm}는 왜 이런 행동을 할까요?`} desc={content.why} bg="#FFF0F3" accent={PKD} />
       <Block title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" />
@@ -3501,11 +3499,6 @@ const btnGhost = { padding: "10px 16px", borderRadius: 10, border: `1.5px solid 
 function today() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function todayKr() {
-  const d = new Date();
-  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
 }
 
 // "2026-07-08" → "2026. 7. 8." (빈값이면 빈 문자열)
