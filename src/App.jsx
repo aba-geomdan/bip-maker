@@ -2378,7 +2378,7 @@ body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-h
 .brandrow{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
 .brandrow img{height:68px;width:auto;object-fit:contain;}
 .brandrow .bt{font-size:16px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
-.brandrow .bs{font-size:13px;color:#B08A94;line-height:1.5;}
+.brandrow .bs{font-size:15px;color:#A17983;line-height:1.5;}
 .infobox{display:flex;flex-wrap:wrap;gap:0;border:1.5px solid #F3C9D5;border-radius:10px;overflow:hidden;margin-bottom:26px;}
 .infobox .cell{display:flex;min-width:33.33%;flex:1;}
 .infobox .ck{background:#FFF0F3;color:#C4557A;font-weight:700;font-size:12px;padding:10px 12px;min-width:56px;display:flex;align-items:center;}
@@ -2386,7 +2386,7 @@ body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-h
 h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 6px;}
 .subline{font-size:11.5px;color:#B08A94;letter-spacing:.4px;margin-bottom:26px;padding-bottom:14px;border-bottom:1px solid #F3E3E8;}
 .sec{margin-bottom:22px;}
-.secH{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#FFF0F3,#FFF9FA 80%);border-left:4px solid #D4728A;border-radius:0 8px 8px 0;padding:9px 14px;margin-bottom:12px;break-inside:avoid;}
+.secH{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#FFF0F3,#FFF9FA 80%);border-left:4px solid #D4728A;border-radius:0 8px 8px 0;padding:9px 14px;margin-bottom:12px;break-inside:avoid;break-after:avoid;page-break-after:avoid;}
 .secH .n{background:#D4728A;color:#fff;min-width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
 .secH .t{font-size:14.5px;font-weight:800;color:#C4557A;}
 .item{position:relative;padding:11px 14px 11px 30px;background:#FFFBFC;border:1px solid #F5E4EA;border-radius:9px;font-size:13px;line-height:1.65;margin-bottom:7px;break-inside:avoid;}
@@ -2458,7 +2458,7 @@ body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-h
 .brandrow{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
 .brandrow img{height:68px;width:auto;object-fit:contain;}
 .brandrow .bt{font-size:16px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
-.brandrow .bs{font-size:13px;color:#B08A94;line-height:1.5;}
+.brandrow .bs{font-size:15px;color:#A17983;line-height:1.5;}
 h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 .intro{font-size:12.5px;color:#9A7A82;background:#FFF9FA;border-radius:10px;padding:11px 14px;margin:14px 0 22px;line-height:1.7;}
 .pblock{margin-bottom:20px;break-inside:avoid;}
