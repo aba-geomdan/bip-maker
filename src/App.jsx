@@ -408,6 +408,86 @@ function FUNC_MEANING(func, name, target, setting) {
 }
 
 
+// 부모님용 쉬운 버전 — 전문용어 없이, "~해주세요" 톤, 예시 풍부
+const PARENT_BIP = {
+  attention: {
+    why: "우리 아이가 이런 행동을 하는 건 말썽을 부리려는 게 아니라, \"나를 봐주세요\", \"관심 가져주세요\"라는 마음을 표현하는 거예요. 아직 그 마음을 적절한 말이나 행동으로 표현하는 법을 몰라서, 문제행동으로 관심을 얻으려는 것이랍니다.",
+    prevent: [
+      "아이가 얌전히 잘 있을 때 먼저 다가가 관심을 주세요. 문제행동을 하기 전에 미리, 자주(5~10분마다) \"우리 ○○ 잘하고 있네~\" 하고 눈맞춤하며 칭찬해주세요.",
+      "관심을 언제 받을 수 있는지 미리 알려주세요. 예: \"이거 다 하면 엄마가 안아줄게\"처럼 예고하면 아이가 안심하고 기다릴 수 있어요.",
+      "잘하는 순간을 놓치지 말고 바로 말해주세요. \"혼자서 신발 신었네!\", \"동생한테 양보했구나!\"처럼 구체적으로 칭찬해주세요.",
+      "야단치는 것보다 칭찬을 훨씬 많이(4배 이상) 해주세요. 아이는 혼나는 것도 '관심'으로 느껴서, 야단이 오히려 문제행동을 늘릴 수 있어요.",
+    ],
+    teach: [
+      "관심이 필요할 때 적절히 표현하는 법을 가르쳐주세요. 예: 손 들기, \"봐 주세요\" 말하기, 엄마 어깨 톡톡 두드리기.",
+      "아이가 바르게 표현하면 하던 일을 멈추고 바로 반응해주세요. 그래야 아이가 \"이렇게 하면 빨리 봐주시는구나\"를 배워요.",
+      "조금씩 기다리는 것도 가르쳐주세요. \"잠깐만, 이것만 하고 봐줄게\" 하고 짧게 시작해 점점 기다리는 시간을 늘려주세요.",
+    ],
+    respond: [
+      "문제행동을 할 때는 최대한 반응을 줄여주세요(위험하지 않다면). 눈맞춤·잔소리·표정 반응을 줄이면, 그 행동으로는 관심을 못 얻는다는 걸 배워요.",
+      "대신 문제행동이 멈추고 바르게 행동하는 순간, 바로 크게 관심과 칭찬을 주세요.",
+      "처음엔 문제행동이 잠깐 더 심해질 수 있어요(원래 통하던 방법이라). 흔들리지 말고 일관되게 반응해주시면 곧 줄어들어요.",
+    ],
+  },
+  escape: {
+    why: "우리 아이가 이런 행동을 하는 건 \"이거 너무 어려워요\", \"하기 싫어요\", \"그만하고 싶어요\"라는 마음의 표현이에요. 힘든 상황에서 벗어나고 싶은데, 그걸 적절히 말하는 법을 몰라서 문제행동으로 표현하는 거랍니다.",
+    prevent: [
+      "과제를 아이 수준에 맞게 조절해주세요. 너무 어려우면 잘게 나누고, 쉬운 것부터 성공하게 해서 자신감을 먼저 주세요.",
+      "중간중간 쉬는 시간을 미리 넣어주세요. \"세 개 하고 한 번 쉬자\"처럼요.",
+      "선택할 기회를 주세요. \"수학 먼저 할래, 책 먼저 볼래?\"처럼 아이가 고르게 하면 훨씬 덜 거부해요.",
+      "무엇을 얼마나 하는지 그림이나 순서표로 보여주세요. 끝이 보이면 아이가 훨씬 잘 견뎌요. (\"먼저 이거, 그다음 이거\")",
+    ],
+    teach: [
+      "\"쉬고 싶어요\", \"도와주세요\"를 말이나 카드로 표현하게 가르쳐주세요. 도망가는 대신 도움을 청하는 법을 알려주는 거예요.",
+      "아이가 이렇게 표현하면 바로 짧게 쉬게 하거나 도와주세요. 그래야 \"이렇게 말하면 되는구나\"를 배워요.",
+      "조금씩 참는 것도 가르쳐주세요. \"이거 하나만 더 하고 쉬자\"처럼 아주 조금씩 늘려가세요.",
+    ],
+    respond: [
+      "문제행동을 한다고 해서 과제를 아예 없애주지는 마세요. 그러면 \"이렇게 하면 안 해도 되는구나\"를 배우게 돼요. 대신 도와주거나 양을 줄여서라도 마무리하게 해주세요.",
+      "바르게 요청하거나 과제에 참여하면 바로 쉬게 해주고 칭찬해주세요.",
+      "정해진 만큼 하면 좋아하는 활동을 하게 해주세요. \"이거 끝나면 좋아하는 블록 놀이 하자\"처럼요.",
+    ],
+  },
+  sensory: {
+    why: "우리 아이가 이런 행동을 하는 건 몸이 원하는 감각(만지는 느낌, 움직이는 느낌, 보는 느낌 등)을 채우려는 거예요. 말썽이 아니라, 아이 몸이 그 자극을 필요로 하는 것이랍니다. 그래서 주변에 아무도 없어도 이 행동이 나타나곤 해요.",
+    prevent: [
+      "아이가 좋아하는 감각을 안전하게 채울 수 있는 물건을 가까이 두세요. 예: 만지는 걸 좋아하면 촉감 장난감·말랑이, 움직임을 좋아하면 트램폴린·짐볼을 손 닿는 곳에.",
+      "정해진 시간에 미리 감각 놀이를 시켜주세요. 예: 20~30분마다 몇 분씩 좋아하는 감각 활동을 하면, 문제행동으로 자극을 찾을 필요가 줄어요.",
+      "하루 일과 속에 몸을 움직이고 감각을 채우는 시간을 규칙적으로 넣어주세요. (전문가·치료사와 상의해 시간표를 만들면 좋아요.)",
+      "심심하거나 지루한 시간이 길어지지 않게 해주세요. 그럴 때 감각 추구 행동이 더 나오기 쉬워요.",
+    ],
+    teach: [
+      "문제행동 대신 비슷한 감각을 얻는 다른 행동을 가르쳐주세요. 예: 물건을 입에 넣는 대신 씹기 장난감 물기, 손을 흔드는 대신 말랑이 만지기.",
+      "\"만지고 싶어요\", \"움직이고 싶어요\"를 말이나 카드로 표현하게 알려주세요. 그러면 정해진 자리에서 감각 도구를 쓰게 해주세요.",
+      "스스로 진정하는 순서를 알려주세요. 예: '멈추기 → 숨쉬기 → 도구 쓰기' 그림 카드로 연습해요.",
+    ],
+    respond: [
+      "아이가 바르게 감각 도구를 요청하거나 사용하면 바로 칭찬해주세요.",
+      "문제행동을 할 때는 담담하게 반응하고, 가능하면 그 행동이 주는 자극을 줄여주세요(안전한 범위에서). 예: 소리가 좋아서라면 조용한 환경, 촉감이라면 다른 재질로 바꿔주기.",
+      "좋아하는 감각 활동도 가끔 종류를 바꿔주세요. 늘 똑같으면 아이가 금방 싫증 내요.",
+    ],
+  },
+  tangible: {
+    why: "우리 아이가 이런 행동을 하는 건 \"그거 갖고 싶어요\", \"그거 하고 싶어요\"라는 마음의 표현이에요. 원하는 걸 얻고 싶은데, 적절히 요청하는 법을 몰라서 문제행동으로 표현하는 거랍니다.",
+    prevent: [
+      "언제 가질 수 있는지 미리 알려주세요. 예: 타이머나 \"이따가\" 카드로 \"조금 있다가 줄게\"를 눈에 보이게 해주세요.",
+      "좋아하는 것을 끝내야 할 때 미리 예고해주세요. \"5분 뒤에 정리할 거야, 이따 또 할 수 있어\"처럼요.",
+      "원하는 걸 적절히 요청할 기회를 자주 만들어주세요.",
+      "\"안 돼\"만 반복하기보다, 언제 어떻게 얻을 수 있는지 함께 알려주세요. 예: \"지금은 안 되지만, 밥 먹고 나서 하자\".",
+    ],
+    teach: [
+      "원하는 걸 적절히 표현하는 법을 가르쳐주세요. 예: 그림카드 주기, \"주세요\" 말하기, 손으로 가리키기.",
+      "\"기다리기\"를 조금씩 가르쳐주세요. 처음엔 아주 짧게, 점점 기다리는 시간을 늘려가세요.",
+      "차례 지키기, 나눠 쓰기도 함께 알려주세요. 특히 형제나 친구와 있을 때 필요해요.",
+    ],
+    respond: [
+      "문제행동을 할 때는 원하는 걸 주지 마세요. 그러면 \"이렇게 하면 얻는구나\"를 배우게 돼요.",
+      "대신 바르게 요청하면 바로 주세요. \"주세요\"라고 말하거나 카드를 주면 즉시 반응해주세요.",
+      "정해진 시간 동안 잘 기다리면 원하는 걸 주세요. 기다림이 통한다는 걸 배우게 해주세요.",
+    ],
+  },
+};
+
 // 기능별 중재 라이브러리 — ABA 표준 4구성
 const INTERVENTION_LIB = {
   attention: {
@@ -720,12 +800,12 @@ function MainApp() {
   }, [cases]);
 
   useEffect(() => {
-    try { const r = localStorage.getItem("bipmaker-current"); if (r) setCurrent(JSON.parse(r)); } catch (e) {}
+    try { const r = sessionStorage.getItem("bipmaker-current"); if (r) setCurrent(JSON.parse(r)); } catch (e) {}
     didRestoreSession.current = true;
   }, []);
   useEffect(() => {
     if (!didRestoreSession.current) return;
-    if (current) { try { localStorage.setItem("bipmaker-current", JSON.stringify(current)); } catch (e) {} }
+    if (current) { try { sessionStorage.setItem("bipmaker-current", JSON.stringify(current)); } catch (e) {} }
   }, [current]);
 
 
@@ -745,7 +825,7 @@ function MainApp() {
   }
 
   const handleLogout = () => {
-    try { localStorage.removeItem("bipmaker-current"); } catch (e) {}
+    try { sessionStorage.removeItem("bipmaker-current"); } catch (e) {}
     setCurrent(null);
   };
 
@@ -2210,6 +2290,24 @@ function BIPDocument({ bip, c, agg }) {
   const [aiState, setAiState] = useState("idle"); // idle | loading | done | error
   const [aiBip, setAiBip] = useState(null); // { antecedent:[], replacement:[], consequence:[] } — 있으면 템플릿 대신 사용
   const [aiErr, setAiErr] = useState("");
+  const [viewMode, setViewMode] = useState("expert"); // expert | parent
+  const [parentAi, setParentAi] = useState(null); // AI가 변환한 부모님용 { why, prevent, teach, respond }
+  const [parentAiState, setParentAiState] = useState("idle"); // idle | loading | error
+  const [parentAiErr, setParentAiErr] = useState("");
+  const parentContent = parentAi || PARENT_BIP[bip.func] || PARENT_BIP.sensory;
+
+  const runParentAI = async () => {
+    setParentAiState("loading"); setParentAiErr("");
+    try {
+      const r = await enhanceParentBIP(bip, c);
+      setParentAi(r);
+      setParentAiState("idle");
+    } catch (e) {
+      setParentAiErr(e.message || "AI 변환 중 문제가 발생했어요.");
+      setParentAiState("error");
+    }
+  };
+  const clearParentAI = () => { setParentAi(null); setParentAiState("idle"); setParentAiErr(""); };
 
   const usingAi = !!aiBip;
   // 표시용: AI 결과가 있으면 AI 것, 없으면 템플릿
@@ -2218,6 +2316,29 @@ function BIPDocument({ bip, c, agg }) {
   const showCon = usingAi ? aiBip.consequence : bip.consequence;
 
   const copyText = () => {
+    if (viewMode === "parent") {
+      const pc = parentContent;
+      const nm = displayName(c.name);
+      const lines = [
+        `[ ${nm} 가정 지원 안내 ]`,
+        "",
+        `🤔 ${nm}는 왜 이런 행동을 할까요?`,
+        pc.why,
+        "",
+        "🌱 미리 예방해요",
+        ...pc.prevent.map((t, i) => `${i + 1}. ${t}`),
+        "",
+        "💬 다른 행동을 가르쳐요",
+        ...pc.teach.map((t, i) => `${i + 1}. ${t}`),
+        "",
+        "🤗 이렇게 반응해주세요",
+        ...pc.respond.map((t, i) => `${i + 1}. ${t}`),
+        "",
+        "검단ABA언어행동연구소",
+      ];
+      if (navigator.clipboard) navigator.clipboard.writeText(lines.join("\n"));
+      return;
+    }
     const b2 = usingAi ? { ...bip, antecedent: showAnt, replacement: showRep, consequence: showCon } : bip;
     const txt = bipToText(b2, c, agg) + (usingAi ? "\n\n※ 이 계획은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요." : "");
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
@@ -2233,16 +2354,25 @@ function BIPDocument({ bip, c, agg }) {
     const aiBadge = usingAi ? `<span style="display:inline-block;background:#F0E8FB;color:#8A6FB0;font-size:10px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;">AI 맞춤 생성</span>` : "";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
 <style>
-*{box-sizing:border-box;}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+@media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}}
 body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:740px;margin:auto;}
 .topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
+.brandrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.brandrow img{width:52px;height:52px;object-fit:contain;}
+.brandrow .bt{font-size:13px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
+.brandrow .bs{font-size:10px;color:#B08A94;margin-top:1px;}
+.infobox{display:flex;flex-wrap:wrap;gap:0;border:1.5px solid #F3C9D5;border-radius:10px;overflow:hidden;margin-bottom:26px;}
+.infobox .cell{display:flex;min-width:33.33%;flex:1;}
+.infobox .ck{background:#FFF0F3;color:#C4557A;font-weight:700;font-size:12px;padding:10px 12px;min-width:56px;display:flex;align-items:center;}
+.infobox .cv{padding:10px 12px;font-size:12.5px;display:flex;align-items:center;flex:1;background:#fff;}
 h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 6px;}
 .subline{font-size:11.5px;color:#B08A94;letter-spacing:.4px;margin-bottom:26px;padding-bottom:14px;border-bottom:1px solid #F3E3E8;}
 .sec{margin-bottom:22px;}
-.secH{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#FFF0F3,#FFF9FA 80%);border-left:4px solid #D4728A;border-radius:0 8px 8px 0;padding:9px 14px;margin-bottom:12px;}
+.secH{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#FFF0F3,#FFF9FA 80%);border-left:4px solid #D4728A;border-radius:0 8px 8px 0;padding:9px 14px;margin-bottom:12px;break-inside:avoid;}
 .secH .n{background:#D4728A;color:#fff;min-width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
 .secH .t{font-size:14.5px;font-weight:800;color:#C4557A;}
-.item{position:relative;padding:11px 14px 11px 30px;background:#FFFBFC;border:1px solid #F5E4EA;border-radius:9px;font-size:13px;line-height:1.65;margin-bottom:7px;}
+.item{position:relative;padding:11px 14px 11px 30px;background:#FFFBFC;border:1px solid #F5E4EA;border-radius:9px;font-size:13px;line-height:1.65;margin-bottom:7px;break-inside:avoid;}
 .item::before{content:"";position:absolute;left:13px;top:16px;width:7px;height:7px;border-radius:50%;background:#F5A0B1;}
 .hyp{background:linear-gradient(135deg,#FFF0F3,#FFF6F8);border:1px solid #F3C9D5;border-radius:10px;padding:15px 17px;font-size:13.5px;line-height:1.7;margin:10px 0;}
 .hyp b{color:#C4557A;}
@@ -2252,8 +2382,13 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 .foot{margin-top:34px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;letter-spacing:.3px;}
 </style></head><body>
 <div class="topbar"></div>
+<div class="brandrow"><img src="${LOGO_B64}" alt="로고"/><div><div class="bt">검단ABA언어행동연구소</div><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div></div>
 <h1>${title}${aiBadge}</h1>
-<div class="subline">${esc(c.name)}${(c.age || c.school) ? " · " + [c.age, c.school].filter(Boolean).join(", ") : ""} · ${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"} · 검단ABA언어행동연구소 · ${todayKr()}</div>
+<div class="infobox">
+<div class="cell"><div class="ck">대상</div><div class="cv">${esc(c.name)}${(c.age || c.school) ? " (" + [c.age, c.school].filter(Boolean).join(", ") + ")" : ""}</div></div>
+<div class="cell"><div class="ck">환경</div><div class="cv">${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"}</div></div>
+<div class="cell"><div class="ck">작성</div><div class="cv">${todayKr()}</div></div>
+</div>
 
 <div class="sec">
 <div class="secH"><span class="n">1</span><span class="t">행동의 기능 및 가설</span></div>
@@ -2288,10 +2423,57 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
 </body></html>`;
   };
 
+  const buildParentHtml = () => {
+    const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const nm = displayName(c.name);
+    const pc = parentContent;
+    const listBlock = (emoji, title, items, accent, bg) => `
+<div class="pblock">
+  <div class="ph"><span class="pe">${emoji}</span><span class="pt" style="color:${accent}">${esc(title)}</span></div>
+  ${items.map((t, i) => `<div class="pitem" style="background:${bg}"><span class="pn" style="color:${accent}">${i + 1}</span><span>${esc(t)}</span></div>`).join("")}
+</div>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_가정지원안내</title>
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+@media print{*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}}
+body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:720px;margin:auto;}
+.topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
+.brandrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.brandrow img{width:50px;height:50px;object-fit:contain;}
+.brandrow .bt{font-size:13px;font-weight:700;color:#C4557A;}
+.brandrow .bs{font-size:10px;color:#B08A94;margin-top:1px;}
+h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
+.intro{font-size:12.5px;color:#9A7A82;background:#FFF9FA;border-radius:10px;padding:11px 14px;margin:14px 0 22px;line-height:1.7;}
+.pblock{margin-bottom:20px;break-inside:avoid;}
+.ph{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.pe{font-size:20px;}
+.pt{font-size:15.5px;font-weight:800;}
+.pdesc{font-size:13.5px;line-height:1.85;border-radius:12px;padding:15px 17px;}
+.pitem{display:flex;gap:11px;font-size:13.5px;line-height:1.75;border-radius:12px;padding:13px 15px;margin-bottom:8px;break-inside:avoid;}
+.pn{flex-shrink:0;font-weight:800;}
+.foot{margin-top:32px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;}
+</style></head><body>
+<div class="topbar"></div>
+<div class="brandrow"><img src="${LOGO_B64}" alt="로고"/><div><div class="bt">검단ABA언어행동연구소</div><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div></div>
+<h1>${esc(nm)} 가정 지원 안내</h1>
+<div class="intro">💛 이 안내는 <b>${esc(nm)} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 자료예요. 집에서 이렇게 도와주시면 ${esc(nm)}에게 큰 힘이 됩니다.</div>
+<div class="pblock">
+  <div class="ph"><span class="pe">🤔</span><span class="pt" style="color:#D4728A">${esc(nm)}는 왜 이런 행동을 할까요?</span></div>
+  <div class="pdesc" style="background:#FFF0F3">${esc(pc.why)}</div>
+</div>
+${listBlock("🌱", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1")}
+${listBlock("💬", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB")}
+${listBlock("🤗", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC")}
+<div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
+</body></html>`;
+  };
+
+  const [printWarn, setPrintWarn] = useState(false);
   const doPrint = () => {
+    setPrintWarn(false);
     const w = window.open("", "_blank");
-    if (!w) { alert("팝업이 차단되었어요. 팝업 허용 후 다시 시도해 주세요."); return; }
-    w.document.write(buildHtml());
+    if (!w) { setPrintWarn(true); return; }
+    w.document.write(viewMode === "parent" ? buildParentHtml() : buildHtml());
     w.document.close();
     setTimeout(() => w.print(), 400);
   };
@@ -2312,10 +2494,23 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
 
   return (
     <div style={{ background: "#fff", borderRadius: 16, padding: 22, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+      {/* 전문가용 ↔ 부모님용 토글 */}
+      <div style={{ display: "flex", background: PKL, borderRadius: 10, padding: 4, marginBottom: 12 }}>
+        <button onClick={() => setViewMode("expert")} style={{ flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 7, cursor: "pointer", background: viewMode === "expert" ? "#fff" : "transparent", color: viewMode === "expert" ? PKD : MUTE, boxShadow: viewMode === "expert" ? "0 1px 4px rgba(0,0,0,0.08)" : "none" }}>👩‍⚕️ 전문가용</button>
+        <button onClick={() => setViewMode("parent")} style={{ flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700, border: "none", borderRadius: 7, cursor: "pointer", background: viewMode === "parent" ? "#fff" : "transparent", color: viewMode === "parent" ? PKD : MUTE, boxShadow: viewMode === "parent" ? "0 1px 4px rgba(0,0,0,0.08)" : "none" }}>👨‍👩‍👧 부모님용</button>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 4 }}>
         <button onClick={copyText} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>📋 복사</button>
         <button onClick={doPrint} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>📄 PDF 저장</button>
       </div>
+      {printWarn && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 12.5, color: "#C04040", lineHeight: 1.6 }}>
+          <span style={{ flexShrink: 0 }}>⚠️</span>
+          <span>팝업이 차단되어 새 창을 열 수 없어요. 주소창 오른쪽의 팝업 차단 아이콘에서 <b>이 사이트 팝업 허용</b>을 선택한 뒤 다시 눌러 주세요.</span>
+          <button onClick={() => setPrintWarn(false)} style={{ marginLeft: "auto", flexShrink: 0, background: "none", border: "none", color: "#C04040", cursor: "pointer", fontSize: 14 }}>✕</button>
+        </div>
+      )}
       {/* 대상 정보 표 */}
       <div style={{ border: `1px solid ${PKL}`, borderRadius: 10, overflow: "hidden", marginBottom: 12, marginTop: 6 }}>
         <InfoRow label="대상" value={`${c.name}${(c.age||c.school)? " ("+[c.age,c.school].filter(Boolean).join(", ")+")":""}`} />
@@ -2327,6 +2522,35 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
         {bip.setting === "school" ? "🏫 학교(PBS) 맞춤 — 개별교수 제약 반영" : "🏛 센터(ABA) 맞춤"}
       </div>
 
+      {viewMode === "parent" ? (
+        <ParentView content={parentContent} childName={c.name} />
+        <div style={{ marginTop: 16, borderTop: `1px dashed ${PKL}`, paddingTop: 16 }}>
+          {!parentAi && (
+            <>
+              <button onClick={runParentAI} disabled={parentAiState === "loading"} style={{ ...btnPrimary, width: "100%", opacity: parentAiState === "loading" ? 0.6 : 1 }}>
+                {parentAiState === "loading" ? "✨ AI가 이 아이 맞게 쓰는 중..." : "✨ AI로 우리 아이 맞춤 안내 만들기"}
+              </button>
+              <div style={{ fontSize: 11, color: MUTE, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
+                위 기본 안내는 즉시 제공돼요. AI 맞춤은 눌렀을 때만, 이 아이의 기록·정보를 반영해 더 자연스럽게 써줍니다.
+              </div>
+            </>
+          )}
+          {parentAiState === "error" && (
+            <div style={{ marginTop: 10, padding: "10px 14px", background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, fontSize: 12.5, color: "#C04040" }}>{parentAiErr}</div>
+          )}
+          {parentAi && (
+            <div style={{ padding: "12px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 15 }}>✨</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: "#6B5B8A" }}>AI 맞춤 안내 표시 중</span>
+                <button onClick={runParentAI} disabled={parentAiState === "loading"} style={{ marginLeft: "auto", fontSize: 11, color: "#8A6FB0", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>{parentAiState === "loading" ? "쓰는 중..." : "↻ 다시"}</button>
+                <button onClick={clearParentAI} style={{ fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>기본으로</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
       <BIPBlock num="1" title="행동의 기능 및 가설" accent>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 5 }}>표적행동 (도전적 행동)</div>
@@ -2421,6 +2645,8 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -2458,7 +2684,7 @@ async function enhanceBIPWithAI(bip, c) {
 - 이름: ${c.name} (문장에서 아동을 지칭할 때는 "${displayNm}"로 부르고, 한국어 조사를 올바르게 붙이세요. 예: "${displayNm}는", "${displayNm}가")
 - 연령/학년: ${c.age || "미기재"}
 - 환경: ${isPbs ? `학교(${c.school || "일반학교"})` : "ABA 센터 (1:1 치료 가능)"}
-- 표적행동: ${c.target || "미기재"}
+- 표적행동: ${c.target || "미기재"}${c.behaviorDetail ? `\n- 행동의 구체적 모습: ${c.behaviorDetail}` : ""}${c.likes ? `\n- 좋아하는 것(강화제로 활용): ${c.likes}` : ""}${c.comm ? `\n- 의사소통 수준: ${c.comm}` : ""}${c.triggers ? `\n- 심해지는·진정되는 상황: ${c.triggers}` : ""}
 
 [기능평가 결과]
 - 추정 주기능: ${bip.funcName}
@@ -2482,13 +2708,13 @@ ${abcSummary}
 ■ 개별화 지침
 - 위 ABC 기록에서 드러나는 이 아동의 구체적 패턴(어떤 자극/상황에서, 무엇을 하고, 어떤 결과가 따르는지)을 반드시 반영하세요. 기록이 있으면 일반론이 아니라 "이 아이"의 사례에 근거해 쓰세요.
 - 표적행동('${c.target || "미기재"}')이 위 추정 주기능(${bip.funcName})을 어떻게 충족하는지 구체적으로 해석하고, 그 해석에 맞는 중재를 쓰세요. 관찰기록이 있으면 그 기록에서 근거를 찾으세요.
-- ${c.age ? `아동의 연령/언어수준(${c.age})에 맞는 대체행동과 의사소통 방법을 쓰세요.` : "연령 정보가 없으니 일반적 수준으로 쓰되 과하게 어렵지 않게."}
+${c.likes ? `- 강화(보상)가 필요한 부분에서는 이 아이가 좋아하는 것(${c.likes})을 구체적으로 활용해 쓰세요.\n` : ""}${c.comm ? `- 대체행동·의사소통 방법은 이 아이의 의사소통 수준(${c.comm})에 맞춰 쓰세요. 수준을 넘는 방법(예: 무발화 아동에게 긴 문장 말하기)은 피하세요.\n` : ""}${c.triggers ? `- 이 아이가 심해지거나 진정되는 상황(${c.triggers})을 선행중재에 반드시 반영하세요.\n` : ""}- ${c.age ? `아동의 연령/언어수준(${c.age})에 맞는 대체행동과 의사소통 방법을 쓰세요.` : "연령 정보가 없으니 일반적 수준으로 쓰되 과하게 어렵지 않게."}
 - ${isPbs
   ? "학교 상황입니다. 교사 1명이 학급 전체를 지도하므로 1:1 개별개입이 어렵습니다. 선행조정·환경세팅·또래활용·학급차원 지원·자기관리 위주로 교사가 혼자 실행 가능하게 쓰세요."
   : "ABA 센터로 치료사가 1:1 지도 가능한 환경입니다."}
 ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후속결과중재에 위기 상황 대응·안전 확보(주변 정리, 위해 예방, 진정 절차 등) 항목을 최소 1개 포함하세요.\n" : ""}
 ■ 형식·용어
-- 각 영역당 4~6개 항목. 각 항목은 관찰·측정 가능하게(누가 봐도 실행 여부를 판단할 수 있게) 한 문장으로 쓰세요. 모호한 표현("적절히", "충분히", "잘") 대신 구체적 조건·빈도·방법을 명시하세요.
+- 각 영역당 3~4개 항목. 각 항목은 관찰·측정 가능하게(누가 봐도 실행 여부를 판단할 수 있게) 한 문장으로 쓰세요. 모호한 표현("적절히", "충분히", "잘") 대신 구체적 조건·빈도·방법을 명시하세요. 문장은 간결하게(한 항목이 너무 길지 않게).
 - 올바른 ABA 용어를 정확히 사용하세요(NCR, FCT, DRA, DRO, 촉구·용암, 행동탄력, 소거, 프리맥 등). 단, 용어만 나열하지 말고 이 아동에게 실제로 어떻게 적용하는지를 함께 쓰세요.
 - 관찰기록이 없으면, 표적행동과 기능가설만으로 최대한 구체적으로 추정해 쓰되 무리한 단정은 피하세요.
 
@@ -2499,7 +2725,7 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, max_tokens: 2500 }),
+    body: JSON.stringify({ prompt, max_tokens: 1500 }),
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -2511,22 +2737,132 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
     ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
     : (data.text || "");
 
-  // JSON 파싱 → 실패 시 에러(폴백은 호출부에서 템플릿 유지로 처리)
+  // JSON 파싱 → 실패 시 잘린 응답도 최대한 복구
   const cleaned = String(text).replace(/```json|```/g, "").trim();
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("AI 응답 형식이 올바르지 않아요. 다시 시도해 주세요.");
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
   const arr = (v) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
-  const result = {
-    antecedent: arr(parsed.antecedent),
-    replacement: arr(parsed.replacement),
-    consequence: arr(parsed.consequence),
-  };
+
+  let result = null;
+  // 1차: 정상 JSON 파싱 시도
+  try {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start !== -1 && end !== -1 && end > start) {
+      const parsed = JSON.parse(cleaned.slice(start, end + 1));
+      result = { antecedent: arr(parsed.antecedent), replacement: arr(parsed.replacement), consequence: arr(parsed.consequence) };
+    }
+  } catch (_) { result = null; }
+
+  // 2차: 정상 파싱 실패(응답 잘림 등) → 각 배열을 정규식으로 부분 추출
+  if (!result || (!result.antecedent.length && !result.replacement.length && !result.consequence.length)) {
+    const pick = (key) => {
+      const m = cleaned.match(new RegExp('"' + key + '"\\s*:\\s*\\[([\\s\\S]*?)(\\]|$)'));
+      if (!m) return [];
+      // "문자열" 항목들만 추출 (마지막 미완성 토막은 제외)
+      const items = m[1].match(/"((?:[^"\\]|\\.)*)"/g) || [];
+      return items.map((s) => { try { return JSON.parse(s); } catch { return s.replace(/^"|"$/g, ""); } }).map((x) => String(x).trim()).filter(Boolean);
+    };
+    result = { antecedent: pick("antecedent"), replacement: pick("replacement"), consequence: pick("consequence") };
+  }
+
   if (!result.antecedent.length && !result.replacement.length && !result.consequence.length) {
     throw new Error("AI가 내용을 생성하지 못했어요. 다시 시도해 주세요.");
   }
   return result;
+}
+
+// ── 부모님용 쉬운 안내를 AI가 이 아이 맞춤으로 재작성 ───
+async function enhanceParentBIP(bip, c) {
+  const records = (c.records || []).slice(0, 12);
+  let abcSummary = "기록 없음";
+  if (records.length) {
+    abcSummary = records.map((r, i) =>
+      `${i + 1}) ${[r.datetime && `[${r.datetime}]`, r.antecedent && `상황:${r.antecedent}`, r.behavior && `행동:${r.behavior}`, r.consequence && `그후:${r.consequence}`].filter(Boolean).join(" ")}`
+    ).join("\n");
+  }
+  const displayNm = (() => {
+    const raw = (c.name || "").trim();
+    if (!raw) return "아이";
+    const allHangul = [...raw].every((ch) => { const x = ch.charCodeAt(0); return x >= 0xac00 && x <= 0xd7a3; });
+    if (!allHangul) return raw;
+    let g = raw.length >= 3 ? raw.slice(1) : raw;
+    const last = g.charCodeAt(g.length - 1);
+    return ((last - 0xac00) % 28 !== 0) ? g + "이" : g;
+  })();
+
+  const prompt = `당신은 따뜻한 ABA 부모교육 전문가입니다. 아래 아이의 정보를 바탕으로, 부모님이 집에서 읽고 바로 실천할 수 있는 쉬운 가정 지원 안내를 작성하세요.
+
+[아이 정보]
+- 이름(애칭): ${displayNm}
+- 나이: ${c.age || "미기재"}
+- 문제 행동: ${c.target || "미기재"}${c.behaviorDetail ? `\n- 구체적 모습: ${c.behaviorDetail}` : ""}${c.likes ? `\n- 좋아하는 것: ${c.likes}` : ""}${c.comm ? `\n- 의사소통 수준: ${c.comm}` : ""}${c.triggers ? `\n- 심해지는·진정되는 상황: ${c.triggers}` : ""}
+- 행동의 이유(기능): ${bip.funcName} — ${bip.hypothesis}
+
+[집에서의 관찰기록]
+${abcSummary}
+
+[작성 지침]
+- 전문용어(NCR, DRA, 소거, 촉구 등)를 절대 쓰지 마세요. 대신 부모님이 이해할 쉬운 말로 풀어 쓰세요.
+- 따뜻하고 격려하는 말투("~해주세요", "~하면 좋아요")로 쓰세요. 부모를 탓하는 느낌이 들지 않게.
+- 위 관찰기록이 있으면 그 상황을 예로 들어 구체적으로 쓰세요.
+- 아이를 "${displayNm}"로 부르고 한국어 조사를 올바르게 쓰세요.
+- why: 이 행동을 왜 하는지 2~3문장으로 따뜻하게 설명(말썽이 아니라 마음의 표현이라는 관점).
+- prevent(미리 예방): 집에서 미리 할 수 있는 구체적 방법 3~4개.
+- teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개.
+- respond(반응 방법): 문제행동과 바른행동에 어떻게 반응할지 2~3개.
+- prevent/teach/respond의 각 항목은 한 문장으로 구체적이고 실천 가능하게.
+
+반드시 아래 JSON 형식만 출력하세요(설명·마크다운 절대 금지):
+{"why":"...","prevent":["...","..."],"teach":["...","..."],"respond":["...","..."]}`;
+
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  const res = await fetch(SUPABASE_FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ prompt, max_tokens: 1500 }),
+  });
+  if (!res.ok) {
+    let msg = "AI 서버 응답 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const text = Array.isArray(data.content)
+    ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+    : (data.text || "");
+  const cleaned = String(text).replace(/```json|```/g, "").trim();
+  const arr = (v) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+
+  let out = null;
+  try {
+    const s = cleaned.indexOf("{"), e = cleaned.lastIndexOf("}");
+    if (s !== -1 && e !== -1 && e > s) {
+      const p = JSON.parse(cleaned.slice(s, e + 1));
+      out = { why: String(p.why || "").trim(), prevent: arr(p.prevent), teach: arr(p.teach), respond: arr(p.respond) };
+    }
+  } catch (_) { out = null; }
+
+  // 잘린 응답 복구
+  if (!out || (!out.why && !out.prevent.length && !out.teach.length && !out.respond.length)) {
+    const pickStr = (k) => { const m = cleaned.match(new RegExp('"' + k + '"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"')); return m ? m[1].replace(/\\"/g, '"') : ""; };
+    const pickArr = (k) => {
+      const m = cleaned.match(new RegExp('"' + k + '"\\s*:\\s*\\[([\\s\\S]*?)(\\]|$)'));
+      if (!m) return [];
+      return (m[1].match(/"((?:[^"\\]|\\.)*)"/g) || []).map((s) => { try { return JSON.parse(s); } catch { return s.replace(/^"|"$/g, ""); } }).map((x) => String(x).trim()).filter(Boolean);
+    };
+    out = { why: pickStr("why"), prevent: pickArr("prevent"), teach: pickArr("teach"), respond: pickArr("respond") };
+  }
+
+  if (!out.why && !out.prevent.length && !out.teach.length && !out.respond.length) {
+    throw new Error("AI가 내용을 생성하지 못했어요. 다시 시도해 주세요.");
+  }
+  // 빈 항목은 기존 템플릿으로 보완
+  const base = PARENT_BIP[bip.func] || PARENT_BIP.sensory;
+  return {
+    why: out.why || base.why,
+    prevent: out.prevent.length ? out.prevent : base.prevent,
+    teach: out.teach.length ? out.teach : base.teach,
+    respond: out.respond.length ? out.respond : base.respond,
+  };
 }
 
 // ── 종이 설문 사진 인식 (Claude 비전) ───────────
@@ -2668,23 +3004,21 @@ async function readAbcPhoto(file) {
 
 // ── PDF 내보내기용 시각카드 아이콘 SVG 문자열 (화면 CardIcon과 동일) ──
 function cardIconSvg(name) {
+  // 이모지로 표현 (표정·사람·사물)
+  const emojiMap = {
+    help: "🙋", rest: "😌", look: "👀", together: "🤝", me: "🙋",
+    wait: "⏳", give: "🤲", want: "❤️", corner: "🏠", happy: "😊", sad: "😢",
+  };
+  if (emojiMap[name]) {
+    return `<span style="font-size:30px;line-height:1;">${emojiMap[name]}</span>`;
+  }
+  // SVG 유지 (yes/stop/fidget)
   const P = {
-    help: '<rect x="7" y="9" width="34" height="26" rx="7" fill="#FDE7EC" stroke="#D4728A" stroke-width="2"/><path d="M18 35l-4 6 10-6" fill="#FDE7EC" stroke="#D4728A" stroke-width="2" stroke-linejoin="round"/><path d="M20 18a4 4 0 1 1 5.5 3.7c-1 .5-1.5 1.3-1.5 2.6" fill="none" stroke="#D4728A" stroke-width="2.4" stroke-linecap="round"/><circle cx="24" cy="29" r="1.4" fill="#D4728A"/>',
-    rest: '<rect x="8" y="24" width="32" height="12" rx="3" fill="#BFD8C6" stroke="#5C9A72" stroke-width="2"/><rect x="6" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" stroke-width="2"/><rect x="34" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" stroke-width="2"/><path d="M12 36v3M36 36v3" stroke="#5C9A72" stroke-width="2" stroke-linecap="round"/>',
     yes: '<circle cx="24" cy="24" r="16" fill="#DCF0E1" stroke="#5C9A72" stroke-width="2.4"/><path d="M16 24l5 5 11-11" fill="none" stroke="#5C9A72" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
     stop: '<path d="M18 6h12l12 12v12L30 42H18L6 30V18z" fill="#F8D2D2" stroke="#D45C5C" stroke-width="2.4" stroke-linejoin="round"/><path d="M18 18l12 12M30 18L18 30" stroke="#D45C5C" stroke-width="3" stroke-linecap="round"/>',
-    look: '<path d="M4 24s8-12 20-12 20 12 20 12-8 12-20 12S4 24 4 24z" fill="#EAF2FB" stroke="#5B8DC9" stroke-width="2.4" stroke-linejoin="round"/><circle cx="24" cy="24" r="6" fill="#5B8DC9"/><circle cx="24" cy="24" r="2.4" fill="#fff"/>',
-    together: '<circle cx="16" cy="17" r="6" fill="#F6C9A0" stroke="#C98A4B" stroke-width="2"/><circle cx="32" cy="17" r="6" fill="#A9C7E8" stroke="#5B8DC9" stroke-width="2"/><path d="M6 40v-3a10 10 0 0 1 20 0" fill="#FBE4CE" stroke="#C98A4B" stroke-width="2" stroke-linejoin="round"/><path d="M22 40v-3a10 10 0 0 1 20 0" fill="#D8E7F6" stroke="#5B8DC9" stroke-width="2" stroke-linejoin="round"/>',
-    me: '<circle cx="24" cy="16" r="7" fill="#F6C9A0" stroke="#C98A4B" stroke-width="2"/><path d="M10 42v-4a14 14 0 0 1 28 0v4z" fill="#FBE4CE" stroke="#C98A4B" stroke-width="2" stroke-linejoin="round"/>',
-    wait: '<circle cx="24" cy="24" r="16" fill="#FFF3D6" stroke="#D9A441" stroke-width="2.4"/><path d="M24 14v10l7 4" fill="none" stroke="#D9A441" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
-    give: '<path d="M16 30l-4-8a2.5 2.5 0 0 1 4.5-2l2.5 5V12a2.5 2.5 0 0 1 5 0v10m0-2a2.5 2.5 0 0 1 5 0v4m0-2a2.5 2.5 0 0 1 5 0v6c0 6-4 10-10 10s-9-3-11-8" fill="#FBE4CE" stroke="#C98A4B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>',
-    want: '<path d="M24 40S7 30 7 18a9 9 0 0 1 17-3 9 9 0 0 1 17 3c0 12-17 22-17 22z" fill="#F8C6D2" stroke="#D4728A" stroke-width="2.2" stroke-linejoin="round"/>',
     fidget: '<circle cx="24" cy="24" r="13" fill="#D9C9F0" stroke="#8A6FB0" stroke-width="2"/><g fill="#B79AE0"><circle cx="24" cy="9" r="3.5"/><circle cx="24" cy="39" r="3.5"/><circle cx="9" cy="24" r="3.5"/><circle cx="39" cy="24" r="3.5"/><circle cx="13" cy="13" r="3"/><circle cx="35" cy="13" r="3"/><circle cx="13" cy="35" r="3"/><circle cx="35" cy="35" r="3"/></g><circle cx="24" cy="24" r="5" fill="#fff" opacity="0.6"/>',
-    corner: '<path d="M24 8L8 20v20h32V20z" fill="#D8E7F6" stroke="#5B8DC9" stroke-width="2.2" stroke-linejoin="round"/><path d="M6 21L24 7l18 14" fill="none" stroke="#5B8DC9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><rect x="19" y="28" width="10" height="12" rx="1.5" fill="#A9C7E8" stroke="#5B8DC9" stroke-width="2"/>',
-    happy: '<circle cx="24" cy="24" r="17" fill="#FFE08A" stroke="#E0A93C" stroke-width="2.2"/><circle cx="17" cy="20" r="2.4" fill="#7A5A1E"/><circle cx="31" cy="20" r="2.4" fill="#7A5A1E"/><path d="M15 28a10 10 0 0 0 18 0" fill="none" stroke="#7A5A1E" stroke-width="2.6" stroke-linecap="round"/>',
-    sad: '<circle cx="24" cy="24" r="17" fill="#CFE0F0" stroke="#5B8DC9" stroke-width="2.2"/><circle cx="17" cy="21" r="2.4" fill="#3E5A73"/><circle cx="31" cy="21" r="2.4" fill="#3E5A73"/><path d="M15 32a10 10 0 0 1 18 0" fill="none" stroke="#3E5A73" stroke-width="2.6" stroke-linecap="round"/><path d="M31 15l4 2" stroke="#3E5A73" stroke-width="2" stroke-linecap="round"/>',
   };
-  const body = P[name] || P.help;
+  const body = P[name] || P.yes;
   return `<svg width="30" height="30" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 
@@ -2703,9 +3037,11 @@ function visualCardToHtml(card, esc) {
   if (card.type === "strip") {
     const rows = card.items.map((it) => {
       const label = typeof it === "string" ? it : it.label;
-      const icon = typeof it === "string" ? "" : cardIconSvg(it.icon);
+      const emoji = typeof it === "string" ? "" : it.emoji;
+      const icon = (typeof it === "string" || !it.icon) ? "" : cardIconSvg(it.icon);
+      const iconHtml = emoji ? `<span style="font-size:24px;line-height:1;">${emoji}</span>` : icon;
       return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FFF0F3;border:2px solid #F5A0B1;border-radius:10px;margin:6px 0;">
-        <span style="display:inline-block;width:32px;height:32px;background:#fff;border-radius:8px;text-align:center;line-height:32px;">${icon}</span>
+        <span style="display:inline-block;width:32px;height:32px;background:#fff;border-radius:8px;text-align:center;line-height:32px;">${iconHtml}</span>
         <span style="font-size:14px;font-weight:700;color:#3A2C30;">${esc(label)}</span></div>`;
     }).join("");
     return frame(rows);
@@ -2730,6 +3066,32 @@ function visualCardToHtml(card, esc) {
 }
 
 function getVisualCards(func) {
+  // 여러 기능에 공통으로 유용한 카드 (이모지 기반)
+  const emotionScale = { type: "strip", title: "감정 온도계", items: [
+    { label: "편안해요", emoji: "😌" },
+    { label: "조금 힘들어요", emoji: "😟" },
+    { label: "많이 힘들어요", emoji: "😣" },
+    { label: "폭발하기 직전!", emoji: "😡" },
+  ] };
+  const breathing = { type: "strip", title: "진정 심호흡 (숨쉬기 순서)", items: [
+    { label: "코로 천천히 들이쉬기", emoji: "🌬️" },
+    { label: "잠깐 멈추기 (하나·둘·셋)", emoji: "✋" },
+    { label: "입으로 후~ 내쉬기", emoji: "😮‍💨" },
+  ] };
+  const reinforcerMenu = { type: "strip", title: "강화제 메뉴판 (하나 고르기)", items: [
+    { label: "간식", emoji: "🍬" },
+    { label: "좋아하는 장난감", emoji: "🧸" },
+    { label: "영상 보기", emoji: "📱" },
+    { label: "안아주기·칭찬", emoji: "🤗" },
+  ] };
+  const dailySchedule = { type: "strip", title: "오늘의 일과 (순서)", items: [
+    { label: "아침 준비", emoji: "☀️" },
+    { label: "공부·활동", emoji: "📚" },
+    { label: "밥·간식", emoji: "🍽️" },
+    { label: "놀이·휴식", emoji: "🧩" },
+    { label: "집에 가기", emoji: "🏠" },
+  ] };
+
   const sets = {
     escape: [
       { type: "sequence", title: "활동 순서판", steps: ["앉기", "3개 하기", "쉬기"] },
@@ -2741,6 +3103,8 @@ function getVisualCards(func) {
         { label: "더 할래요", icon: "yes" },
         { label: "그만할래요", icon: "stop" },
       ] },
+      dailySchedule,
+      emotionScale,
     ],
     attention: [
       { type: "strip", title: "관심 요청 카드", items: [
@@ -2752,6 +3116,7 @@ function getVisualCards(func) {
         { label: "내 차례", icon: "me" },
         { label: "기다리기", icon: "wait" },
       ] },
+      reinforcerMenu,
     ],
     tangible: [
       { type: "sequence", title: "지금-다음 카드", steps: ["지금은 안돼요", "이따가"] },
@@ -2760,6 +3125,7 @@ function getVisualCards(func) {
         { label: "하고 싶어요", icon: "want" },
       ] },
       { type: "token", title: "기다리기 토큰판", count: 3 },
+      reinforcerMenu,
     ],
     sensory: [
       { type: "strip", title: "감각 도구 카드", items: [
@@ -2771,6 +3137,8 @@ function getVisualCards(func) {
         { label: "괜찮아요", icon: "happy" },
         { label: "힘들어요", icon: "sad" },
       ] },
+      breathing,
+      emotionScale,
     ],
   };
   return sets[func] || sets.escape;
@@ -2787,38 +3155,25 @@ function CardFrame({ title, children }) {
 
 // ── 시각카드용 컬러 픽토그램 아이콘 (화면용, 워드 대신 PDF에서 렌더) ──
 function CardIcon({ name, size = 34 }) {
+  // 이모지로 표현하는 아이콘 (표정·사람 동작·명확한 사물)
+  const emojiMap = {
+    help: "🙋", rest: "😌", look: "👀", together: "🤝", me: "🙋",
+    wait: "⏳", give: "🤲", want: "❤️", corner: "🏠", happy: "😊", sad: "😢",
+  };
+  if (emojiMap[name]) {
+    return <span style={{ fontSize: size * 1.15, lineHeight: 1, display: "inline-block" }}>{emojiMap[name]}</span>;
+  }
+  // SVG로 유지하는 아이콘 (브랜드 톤·ABA 상징성 중요: yes/stop/fidget)
   const svg = { width: size, height: size, viewBox: "0 0 48 48", xmlns: "http://www.w3.org/2000/svg" };
   const icons = {
-    // 도움 요청 — 말풍선 + 물음표
-    help: <><rect x="7" y="9" width="34" height="26" rx="7" fill="#FDE7EC" stroke="#D4728A" strokeWidth="2" /><path d="M18 35l-4 6 10-6" fill="#FDE7EC" stroke="#D4728A" strokeWidth="2" strokeLinejoin="round" /><path d="M20 18a4 4 0 1 1 5.5 3.7c-1 .5-1.5 1.3-1.5 2.6" fill="none" stroke="#D4728A" strokeWidth="2.4" strokeLinecap="round" /><circle cx="24" cy="29" r="1.4" fill="#D4728A" /></>,
-    // 쉬기 — 소파
-    rest: <><rect x="8" y="24" width="32" height="12" rx="3" fill="#BFD8C6" stroke="#5C9A72" strokeWidth="2" /><rect x="6" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" strokeWidth="2" /><rect x="34" y="18" width="8" height="12" rx="3" fill="#8FBFA0" stroke="#5C9A72" strokeWidth="2" /><path d="M12 36v3M36 36v3" stroke="#5C9A72" strokeWidth="2" strokeLinecap="round" /></>,
     // 예/더하기 — 체크 동그라미(초록)
     yes: <><circle cx="24" cy="24" r="16" fill="#DCF0E1" stroke="#5C9A72" strokeWidth="2.4" /><path d="M16 24l5 5 11-11" fill="none" stroke="#5C9A72" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></>,
     // 그만 — 팔각형(빨강)
     stop: <><path d="M18 6h12l12 12v12L30 42H18L6 30V18z" fill="#F8D2D2" stroke="#D45C5C" strokeWidth="2.4" strokeLinejoin="round" /><path d="M18 18l12 12M30 18L18 30" stroke="#D45C5C" strokeWidth="3" strokeLinecap="round" /></>,
-    // 봐주세요 — 눈
-    look: <><path d="M4 24s8-12 20-12 20 12 20 12-8 12-20 12S4 24 4 24z" fill="#EAF2FB" stroke="#5B8DC9" strokeWidth="2.4" strokeLinejoin="round" /><circle cx="24" cy="24" r="6" fill="#5B8DC9" /><circle cx="24" cy="24" r="2.4" fill="#fff" /></>,
-    // 같이 — 두 사람
-    together: <><circle cx="16" cy="17" r="6" fill="#F6C9A0" stroke="#C98A4B" strokeWidth="2" /><circle cx="32" cy="17" r="6" fill="#A9C7E8" stroke="#5B8DC9" strokeWidth="2" /><path d="M6 40v-3a10 10 0 0 1 20 0" fill="#FBE4CE" stroke="#C98A4B" strokeWidth="2" strokeLinejoin="round" /><path d="M22 40v-3a10 10 0 0 1 20 0" fill="#D8E7F6" stroke="#5B8DC9" strokeWidth="2" strokeLinejoin="round" /></>,
-    // 내 차례 — 사람 + 별
-    me: <><circle cx="24" cy="16" r="7" fill="#F6C9A0" stroke="#C98A4B" strokeWidth="2" /><path d="M10 42v-4a14 14 0 0 1 28 0v4z" fill="#FBE4CE" stroke="#C98A4B" strokeWidth="2" strokeLinejoin="round" /></>,
-    // 기다리기 — 시계
-    wait: <><circle cx="24" cy="24" r="16" fill="#FFF3D6" stroke="#D9A441" strokeWidth="2.4" /><path d="M24 14v10l7 4" fill="none" stroke="#D9A441" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></>,
-    // 주세요 — 손바닥
-    give: <><path d="M16 30l-4-8a2.5 2.5 0 0 1 4.5-2l2.5 5V12a2.5 2.5 0 0 1 5 0v10m0-2a2.5 2.5 0 0 1 5 0v4m0-2a2.5 2.5 0 0 1 5 0v6c0 6-4 10-10 10s-9-3-11-8" fill="#FBE4CE" stroke="#C98A4B" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" /></>,
-    // 하고싶어요 — 하트
-    want: <><path d="M24 40S7 30 7 18a9 9 0 0 1 17-3 9 9 0 0 1 17 3c0 12-17 22-17 22z" fill="#F8C6D2" stroke="#D4728A" strokeWidth="2.2" strokeLinejoin="round" /></>,
     // 감각 도구 — 별모양 감각공
     fidget: <><circle cx="24" cy="24" r="13" fill="#D9C9F0" stroke="#8A6FB0" strokeWidth="2" /><g fill="#B79AE0"><circle cx="24" cy="9" r="3.5" /><circle cx="24" cy="39" r="3.5" /><circle cx="9" cy="24" r="3.5" /><circle cx="39" cy="24" r="3.5" /><circle cx="13" cy="13" r="3" /><circle cx="35" cy="13" r="3" /><circle cx="13" cy="35" r="3" /><circle cx="35" cy="35" r="3" /></g><circle cx="24" cy="24" r="5" fill="#fff" opacity="0.6" /></>,
-    // 쉼공간 — 집
-    corner: <><path d="M24 8L8 20v20h32V20z" fill="#D8E7F6" stroke="#5B8DC9" strokeWidth="2.2" strokeLinejoin="round" /><path d="M6 21L24 7l18 14" fill="none" stroke="#5B8DC9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /><rect x="19" y="28" width="10" height="12" rx="1.5" fill="#A9C7E8" stroke="#5B8DC9" strokeWidth="2" /></>,
-    // 괜찮아요 — 웃는 얼굴
-    happy: <><circle cx="24" cy="24" r="17" fill="#FFE08A" stroke="#E0A93C" strokeWidth="2.2" /><circle cx="17" cy="20" r="2.4" fill="#7A5A1E" /><circle cx="31" cy="20" r="2.4" fill="#7A5A1E" /><path d="M15 28a10 10 0 0 0 18 0" fill="none" stroke="#7A5A1E" strokeWidth="2.6" strokeLinecap="round" /></>,
-    // 힘들어요 — 속상한 얼굴
-    sad: <><circle cx="24" cy="24" r="17" fill="#CFE0F0" stroke="#5B8DC9" strokeWidth="2.2" /><circle cx="17" cy="21" r="2.4" fill="#3E5A73" /><circle cx="31" cy="21" r="2.4" fill="#3E5A73" /><path d="M15 32a10 10 0 0 1 18 0" fill="none" stroke="#3E5A73" strokeWidth="2.6" strokeLinecap="round" /><path d="M31 15l4 2" stroke="#3E5A73" strokeWidth="2" strokeLinecap="round" /></>,
   };
-  return <svg {...svg}>{icons[name] || icons.help}</svg>;
+  return <svg {...svg}>{icons[name] || icons.yes}</svg>;
 }
 
 function VisualCard({ card }) {
@@ -2849,10 +3204,11 @@ function VisualCard({ card }) {
           {card.items.map((it, i) => {
             const label = typeof it === "string" ? it : it.label;
             const icon = typeof it === "string" ? null : it.icon;
+            const emoji = typeof it === "string" ? null : it.emoji;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "#FFF0F3", border: "2px solid #F5A0B1", borderRadius: 12 }}>
                 <span style={{ width: 34, height: 34, borderRadius: 9, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {icon ? <CardIcon name={icon} size={22} /> : <span style={{ color: "#D4728A", fontWeight: 800 }}>{i + 1}</span>}
+                  {emoji ? <span style={{ fontSize: 22, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={22} /> : <span style={{ color: "#D4728A", fontWeight: 800 }}>{i + 1}</span>}
                 </span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "#3A2C30" }}>{label}</span>
               </div>
@@ -2920,6 +3276,41 @@ function BulletList({ items }) {
   );
 }
 
+// 부모님용 쉬운 뷰
+function ParentView({ content, childName }) {
+  const nm = displayName(childName);
+  const Block = ({ emoji, title, desc, items, bg, accent }) => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 20 }}>{emoji}</span>
+        <span style={{ fontWeight: 800, fontSize: 15, color: accent }}>{title}</span>
+      </div>
+      {desc ? <div style={{ fontSize: 13.5, lineHeight: 1.8, color: INK, background: bg, borderRadius: 12, padding: "14px 16px" }}>{desc}</div> : null}
+      {items ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          {items.map((t, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, fontSize: 13.5, lineHeight: 1.7, background: bg, borderRadius: 12, padding: "12px 14px" }}>
+              <span style={{ flexShrink: 0, color: accent, fontWeight: 800 }}>{i + 1}</span>
+              <span>{t}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: MUTE, marginBottom: 16, lineHeight: 1.6, background: "#FFF9FA", borderRadius: 10, padding: "10px 12px" }}>
+        💛 이 내용은 <b>{nm} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 안내예요. 집에서 이렇게 도와주시면 큰 힘이 됩니다.
+      </div>
+      <Block emoji="🤔" title={`${nm}는 왜 이런 행동을 할까요?`} desc={content.why} bg="#FFF0F3" accent={PKD} />
+      <Block emoji="🌱" title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" />
+      <Block emoji="💬" title="다른 행동을 가르쳐요" items={content.teach} bg="#EEF3FB" accent="#5B7BB5" />
+      <Block emoji="🤗" title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" />
+    </div>
+  );
+}
+
 // AI 맞춤 추가 항목 (보라색 🤖 표시)
 
 
@@ -2960,6 +3351,10 @@ function AddForm({ isPbs, onAdd }) {
   const [age, setAge] = useState("");
   const [target, setTarget] = useState("");
   const [school, setSchool] = useState("");
+  const [likes, setLikes] = useState("");        // 좋아하는 것(강화제)
+  const [comm, setComm] = useState("");           // 의사소통 수준
+  const [behaviorDetail, setBehaviorDetail] = useState(""); // 행동의 구체적 모습
+  const [triggers, setTriggers] = useState("");   // 심해지는·진정되는 상황
 
   // 생년월일 → 만 나이(년/개월) 자동 계산
   const autoAge = React.useMemo(() => {
@@ -2978,7 +3373,7 @@ function AddForm({ isPbs, onAdd }) {
     if (!name.trim()) return;
     // 센터: 생년월일 기반 자동 나이 / PBS: 입력한 학년(없으면 자동 나이)
     const ageValue = isPbs ? (age.trim() || autoAge) : autoAge;
-    onAdd({ name: name.trim(), birth, age: ageValue, target: target.trim(), ...(isPbs ? { school: school.trim() } : {}) });
+    onAdd({ name: name.trim(), birth, age: ageValue, target: target.trim(), likes: likes.trim(), comm: comm.trim(), behaviorDetail: behaviorDetail.trim(), triggers: triggers.trim(), ...(isPbs ? { school: school.trim() } : {}) });
   };
 
   return (
@@ -2988,7 +3383,17 @@ function AddForm({ isPbs, onAdd }) {
       <Field label="생년월일" value={birth} onChange={setBirth} type="date" />
       {isPbs && <Field label="학년" value={age} onChange={setAge} placeholder="예: 고1" />}
       {isPbs && <Field label="학교" value={school} onChange={setSchool} placeholder="예: 인천영종고" />}
-      <Field label="목표행동" value={target} onChange={setTarget} placeholder="예: 학습지 찢기" />
+      <Field label="목표행동" value={target} onChange={setTarget} placeholder="예: 수업 중 자리 이탈" />
+
+      <div style={{ marginTop: 6, marginBottom: 4, padding: "10px 12px", background: "#FBF8FE", border: "1px dashed #D9C9F0", borderRadius: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#8A6FB0", marginBottom: 2 }}>✨ AI 맞춤 생성용 정보 (선택)</div>
+        <div style={{ fontSize: 11, color: MUTE, lineHeight: 1.5, marginBottom: 10 }}>아래를 채우면 AI가 이 아이에 훨씬 맞는 BIP를 만들어요. 비워둬도 됩니다.</div>
+        <Field label="좋아하는 것 (강화제)" value={likes} onChange={setLikes} placeholder="예: 자동차 장난감, 유튜브, 젤리, 안아주기" />
+        <Field label="의사소통 수준" value={comm} onChange={setComm} placeholder="예: 2~3단어 구어 / 그림카드 사용 / 무발화" />
+        <Field label="행동의 구체적 모습" value={behaviorDetail} onChange={setBehaviorDetail} placeholder="예: 10분쯤 앉아있다 일어나 커튼을 만지작거림" />
+        <Field label="심해지는 · 진정되는 상황" value={triggers} onChange={setTriggers} placeholder="예: 조용한 시간에 심해짐 / 안아주면 진정됨" />
+      </div>
+
       <button onClick={submit} style={{ ...btnPrimary, width: "100%", marginTop: 6 }}>추가하기</button>
     </div>
   );
