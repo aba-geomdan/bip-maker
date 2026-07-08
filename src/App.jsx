@@ -2376,9 +2376,9 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
 body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:740px;margin:auto;}
 .topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
 .brandrow{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
-.brandrow img{height:46px;width:auto;object-fit:contain;}
+.brandrow img{height:68px;width:auto;object-fit:contain;}
 .brandrow .bt{font-size:16px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
-.brandrow .bs{font-size:11.5px;color:#B08A94;margin-top:2px;}
+.brandrow .bs{font-size:13px;color:#B08A94;line-height:1.5;}
 .infobox{display:flex;flex-wrap:wrap;gap:0;border:1.5px solid #F3C9D5;border-radius:10px;overflow:hidden;margin-bottom:26px;}
 .infobox .cell{display:flex;min-width:33.33%;flex:1;}
 .infobox .ck{background:#FFF0F3;color:#C4557A;font-weight:700;font-size:12px;padding:10px 12px;min-width:56px;display:flex;align-items:center;}
@@ -2399,7 +2399,7 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 .foot{margin-top:34px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;letter-spacing:.3px;}
 </style></head><body>
 <div class="topbar"></div>
-<div class="brandrow"><img src="${LOGO_PDF_B64}" alt="로고"/><div><div class="bt">검단ABA언어행동연구소</div><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div></div>
+<div class="brandrow"><img src="${LOGO_PDF_B64}" alt="로고"/><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div>
 <h1>${title}${aiBadge}</h1>
 <div class="infobox">
 <div class="cell"><div class="ck">대상</div><div class="cv">${esc(c.name)}${(c.age || c.school) ? " (" + [c.age, c.school].filter(Boolean).join(", ") + ")" : ""}</div></div>
@@ -2456,9 +2456,9 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
 body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;color:#3A2C30;line-height:1.7;padding:40px;max-width:720px;margin:auto;}
 .topbar{height:6px;background:linear-gradient(90deg,#D4728A,#F5A0B1);border-radius:3px;margin-bottom:18px;}
 .brandrow{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
-.brandrow img{height:46px;width:auto;object-fit:contain;}
+.brandrow img{height:68px;width:auto;object-fit:contain;}
 .brandrow .bt{font-size:16px;font-weight:700;color:#C4557A;letter-spacing:.5px;}
-.brandrow .bs{font-size:11.5px;color:#B08A94;margin-top:2px;}
+.brandrow .bs{font-size:13px;color:#B08A94;line-height:1.5;}
 h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 .intro{font-size:12.5px;color:#9A7A82;background:#FFF9FA;border-radius:10px;padding:11px 14px;margin:14px 0 22px;line-height:1.7;}
 .pblock{margin-bottom:20px;break-inside:avoid;}
@@ -2471,7 +2471,7 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 .foot{margin-top:32px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;}
 </style></head><body>
 <div class="topbar"></div>
-<div class="brandrow"><img src="${LOGO_PDF_B64}" alt="로고"/><div><div class="bt">검단ABA언어행동연구소</div><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div></div>
+<div class="brandrow"><img src="${LOGO_PDF_B64}" alt="로고"/><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div>
 <h1>${esc(nm)} 가정 지원 안내</h1>
 <div class="intro">이 안내는 <b>${esc(nm)} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 자료입니다. 집에서 이렇게 도와주시면 ${esc(nm)}에게 큰 힘이 됩니다.</div>
 <div class="pblock">
