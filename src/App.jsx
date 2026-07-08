@@ -847,6 +847,10 @@ function MainApp() {
   const removeAssessment = (caseId, asmtId) =>
     setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, assessments: (c.assessments || []).filter((a) => a.id !== asmtId) } : c));
 
+  // 케이스 필드 부분 업데이트 (제공일 등 영구 저장)
+  const updateCase = (caseId, patch) =>
+    setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, ...patch } : c));
+
   // 케이스 삭제
   const removeCase = (caseId) => {
     setCases((prev) => {
@@ -872,6 +876,7 @@ function MainApp() {
             onRemoveRecord={(recId) => removeRecord(selectedCase.id, recId)}
             onAddAssessment={(asmt) => addAssessment(selectedCase.id, asmt)}
             onRemoveAssessment={(aid) => removeAssessment(selectedCase.id, aid)}
+            onUpdateCase={(patch) => updateCase(selectedCase.id, patch)}
             onRemoveCase={() => removeCase(selectedCase.id)}
           />
         </div>
@@ -1130,7 +1135,7 @@ const SEVERITY = [
   { v: "중도", label: "중도", desc: "보건·안전에 대한 중대한 위협", color: "#D85A5A" },
 ];
 
-function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAssessment, onRemoveAssessment, onRemoveCase }) {
+function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAssessment, onRemoveAssessment, onUpdateCase, onRemoveCase }) {
   const [showForm, setShowForm] = useState(false);
   const [section, setSection] = useState("record"); // record | assess | bip
   const [runningScale, setRunningScale] = useState(null); // 진행 중인 척도 id
@@ -1328,7 +1333,7 @@ function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAsse
       )}
 
       {section === "bip" && (
-        <BIPSection c={c} assessments={assessments} />
+        <BIPSection c={c} assessments={assessments} onUpdateCase={onUpdateCase} />
       )}
     </div>
   );
@@ -2221,7 +2226,7 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
 // ══════════════════════════════════════════════
 //  중재안(BIP) 섹션 — 템플릿 기반 생성
 // ══════════════════════════════════════════════
-function BIPSection({ c, assessments }) {
+function BIPSection({ c, assessments, onUpdateCase }) {
   const agg = aggregateFunction(assessments);
   const [chosenFunc, setChosenFunc] = useState(null);
 
@@ -2280,13 +2285,24 @@ function BIPSection({ c, assessments }) {
       </div>
 
       {/* 생성된 BIP */}
-      <BIPDocument bip={bip} c={c} />
+      <BIPDocument bip={bip} c={c} onUpdateCase={onUpdateCase} />
     </div>
   );
 }
 
 // ── BIP 문서 렌더 ───────────────────────────────
-function BIPDocument({ bip, c, agg }) {
+function BIPDocument({ bip, c, agg, onUpdateCase }) {
+  // 중재안 제공일: 환경(학교/센터)별로 따로 저장
+  const provideKey = bip.setting === "school" ? "provideDateSchool" : "provideDateCenter";
+  const [provideDate, setProvideDate] = useState(c[provideKey] || today());
+  const changeProvideDate = (v) => {
+    setProvideDate(v);
+    onUpdateCase && onUpdateCase({ [provideKey]: v }); // 해당 환경 칸에 영구 저장
+  };
+  // 환경(학교↔센터) 전환 시 그 환경에 저장된 제공일로 다시 맞춤
+  useEffect(() => {
+    setProvideDate(c[provideKey] || today());
+  }, [provideKey]);
   const [aiState, setAiState] = useState("idle"); // idle | loading | done | error
   const [aiBip, setAiBip] = useState(null); // { antecedent:[], replacement:[], consequence:[] } — 있으면 템플릿 대신 사용
   const [aiErr, setAiErr] = useState("");
@@ -2388,6 +2404,7 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 <div class="cell"><div class="ck">대상</div><div class="cv">${esc(c.name)}${(c.age || c.school) ? " (" + [c.age, c.school].filter(Boolean).join(", ") + ")" : ""}</div></div>
 <div class="cell"><div class="ck">환경</div><div class="cv">${bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"}</div></div>
 <div class="cell"><div class="ck">작성</div><div class="cv">${todayKr()}</div></div>
+<div class="cell"><div class="ck">중재안 제공일</div><div class="cv">${esc(isoToKr(provideDate))}</div></div>
 </div>
 
 <div class="sec">
@@ -2429,7 +2446,7 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
     const pc = parentContent;
     const listBlock = (emoji, title, items, accent, bg) => `
 <div class="pblock">
-  <div class="ph"><span class="pe">${emoji}</span><span class="pt" style="color:${accent}">${esc(title)}</span></div>
+  <div class="ph">${emoji ? `<span class="pe">${emoji}</span>` : ""}<span class="pt" style="color:${accent}">${esc(title)}</span></div>
   ${items.map((t, i) => `<div class="pitem" style="background:${bg}"><span class="pn" style="color:${accent}">${i + 1}</span><span>${esc(t)}</span></div>`).join("")}
 </div>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_가정지원안내</title>
@@ -2456,14 +2473,14 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 <div class="topbar"></div>
 <div class="brandrow"><img src="${LOGO_B64}" alt="로고"/><div><div class="bt">검단ABA언어행동연구소</div><div class="bs">개별화된 데이터 기반 중재 · 언어/행동 통합적 접근</div></div></div>
 <h1>${esc(nm)} 가정 지원 안내</h1>
-<div class="intro">💛 이 안내는 <b>${esc(nm)} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 자료예요. 집에서 이렇게 도와주시면 ${esc(nm)}에게 큰 힘이 됩니다.</div>
+<div class="intro">이 안내는 <b>${esc(nm)} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 자료예요. 집에서 이렇게 도와주시면 ${esc(nm)}에게 큰 힘이 됩니다.</div>
 <div class="pblock">
-  <div class="ph"><span class="pe">🤔</span><span class="pt" style="color:#D4728A">${esc(nm)}는 왜 이런 행동을 할까요?</span></div>
+  <div class="ph"><span class="pt" style="color:#D4728A">${esc(nm)}는 왜 이런 행동을 할까요?</span></div>
   <div class="pdesc" style="background:#FFF0F3">${esc(pc.why)}</div>
 </div>
-${listBlock("🌱", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1")}
-${listBlock("💬", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB")}
-${listBlock("🤗", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC")}
+${listBlock("", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1")}
+${listBlock("", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB")}
+${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC")}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
 </body></html>`;
   };
@@ -2515,7 +2532,15 @@ ${listBlock("🤗", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF
       <div style={{ border: `1px solid ${PKL}`, borderRadius: 10, overflow: "hidden", marginBottom: 12, marginTop: 6 }}>
         <InfoRow label="대상" value={`${c.name}${(c.age||c.school)? " ("+[c.age,c.school].filter(Boolean).join(", ")+")":""}`} />
         <InfoRow label="환경" value={bip.setting === "school" ? "학교 (통합/특수 학급)" : "ABA 센터"} />
-        <InfoRow label="작성" value={`검단ABA언어행동연구소 · ${todayKr()}`} last />
+        <InfoRow label="작성" value={`검단ABA언어행동연구소 · ${todayKr()}`} />
+        <InfoRow label="제공일" last value={
+          <input type="date" value={provideDate}
+            onChange={(e) => changeProvideDate(e.target.value)}
+            style={{ border: `1px solid ${PKL}`, borderRadius: 7, padding: "4px 8px", fontSize: 12.5, color: INK, fontFamily: "inherit", background: "#fff" }}
+            onFocus={(e) => (e.target.style.borderColor = PK)}
+            onBlur={(e) => (e.target.style.borderColor = PKL)}
+          />
+        } />
       </div>
 
       <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: bip.setting === "school" ? "#5B7BB5" : PKD, background: bip.setting === "school" ? "#EEF3FB" : PKL, padding: "5px 11px", borderRadius: 20, marginBottom: 16 }}>
@@ -3284,7 +3309,7 @@ function ParentView({ content, childName }) {
   const Block = ({ emoji, title, desc, items, bg, accent }) => (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 20 }}>{emoji}</span>
+        {emoji ? <span style={{ fontSize: 20 }}>{emoji}</span> : null}
         <span style={{ fontWeight: 800, fontSize: 15, color: accent }}>{title}</span>
       </div>
       {desc ? <div style={{ fontSize: 13.5, lineHeight: 1.8, color: INK, background: bg, borderRadius: 12, padding: "14px 16px" }}>{desc}</div> : null}
@@ -3303,12 +3328,12 @@ function ParentView({ content, childName }) {
   return (
     <div>
       <div style={{ fontSize: 12.5, color: MUTE, marginBottom: 16, lineHeight: 1.6, background: "#FFF9FA", borderRadius: 10, padding: "10px 12px" }}>
-        💛 이 내용은 <b>{nm} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 안내예요. 집에서 이렇게 도와주시면 큰 힘이 됩니다.
+        이 내용은 <b>{nm} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 안내예요. 집에서 이렇게 도와주시면 큰 힘이 됩니다.
       </div>
-      <Block emoji="🤔" title={`${nm}는 왜 이런 행동을 할까요?`} desc={content.why} bg="#FFF0F3" accent={PKD} />
-      <Block emoji="🌱" title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" />
-      <Block emoji="💬" title="다른 행동을 가르쳐요" items={content.teach} bg="#EEF3FB" accent="#5B7BB5" />
-      <Block emoji="🤗" title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" />
+      <Block title={`${nm}는 왜 이런 행동을 할까요?`} desc={content.why} bg="#FFF0F3" accent={PKD} />
+      <Block title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" />
+      <Block title="다른 행동을 가르쳐요" items={content.teach} bg="#EEF3FB" accent="#5B7BB5" />
+      <Block title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" />
     </div>
   );
 }
@@ -3480,7 +3505,15 @@ function today() {
 
 function todayKr() {
   const d = new Date();
-  return `${d.getFullYear()}. ${d.getMonth() + 1}.`;
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+}
+
+// "2026-07-08" → "2026. 7. 8." (빈값이면 빈 문자열)
+function isoToKr(iso) {
+  if (!iso) return "";
+  const m = String(iso).split("-");
+  if (m.length !== 3) return iso;
+  return `${Number(m[0])}. ${Number(m[1])}. ${Number(m[2])}.`;
 }
 
 function nowLocal() {
