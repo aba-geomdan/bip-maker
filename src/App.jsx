@@ -2523,6 +2523,7 @@ ${listBlock("🤗", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF
       </div>
 
       {viewMode === "parent" ? (
+        <>
         <ParentView content={parentContent} childName={c.name} />
         <div style={{ marginTop: 16, borderTop: `1px dashed ${PKL}`, paddingTop: 16 }}>
           {!parentAi && (
@@ -2549,6 +2550,7 @@ ${listBlock("🤗", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF
             </div>
           )}
         </div>
+        </>
       ) : (
       <>
       <BIPBlock num="1" title="행동의 기능 및 가설" accent>
