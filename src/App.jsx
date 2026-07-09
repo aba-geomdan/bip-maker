@@ -2388,7 +2388,74 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
   const [parentAi, setParentAi] = useState(null); // AI가 변환한 부모님용 { why, prevent, teach, respond }
   const [parentAiState, setParentAiState] = useState("idle"); // idle | loading | error
   const [parentAiErr, setParentAiErr] = useState("");
-  const parentContent = parentAi || PARENT_BIP[bip.func] || PARENT_BIP.sensory;
+  // 부모용 기준값(편집 시작점): AI변환 > 템플릿
+  const parentBase = parentAi || PARENT_BIP[bip.func] || PARENT_BIP.sensory;
+  // 부모용 편집본 (환경별, 기능 불일치 시 무시)
+  const pEditKey = bip.setting === "school" ? "editedParent_school" : "editedParent_center";
+  const savedParent = c[pEditKey] && c[pEditKey].func === bip.func ? c[pEditKey] : null;
+  const [pEditing, setPEditing] = useState(false);
+  const [pDraft, setPDraft] = useState(null);
+  const [pErr, setPErr] = useState("");
+  const pEmptyPhotos = { prevent: [], teach: [], respond: [] };
+  // 표시용 부모 콘텐츠: 편집본 > AI/템플릿
+  const parentContent = {
+    why: savedParent?.why ?? parentBase.why,
+    prevent: savedParent?.prevent ?? parentBase.prevent,
+    teach: savedParent?.teach ?? parentBase.teach,
+    respond: savedParent?.respond ?? parentBase.respond,
+  };
+  const parentPhotos = savedParent?.photos ?? pEmptyPhotos;
+
+  const startPEdit = () => {
+    setPDraft({
+      why: parentContent.why,
+      prevent: [...parentContent.prevent], teach: [...parentContent.teach], respond: [...parentContent.respond],
+      photos: {
+        prevent: [...(parentPhotos.prevent || [])],
+        teach: [...(parentPhotos.teach || [])],
+        respond: [...(parentPhotos.respond || [])],
+      },
+    });
+    setPEditing(true);
+  };
+  const cancelPEdit = () => { setPEditing(false); setPDraft(null); setPErr(""); };
+  const savePEdit = () => {
+    const cleaned = {
+      func: bip.func,
+      why: pDraft.why.trim(),
+      prevent: pDraft.prevent.map((s) => s.trim()).filter(Boolean),
+      teach: pDraft.teach.map((s) => s.trim()).filter(Boolean),
+      respond: pDraft.respond.map((s) => s.trim()).filter(Boolean),
+      photos: pDraft.photos,
+    };
+    const approx = JSON.stringify(cleaned).length;
+    if (approx > 4_000_000) { setPErr("사진 용량이 너무 큽니다. 사진 수를 줄인 뒤 저장해 주세요."); return; }
+    onUpdateCase && onUpdateCase({ [pEditKey]: cleaned });
+    setPEditing(false); setPDraft(null);
+  };
+  const resetPEdit = () => { onUpdateCase && onUpdateCase({ [pEditKey]: null }); setPEditing(false); setPDraft(null); };
+  const setPField = (k, v) => setPDraft((d) => ({ ...d, [k]: v }));
+  const setPItem = (k, i, v) => setPDraft((d) => ({ ...d, [k]: d[k].map((x, j) => j === i ? v : x) }));
+  const addPItem = (k) => setPDraft((d) => ({ ...d, [k]: [...d[k], ""] }));
+  const removePItem = (k, i) => setPDraft((d) => ({ ...d, [k]: d[k].filter((_, j) => j !== i) }));
+  const addPPhotos = async (section, fileList) => {
+    setPErr("");
+    try {
+      const files = Array.from(fileList).slice(0, 6);
+      const encoded = [];
+      for (const f of files) encoded.push(await compressImage(f));
+      setPDraft((d) => {
+        const nextPhotos = { ...d.photos, [section]: [...d.photos[section], ...encoded] };
+        if (JSON.stringify({ ...d, photos: nextPhotos }).length > 4_000_000) {
+          setPErr("사진을 더 추가하면 저장 용량을 초과합니다."); return d;
+        }
+        return { ...d, photos: nextPhotos };
+      });
+    } catch (e) { setPErr("사진을 추가하지 못했습니다: " + e.message); }
+  };
+  const removePPhoto = (section, i) => setPDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
+  // 환경/기능 바뀌면 부모 편집 폐기
+  useEffect(() => { setPEditing(false); setPDraft(null); }, [pEditKey, bip.func]);
 
   const runParentAI = async () => {
     setParentAiState("loading"); setParentAiErr("");
@@ -2617,10 +2684,13 @@ ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin
     const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const nm = displayName(c.name);
     const pc = parentContent;
-    const listBlock = (emoji, title, items, accent, bg) => `
+    const pPhotoHtml = (arr) => (!arr || !arr.length) ? "" :
+      `<div class="pphotos">${arr.map((src) => `<img class="pphoto" src="${src}" />`).join("")}</div>`;
+    const listBlock = (emoji, title, items, accent, bg, photoArr) => `
 <div class="pblock">
   <div class="ph">${emoji ? `<span class="pe">${emoji}</span>` : ""}<span class="pt" style="color:${accent}">${esc(title)}</span></div>
   ${items.map((t, i) => `<div class="pitem" style="background:${bg}"><span class="pn" style="color:${accent}">${i + 1}</span><span>${esc(t)}</span></div>`).join("")}
+  ${pPhotoHtml(photoArr)}
 </div>`;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_가정지원안내</title>
 <style>
@@ -2641,6 +2711,8 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 .pdesc{font-size:13.5px;line-height:1.85;border-radius:12px;padding:15px 17px;}
 .pitem{display:flex;gap:11px;font-size:13.5px;line-height:1.75;border-radius:12px;padding:13px 15px;margin-bottom:8px;break-inside:avoid;}
 .pn{flex-shrink:0;font-weight:800;}
+.pphotos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.pphoto{width:150px;height:150px;object-fit:cover;border-radius:10px;border:1px solid #EADFE2;break-inside:avoid;}
 .foot{margin-top:32px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;}
 </style></head><body>
 <div class="topbar"></div>
@@ -2651,9 +2723,9 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
   <div class="ph"><span class="pt" style="color:#D4728A">${esc(nm)}는 왜 이런 행동을 할까요?</span></div>
   <div class="pdesc" style="background:#FFF0F3">${esc(pc.why)}</div>
 </div>
-${listBlock("", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1")}
-${listBlock("", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB")}
-${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC")}
+${listBlock("", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1", parentPhotos.prevent)}
+${listBlock("", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB", parentPhotos.teach)}
+${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC", parentPhotos.respond)}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
 </body></html>`;
   };
@@ -2739,7 +2811,24 @@ ${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC"
 
       {viewMode === "parent" ? (
         <>
-        <ParentView content={parentContent} childName={c.name} />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 8 }}>
+          {!pEditing && <button onClick={startPEdit} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>✏️ 편집</button>}
+          {pEditing && <button onClick={cancelPEdit} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>취소</button>}
+          {pEditing && <button onClick={savePEdit} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>✓ 저장</button>}
+        </div>
+        {savedParent && !pEditing && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFF9E9", border: "1px solid #F0DDA8", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#8A6D3B" }}>
+            ✏️ 직접 수정한 내용이 반영되어 있습니다.
+            <button onClick={resetPEdit} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>원래대로</button>
+          </div>
+        )}
+        {pEditing && pErr && (
+          <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{pErr}</div>
+        )}
+        <ParentView content={parentContent} childName={c.name}
+          editing={pEditing} draft={pDraft} photos={parentPhotos}
+          onField={setPField} onItem={setPItem} onAddItem={addPItem} onRemoveItem={removePItem}
+          onAddPhotos={addPPhotos} onRemovePhoto={removePPhoto} />
         <div style={{ marginTop: 16, borderTop: `1px dashed ${PKL}`, paddingTop: 16 }}>
           {!parentAi && (
             <>
@@ -3595,24 +3684,69 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
 }
 
 // 부모님용 쉬운 뷰
-function ParentView({ content, childName }) {
+function ParentView({ content, childName, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
   const nm = displayName(childName);
-  const Block = ({ emoji, title, desc, items, bg, accent }) => (
+  const ph = photos || { prevent: [], teach: [], respond: [] };
+  const Block = ({ title, desc, items, bg, accent, secKey }) => (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        {emoji ? <span style={{ fontSize: 20 }}>{emoji}</span> : null}
         <span style={{ fontWeight: 800, fontSize: 15, color: accent }}>{title}</span>
       </div>
-      {desc ? <div style={{ fontSize: 13.5, lineHeight: 1.8, color: INK, background: bg, borderRadius: 12, padding: "14px 16px" }}>{desc}</div> : null}
-      {items ? (
-        <div style={{ display: "grid", gap: 8 }}>
-          {items.map((t, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, fontSize: 13.5, lineHeight: 1.7, background: bg, borderRadius: 12, padding: "12px 14px" }}>
-              <span style={{ flexShrink: 0, color: accent, fontWeight: 800 }}>{i + 1}</span>
-              <span>{t}</span>
+      {/* 설명형(why) */}
+      {desc !== undefined ? (
+        editing
+          ? <textarea value={draft.why} onChange={(e) => onField("why", e.target.value)} rows={Math.max(2, Math.ceil((draft.why.length || 1) / 34))}
+              style={{ width: "100%", fontSize: 13.5, lineHeight: 1.8, padding: "12px 14px", border: `1px solid ${accent}55`, borderRadius: 12, fontFamily: "inherit", color: INK, resize: "vertical", boxSizing: "border-box", background: bg }} />
+          : <div style={{ fontSize: 13.5, lineHeight: 1.8, color: INK, background: bg, borderRadius: 12, padding: "14px 16px" }}>{desc}</div>
+      ) : null}
+      {/* 목록형(prevent/teach/respond) */}
+      {items !== undefined ? (
+        editing ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            {draft[secKey].map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                <span style={{ flexShrink: 0, color: accent, fontWeight: 800, marginTop: 9 }}>{i + 1}</span>
+                <textarea value={t} onChange={(e) => onItem(secKey, i, e.target.value)} rows={Math.max(1, Math.ceil((t.length || 1) / 30))}
+                  style={{ flex: 1, fontSize: 13.5, lineHeight: 1.7, padding: "9px 11px", border: `1px solid ${accent}55`, borderRadius: 10, fontFamily: "inherit", color: INK, resize: "vertical", background: bg }} />
+                <button onClick={() => onRemoveItem(secKey, i)} title="삭제"
+                  style={{ flexShrink: 0, width: 26, height: 26, marginTop: 5, borderRadius: 6, border: `1px solid ${accent}55`, background: "#fff", color: "#C56", cursor: "pointer", fontSize: 14 }}>×</button>
+              </div>
+            ))}
+            <button onClick={() => onAddItem(secKey)}
+              style={{ justifySelf: "start", fontSize: 12, color: accent, background: "#fff", border: `1px dashed ${accent}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 700 }}>+ 항목 추가</button>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {items.map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, fontSize: 13.5, lineHeight: 1.7, background: bg, borderRadius: 12, padding: "12px 14px" }}>
+                <span style={{ flexShrink: 0, color: accent, fontWeight: 800 }}>{i + 1}</span>
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        )
+      ) : null}
+      {/* 사진 (설명형 블록엔 사진 없음: secKey 있을 때만) */}
+      {secKey ? (
+        editing ? (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: draft.photos[secKey].length ? 8 : 0 }}>
+              {draft.photos[secKey].map((src, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img src={src} alt={`사진 ${i + 1}`} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, border: `1px solid ${accent}55` }} />
+                  <button onClick={() => onRemovePhoto(secKey, i)} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 13 }}>×</button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+            <PhotoPickBtn accent={accent} onPick={(fl) => onAddPhotos(secKey, fl)} />
+          </div>
+        ) : (
+          (ph[secKey] && ph[secKey].length) ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              {ph[secKey].map((src, i) => <img key={i} src={src} alt={`사진 ${i + 1}`} style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: `1px solid ${accent}44` }} />)}
+            </div>
+          ) : null
+        )
       ) : null}
     </div>
   );
@@ -3622,10 +3756,23 @@ function ParentView({ content, childName }) {
         이 내용은 <b>{nm} 부모님</b>을 위해 쉽게 풀어 쓴 가정 지원 안내입니다. 집에서 이렇게 도와주시면 큰 힘이 됩니다.
       </div>
       <Block title={`${nm}는 왜 이런 행동을 할까요?`} desc={content.why} bg="#FFF0F3" accent={PKD} />
-      <Block title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" />
-      <Block title="다른 행동을 가르쳐요" items={content.teach} bg="#EEF3FB" accent="#5B7BB5" />
-      <Block title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" />
+      <Block title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" secKey="prevent" />
+      <Block title="다른 행동을 가르쳐요" items={content.teach} bg="#EEF3FB" accent="#5B7BB5" secKey="teach" />
+      <Block title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" secKey="respond" />
     </div>
+  );
+}
+
+// 사진 선택 버튼 (파일 input 래퍼)
+function PhotoPickBtn({ accent, onPick }) {
+  const ref = React.useRef(null);
+  return (
+    <>
+      <input ref={ref} type="file" accept="image/*" multiple style={{ display: "none" }}
+        onChange={(e) => { onPick(e.target.files); e.target.value = ""; }} />
+      <button onClick={() => ref.current && ref.current.click()}
+        style={{ fontSize: 12, color: accent, background: "#fff", border: `1px dashed ${accent}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 700 }}>📷 사진 추가</button>
+    </>
   );
 }
 
