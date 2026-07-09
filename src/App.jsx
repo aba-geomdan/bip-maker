@@ -2405,6 +2405,9 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
     respond: savedParent?.respond ?? parentBase.respond,
   };
   const parentPhotos = savedParent?.photos ?? pEmptyPhotos;
+  // 시각카드: 편집본에 저장된 목록 우선, 없으면 기능별 기본
+  const baseVisualCards = getVisualCards(bip.func);
+  const showVisualCards = savedParent?.visualCards ?? baseVisualCards;
 
   const startPEdit = () => {
     setPDraft({
@@ -2415,6 +2418,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
         teach: [...(parentPhotos.teach || [])],
         respond: [...(parentPhotos.respond || [])],
       },
+      visualCards: [...showVisualCards],
     });
     setPEditing(true);
   };
@@ -2427,6 +2431,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
       teach: pDraft.teach.map((s) => s.trim()).filter(Boolean),
       respond: pDraft.respond.map((s) => s.trim()).filter(Boolean),
       photos: pDraft.photos,
+      visualCards: pDraft.visualCards,
     };
     const approx = JSON.stringify(cleaned).length;
     if (approx > 4_000_000) { setPErr("사진 용량이 너무 큽니다. 사진 수를 줄인 뒤 저장해 주세요."); return; }
@@ -2454,6 +2459,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
     } catch (e) { setPErr("사진을 추가하지 못했습니다: " + e.message); }
   };
   const removePPhoto = (section, i) => setPDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
+  const removePVisualCard = (i) => setPDraft((d) => ({ ...d, visualCards: d.visualCards.filter((_, j) => j !== i) }));
   // 환경/기능 바뀌면 부모 편집 폐기
   useEffect(() => { setPEditing(false); setPDraft(null); }, [pEditKey, bip.func]);
 
@@ -2713,6 +2719,7 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 .pn{flex-shrink:0;font-weight:800;}
 .pphotos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
 .pphoto{width:150px;height:150px;object-fit:cover;border-radius:10px;border:1px solid #EADFE2;break-inside:avoid;}
+.sec-break{break-before:page;page-break-before:always;height:0;}
 .foot{margin-top:32px;border-top:2px solid #F5A0B1;padding-top:12px;color:#B5A8AD;font-size:10.5px;text-align:center;}
 </style></head><body>
 <div class="topbar"></div>
@@ -2726,6 +2733,11 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 ${listBlock("", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1", parentPhotos.prevent)}
 ${listBlock("", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB", parentPhotos.teach)}
 ${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC", parentPhotos.respond)}
+${showVisualCards.length ? `<div class="sec-break"></div>
+<div class="pblock"><div class="ph"><span class="pt" style="color:#D4728A">집에서 함께 쓰는 자료</span></div>
+<div style="font-size:12px;color:#9A7A82;margin:-4px 0 12px;">아래 카드를 출력해서 아이와 함께 사용해 보세요.</div>
+${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
+</div>` : ""}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
 </body></html>`;
   };
@@ -2826,6 +2838,7 @@ ${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC"
           <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{pErr}</div>
         )}
         <ParentView content={parentContent} childName={c.name}
+          visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard}
           editing={pEditing} draft={pDraft} photos={parentPhotos}
           onField={setPField} onItem={setPItem} onAddItem={addPItem} onRemoveItem={removePItem}
           onAddPhotos={addPPhotos} onRemovePhoto={removePPhoto} />
@@ -3469,8 +3482,8 @@ function getVisualCards(func) {
         { label: "도와주세요", icon: "help" },
       ] },
       { type: "strip", title: "어디가 아파요? (짚어보기)", items: [
-        { label: "머리", emoji: "🧠" },
-        { label: "배", emoji: "🫃" },
+        { label: "머리", emoji: "😵" },
+        { label: "배", emoji: "🤢" },
         { label: "귀", emoji: "👂" },
         { label: "이(치아)", emoji: "🦷" },
       ] },
@@ -3684,7 +3697,7 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
 }
 
 // 부모님용 쉬운 뷰
-function ParentView({ content, childName, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
+function ParentView({ content, childName, visualCards, draftVisualCards, onRemoveCard, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
   const nm = displayName(childName);
   const ph = photos || { prevent: [], teach: [], respond: [] };
   const Block = ({ title, desc, items, bg, accent, secKey }) => (
@@ -3759,6 +3772,27 @@ function ParentView({ content, childName, editing, draft, photos, onField, onIte
       <Block title="미리 예방해요 (이렇게 해보세요)" items={content.prevent} bg="#F0F7F1" accent="#5C9A72" secKey="prevent" />
       <Block title="다른 행동을 가르쳐요" items={content.teach} bg="#EEF3FB" accent="#5B7BB5" secKey="teach" />
       <Block title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" secKey="respond" />
+      {(() => {
+        const cards = editing ? (draftVisualCards || []) : (visualCards || []);
+        if (!cards.length) return null;
+        return (
+          <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px dashed ${PKL}` }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: PKD, marginBottom: 4 }}>집에서 함께 쓰는 자료</div>
+            <div style={{ fontSize: 12, color: MUTE, marginBottom: 14 }}>
+              {editing ? "필요없는 카드는 × 버튼으로 뺄 수 있어요." : "아래 카드를 출력해서 아이와 함께 사용해 보세요."}
+            </div>
+            {cards.map((card, i) => (
+              <div key={i} style={{ position: "relative" }}>
+                {editing && (
+                  <button onClick={() => onRemoveCard(i)} title="이 카드 빼기"
+                    style={{ position: "absolute", top: 4, right: 4, zIndex: 2, width: 24, height: 24, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 14 }}>×</button>
+                )}
+                <VisualCard card={card} />
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
