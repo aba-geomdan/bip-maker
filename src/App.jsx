@@ -2500,6 +2500,9 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
   // 사진(섹션별 배열). 편집본에만 존재
   const emptyPhotos = { antecedent: [], replacement: [], consequence: [] };
   const showPhotos = savedEdit?.photos ?? emptyPhotos;
+  // 시각카드: 편집본에 저장된 목록 우선, 없으면 기능별 기본
+  const baseVisualCardsX = getVisualCards(bip.func);
+  const showVisualCardsX = savedEdit?.visualCards ?? baseVisualCardsX;
 
   const startEdit = () => {
     setDraft({
@@ -2510,6 +2513,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
         replacement: [...(showPhotos.replacement || [])],
         consequence: [...(showPhotos.consequence || [])],
       },
+      visualCards: [...showVisualCardsX],
     });
     setEditing(true);
   };
@@ -2523,6 +2527,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
       replacement: draft.replacement.map((s) => s.trim()).filter(Boolean),
       consequence: draft.consequence.map((s) => s.trim()).filter(Boolean),
       photos: draft.photos,
+      visualCards: draft.visualCards,
     };
     // 용량 방어: 저장될 편집본 대략 크기 확인 (사진 base64가 대부분)
     const approxBytes = JSON.stringify(cleaned).length; // UTF-16이지만 base64는 ASCII라 근사치로 충분
@@ -2569,6 +2574,8 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
   };
   const removeDraftPhoto = (section, i) =>
     setDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
+  const removeDraftVisualCard = (i) =>
+    setDraft((d) => ({ ...d, visualCards: d.visualCards.filter((_, j) => j !== i) }));
 
   const copyText = () => {
     if (viewMode === "parent") {
@@ -2676,10 +2683,10 @@ ${li(showCon)}
 ${photoHtml(showPhotos.consequence)}
 </div>
 
-<div class="sec sec-break">
+${showVisualCardsX.length ? `<div class="sec sec-break">
 <div class="secH"><span class="n">5</span><span class="t">시각지원 자료 (인쇄용)</span></div>
-${getVisualCards(bip.func).map((card) => visualCardToHtml(card, esc)).join("")}
-</div>
+${showVisualCardsX.map((card) => visualCardToHtml(card, esc)).join("")}
+</div>` : ""}
 
 ${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin-top:8px;">※ 본 계획의 중재안(2~4)은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요.</div>` : ""}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
@@ -2939,10 +2946,20 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
 
       <BIPBlock num="5" title="시각지원 자료 (인쇄용)">
         <div style={{ fontSize: 12, color: MUTE, marginBottom: 12, lineHeight: 1.6 }}>
-          이 기능에 맞춰 자동 생성된 시각카드예요. 화면 그대로 인쇄해 교실·가정에서 사용할 수 있어요.
+          {editing
+            ? "필요없는 카드는 × 버튼으로 뺄 수 있어요."
+            : "이 기능에 맞춰 자동 생성된 시각카드예요. 화면 그대로 인쇄해 교실·가정에서 사용할 수 있어요."}
         </div>
         <div style={{ display: "grid", gap: 12 }}>
-          {getVisualCards(bip.func).map((card, i) => <VisualCard key={i} card={card} />)}
+          {(editing ? (draft.visualCards || []) : showVisualCardsX).map((card, i) => (
+            <div key={i} style={{ position: "relative" }}>
+              {editing && (
+                <button onClick={() => removeDraftVisualCard(i)} title="이 카드 빼기"
+                  style={{ position: "absolute", top: 4, right: 4, zIndex: 2, width: 24, height: 24, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 14 }}>×</button>
+              )}
+              <VisualCard card={card} />
+            </div>
+          ))}
         </div>
       </BIPBlock>
 
