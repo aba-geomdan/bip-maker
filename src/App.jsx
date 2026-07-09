@@ -239,7 +239,7 @@ const QABF = {
     escape: "회피",
     nonsocial: "비사회적 (자기자극)",
     physical: "신체적 (고통)",
-    tangible: "강화물습득",
+    tangible: "물건·활동 요구",
   },
   items: [
     { q: "관심을 끌기 위해 행동을 보인다.", f: "attention" },              // 1
@@ -366,12 +366,12 @@ function scoreAssessment(scaleId, answers) {
 //  기능 통합 매핑 + 중재 라이브러리 (템플릿 기반)
 //  세 척도의 개별 기능 → 4대 공통기능으로 수렴
 // ══════════════════════════════════════════════
-// 공통기능: attention(관심) / escape(회피) / sensory(감각·자동) / tangible(획득)
+// 공통기능: attention(관심) / escape(회피) / sensory(감각·자동) / tangible(획득) / physical(신체·통증)
 const FUNC_UNIFY = {
   // FAST
-  social_pos: "attention", social_neg: "escape", auto_pos: "sensory", auto_neg: "sensory",
+  social_pos: "attention", social_neg: "escape", auto_pos: "sensory", auto_neg: "physical",
   // QABF
-  attention: "attention", escape: "escape", nonsocial: "sensory", physical: "sensory", tangible: "tangible",
+  attention: "attention", escape: "escape", nonsocial: "sensory", physical: "physical", tangible: "tangible",
   // MAS
   sensory: "sensory",
   // (attention/escape/tangible 은 위와 키 공유)
@@ -381,6 +381,7 @@ const UNIFIED_FUNC_NAME = {
   escape: "회피·도피 (사회적 부적강화)",
   sensory: "감각 자극 (자동강화)",
   tangible: "선호물 획득 (물질적 강화)",
+  physical: "신체적 불편·통증 (자동 부적강화)",
 };
 
 // 기능 계층 라벨/색상 (1차/2차/별도)
@@ -393,6 +394,7 @@ const FUNC_HYPOTHESIS_SHORT = {
   escape: "비선호 활동·요구에서 벗어나려는 동기",
   sensory: "특정 감각자극 자체가 주는 만족을 추구하는 동기",
   tangible: "원하는 물건·활동을 얻으려는 동기",
+  physical: "신체적 불편·통증에서 벗어나려는 동기(의료적 원인 우선 확인)",
 };
 
 // 행동의 의미 서술 (임상적 재해석)
@@ -405,6 +407,9 @@ function FUNC_MEANING(func, name, target, setting) {
     sensory: `${who}의 도전적 행동은 문제 삼아야 할 '나쁜 버릇'이 아니라, 충족되지 못한 감각 욕구가 겉으로 드러난 신호입니다. 안전하고 수용 가능한 대체 감각활동을 제공하면 조절 가능한 행동입니다.`,
     tangible: `${who}의 도전적 행동은 예측할 수 없는 돌발적 행동이 아니라, "그것을 갖고 싶다·하고 싶다"는 요구를 적절한 방식으로 전달하지 못한 채 강도 높은 행동으로 표현하는 학습된 기능적 의사소통의 대체 수단입니다.`,
   };
+  if (func === "physical") {
+    return `${who}의 도전적 행동은 감각을 추구하는 자기자극이 아니라, 신체적 불편·통증 등 내부의 고통 상태에서 벗어나려는 신호일 수 있습니다. 이 경우 행동중재에 앞서 의학적 원인(질환·통증·수면·투약 등)에 대한 평가와 의료적 의뢰가 우선되어야 하며, 의학적 원인이 배제·조절된 뒤에 아래의 행동지원을 병행합니다.`;
+  }
   return `${base[func] || base.escape} 적절한 대체행동 교수와 강화 수반성 재설정을 통해 ${place}에서 충분히 변화 가능한 표적행동입니다.`;
 }
 
@@ -485,6 +490,25 @@ const PARENT_BIP = {
       "문제행동을 할 때는 원하는 것을 주지 마세요. 그러면 \"이렇게 하면 얻는구나\"를 배우게 됩니다.",
       "대신 바르게 요청하면 바로 주세요. \"주세요\"라고 말하거나 카드를 건네면 즉시 반응해주세요.",
       "정해진 시간 동안 잘 기다리면 원하는 것을 주세요. 기다림이 통한다는 것을 배우게 해주세요.",
+    ],
+  },
+  physical: {
+    why: "아이가 이런 행동을 하는 것은 몸이 아프거나 불편해서일 수 있습니다. 말이나 표현으로 \"아파요\"를 전하지 못해, 행동으로 그 불편을 드러내는 것입니다. 그래서 컨디션이 나쁜 날이나 특정 상황에서 행동이 더 늘어나곤 합니다.",
+    prevent: [
+      "가장 먼저 병원 진료로 몸에 아픈 곳이 없는지 확인해주세요. 중이염, 치통, 배앓이, 두통, 알레르기, 수면 문제 등 아이가 말로 표현하기 어려운 불편이 원인일 수 있습니다. 행동을 다루기 전에 이 확인이 우선입니다.",
+      "행동이 심해지는 때(특정 시간, 식사 전후, 잠이 부족한 날 등)를 기록해두면 원인을 찾는 데 도움이 됩니다. 병원에 갈 때 이 기록을 함께 보여주세요.",
+      "배고픔, 피로, 더위·추위 같은 기본적인 불편을 미리 해소해주세요. 규칙적인 식사와 충분한 수면·휴식이 특히 중요합니다.",
+      "아플 것으로 예상되는 상황(치료, 특정 활동) 전에는 미리 알려주고 편안하게 해주세요.",
+    ],
+    teach: [
+      "\"아파요\", \"도와주세요\"를 말이나 카드로 표현하도록 알려주세요. 아픈 곳을 손으로 가리키게 하거나, 웃는 얼굴·우는 얼굴 그림으로 아픈 정도를 표현하게 하는 것도 좋습니다.",
+      "아이가 불편을 알리면 바로 살펴보고 도와주세요. 그래야 힘든 행동 대신 표현으로 도움을 받는 법을 배웁니다.",
+      "조용하고 편안한 공간에서 쉬거나 심호흡으로 진정하는 방법을 알려주세요. (다만 아픈 것 자체는 병원에서 다뤄야 합니다.)",
+    ],
+    respond: [
+      "아이가 아프다고 표현하면 바로 확인하고 필요한 도움을 주세요.",
+      "이 행동을 혼내거나 벌주지 마세요. 아파서 하는 행동일 수 있으니, 먼저 안전을 살피고 불편한 원인을 찾아주세요.",
+      "행동이 심한 정도와 아이의 몸 상태를 함께 기록해 병원 진료 때 알려주세요. 몸이 나아진 뒤에도 행동이 남으면 전문가와 다시 상의해주세요.",
     ],
   },
 };
@@ -591,6 +615,29 @@ const INTERVENTION_LIB = {
       "'적절 요청 → 획득'의 연결이 분명해지도록, 요청 직후 제공 시점을 놓치지 않는다.",
     ],
   },
+  physical: {
+    hypothesis: (name, beh) => `${name}의 ${beh}${K(beh,"은","는")} 신체적 불편·통증 등 내부의 고통 상태에서 벗어나기 위해 나타나는 것으로 추정됩니다(자동 부적강화). 특정 신체 부위와 관련되거나, 컨디션이 나쁜 날 증가하는 경향이 이를 뒷받침합니다. ※ 행동중재에 앞서 의학적 원인 평가가 우선되어야 합니다.`,
+    antecedent: [
+      "가장 먼저, 의학적 원인을 평가·배제한다. 소아과·치과·이비인후과 등 의료적 의뢰를 통해 통증·질환(중이염, 치통, 위장문제, 두통, 알레르기 등)·수면·투약 부작용을 우선 확인한다. (행동중재보다 의료적 조치가 선행)",
+      "통증·불편이 심해지는 조건을 기록·파악한다 (예: 특정 시간대, 식사 전후, 수면 부족, 특정 자세·소음). ABC 기록에 신체 상태·컨디션을 함께 남긴다.",
+      "확인된 불편 요인을 미리 조정한다. 예: 배고픔·갈증·피로·과열·소음 등 생리적 불편을 사전에 해소하고, 규칙적인 식사·수면·휴식 리듬을 확보한다.",
+      "통증이 예상되는 상황(치료·처치·특정 활동) 전에는 예고와 진정 지원을 제공해 불필요한 각성을 낮춘다.",
+      "의료진과 협의해 통증 관리 계획(투약 시간, 처치 방법)을 일과에 반영한다.",
+    ],
+    replacement: [
+      "불편·아픔을 적절히 표현하는 방법을 가르친다 (기능적 의사소통 훈련, FCT). 예: '아파요'·'도와주세요' 말하기·카드, 아픈 부위 가리키기, 통증 척도(얼굴 그림) 사용.",
+      "아이가 불편을 알리면 즉시 반응해 확인·지원한다. 그래야 도전적 행동 대신 표현으로 도움을 얻는 법을 배운다 (반응효율성).",
+      "스스로 진정·완화하는 방법을 지도한다. 예: 조용한 공간으로 이동, 심호흡, 편안한 자세 취하기 (단, 통증 자체는 의료적으로 다룬다).",
+      "표현 행동을 처음엔 촉구로 이끌고 점차 촉구를 용암시켜 스스로 알리게 한다 (촉구 용암).",
+    ],
+    consequence: [
+      "불편을 적절히 표현하면 즉시 확인하고 필요한 지원(휴식·의료적 조치·위로)을 제공한다 (대체행동 차별강화, DRA).",
+      "도전적 행동을 '벌'로 다루지 않는다. 통증 신호일 수 있으므로, 안전을 확보하고 불편 원인을 확인하는 방향으로 반응한다.",
+      "통증·불편 정도와 도전적 행동의 관계를 지속적으로 데이터로 수집해 의료진과 공유한다.",
+      "의학적 원인이 확인·조절된 뒤에도 행동이 남으면, 그때 다른 기능(감각·회피·관심 등)에 대한 재평가를 실시한다.",
+      "※ 신체적 기능이 의심되는 동안에는 감각 소거·회피 소거 같은 소거 절차를 적용하지 않는다 (실제 통증을 방치할 위험).",
+    ],
+  },
 };
 
 // ══════════════════════════════════════════════
@@ -673,13 +720,31 @@ const INTERVENTION_LIB_SCHOOL = {
       "차례를 잘 지키거나 기다린 것을 학급 차원에서 인정·강화한다 (집단강화로 관리 부담 완화).",
     ],
   },
+  physical: {
+    hypothesis: (name, beh) => `${name}의 ${beh}${K(beh,"은","는")} 신체적 불편·통증 등 내부의 고통에서 벗어나기 위한 것으로 추정됩니다(자동 부적강화). 컨디션이 나쁜 날 증가하거나 특정 신체 부위와 관련되는 경향이 이를 뒷받침합니다. ※ 교내 대응에 앞서 의료적 원인 확인이 우선입니다.`,
+    antecedent: [
+      "먼저 보건교사·보호자와 협력해 의료적 원인(통증·질환·수면·투약)을 확인하도록 의뢰한다. 교사는 행동중재보다 의료적 조치가 선행되어야 함을 인지한다.",
+      "불편이 심해지는 조건(특정 시간대, 식사·수면 상태, 자세, 소음 등)을 관찰·기록해 보호자·보건교사와 공유한다.",
+      "확인된 생리적 불편(배고픔·피로·과열·갈증 등)을 학급 일과에서 미리 조정한다 (수분·간식·휴식 시간 확보, 자리·환경 조정).",
+      "필요 시 보건실 이용·휴식 절차를 미리 정해 두어, 불편할 때 안전하게 쉴 수 있게 한다.",
+    ],
+    replacement: [
+      "불편·아픔을 적절히 알리는 방법을 가르친다 (예: '아파요'·'보건실 가고 싶어요' 카드·손신호, 아픈 부위 가리키기).",
+      "학생이 불편을 알리면 즉시 확인하고 보건실 이용 등 지원으로 연결한다 (반응효율성).",
+    ],
+    consequence: [
+      "불편을 적절히 표현하면 즉시 확인·지원한다 (DRA). 도전적 행동을 벌로 다루지 않는다.",
+      "통증 신호일 수 있으므로 소거 절차를 적용하지 않고, 안전 확보와 원인 확인을 우선한다.",
+      "행동과 신체 상태의 관계를 기록해 보호자·보건교사·의료진과 공유하고, 의학적 원인이 배제된 뒤 기능을 재평가한다.",
+    ],
+  },
 };
 
 // 완료된 평가들 → 통합 기능 집계 (가장 우세한 기능 판정)
 function aggregateFunction(assessments) {
   if (!assessments || assessments.length === 0) return null;
-  const tally = { attention: 0, escape: 0, sensory: 0, tangible: 0 }; // 1위 표수(기존 호환)
-  const scoreSum = { attention: 0, escape: 0, sensory: 0, tangible: 0 }; // 정규화 점수 합
+  const tally = { attention: 0, escape: 0, sensory: 0, tangible: 0, physical: 0 }; // 1위 표수(기존 호환)
+  const scoreSum = { attention: 0, escape: 0, sensory: 0, tangible: 0, physical: 0 }; // 정규화 점수 합
   const detail = []; // 각 평가별 top 기능
 
   assessments.forEach((a) => {
@@ -697,13 +762,16 @@ function aggregateFunction(assessments) {
     }
   });
 
-  const ranked = Object.entries(tally).sort((x, y) => y[1] - x[1]);
-  const primary = ranked[0][1] > 0 ? ranked[0][0] : null;
-
-  // 점수 기반 순위 (1차/2차/별도 계층 판정용)
+  // 점수 기반 순위 (주기능 및 1차/2차/별도 계층 판정의 단일 기준)
   const scoreRanked = Object.entries(scoreSum)
     .filter(([, v]) => v > 0)
     .sort((x, y) => y[1] - x[1]);
+
+  // 주기능: 점수(scoreSum) 1위로 통일 (tier 1차와 항상 일치)
+  const primary = scoreRanked.length ? scoreRanked[0][0] : null;
+
+  // 1위 표수 순위 (참고용, 기존 호환)
+  const ranked = Object.entries(tally).sort((x, y) => y[1] - x[1]);
 
   // 계층 분류: 최고점 대비 비율로 판정
   const topScore = scoreRanked.length ? scoreRanked[0][1] : 0;
@@ -716,7 +784,14 @@ function aggregateFunction(assessments) {
     return { func: f, score: v, ratio: topScore ? v / topScore : 0, tier };
   });
 
-  return { primary, tally, detail, ranked, scoreSum, scoreRanked, tiers, topScore };
+  // 주기능이 모호한가: 2위 점수가 1위의 90% 이상이면 동점에 가까움 → 사용자 확인 권장
+  const secondScore = scoreRanked.length > 1 ? scoreRanked[1][1] : 0;
+  const ambiguous = topScore > 0 && secondScore >= topScore * 0.9;
+  const ambiguousFuncs = ambiguous
+    ? scoreRanked.filter(([, v]) => v >= topScore * 0.9).map(([f]) => f)
+    : [];
+
+  return { primary, tally, detail, ranked, scoreSum, scoreRanked, tiers, topScore, ambiguous, ambiguousFuncs };
 }
 
 // BIP 생성 (템플릿 조합) — setting: 'center' | 'pbs'
@@ -2261,10 +2336,12 @@ function BIPSection({ c, assessments, onUpdateCase }) {
         </div>
         <div style={{ marginTop: 10, padding: "8px 12px", background: PKL, borderRadius: 8, fontSize: 12.5 }}>
           종합 추정 주요기능: <b style={{ color: PKD }}>{UNIFIED_FUNC_NAME[agg.primary].split(" (")[0]}</b>
-          {agg.detail.length > 1 && agg.ranked[1][1] > 0 && (
-            <span style={{ color: MUTE }}> (평가 간 결과가 나뉘면 아래에서 기능을 직접 선택하세요)</span>
-          )}
         </div>
+        {agg.ambiguous && (
+          <div style={{ marginTop: 8, padding: "9px 12px", background: "#FFF6E9", border: "1px solid #F0D9A8", borderRadius: 8, fontSize: 12.5, color: "#8A6D3B", lineHeight: 1.6 }}>
+            ⚠ <b>{agg.ambiguousFuncs.map((f) => UNIFIED_FUNC_NAME[f].split(" (")[0]).join(", ")}</b> 기능의 점수가 비슷하게 나왔습니다. 여러 기능이 함께 작용할 수 있으니, 원자료와 임상 관찰을 바탕으로 아래에서 중재 대상 기능을 직접 확인·선택해 주세요.
+          </div>
+        )}
       </div>
 
       {/* 기능 선택 (평가 결과가 갈릴 때 수동 조정) */}
@@ -2327,10 +2404,98 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
   const clearParentAI = () => { setParentAi(null); setParentAiState("idle"); setParentAiErr(""); };
 
   const usingAi = !!aiBip;
-  // 표시용: AI 결과가 있으면 AI 것, 없으면 템플릿
-  const showAnt = usingAi ? aiBip.antecedent : bip.antecedent;
-  const showRep = usingAi ? aiBip.replacement : bip.replacement;
-  const showCon = usingAi ? aiBip.consequence : bip.consequence;
+
+  // ── 사용자 편집 (가설·의미·3섹션) ──
+  const editKey = bip.setting === "school" ? "editedBip_school" : "editedBip_center";
+  // 기준값: AI 있으면 AI, 없으면 템플릿 (편집 시작점)
+  const baseAnt = usingAi ? aiBip.antecedent : bip.antecedent;
+  const baseRep = usingAi ? aiBip.replacement : bip.replacement;
+  const baseCon = usingAi ? aiBip.consequence : bip.consequence;
+  const baseHyp = bip.hypothesis;
+  const baseMean = FUNC_MEANING(bip.func, c.name, c.target, bip.setting);
+
+  const savedEdit = c[editKey] && c[editKey].func === bip.func ? c[editKey] : null; // 기능 바뀌면 편집본 무시
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(null); // 편집 중 임시본
+
+  // 표시용: 저장된 편집본 > AI/템플릿
+  const showHyp = savedEdit?.hypothesis ?? baseHyp;
+  const showMean = savedEdit?.meaning ?? baseMean;
+  const showAnt = savedEdit?.antecedent ?? baseAnt;
+  const showRep = savedEdit?.replacement ?? baseRep;
+  const showCon = savedEdit?.consequence ?? baseCon;
+  // 사진(섹션별 배열). 편집본에만 존재
+  const emptyPhotos = { antecedent: [], replacement: [], consequence: [] };
+  const showPhotos = savedEdit?.photos ?? emptyPhotos;
+
+  const startEdit = () => {
+    setDraft({
+      hypothesis: showHyp, meaning: showMean,
+      antecedent: [...showAnt], replacement: [...showRep], consequence: [...showCon],
+      photos: {
+        antecedent: [...(showPhotos.antecedent || [])],
+        replacement: [...(showPhotos.replacement || [])],
+        consequence: [...(showPhotos.consequence || [])],
+      },
+    });
+    setEditing(true);
+  };
+  const cancelEdit = () => { setEditing(false); setDraft(null); };
+  const saveEdit = () => {
+    const cleaned = {
+      func: bip.func,
+      hypothesis: draft.hypothesis.trim(),
+      meaning: draft.meaning.trim(),
+      antecedent: draft.antecedent.map((s) => s.trim()).filter(Boolean),
+      replacement: draft.replacement.map((s) => s.trim()).filter(Boolean),
+      consequence: draft.consequence.map((s) => s.trim()).filter(Boolean),
+      photos: draft.photos,
+    };
+    // 용량 방어: 저장될 편집본 대략 크기 확인 (사진 base64가 대부분)
+    const approxBytes = JSON.stringify(cleaned).length; // UTF-16이지만 base64는 ASCII라 근사치로 충분
+    if (approxBytes > 4_000_000) { // 4MB 초과 시 차단 (Supabase 5MB 한계 여유)
+      setPhotoErr("사진 용량이 너무 큽니다. 사진 수를 줄인 뒤 다시 저장해 주세요. (현재 약 " + Math.round(approxBytes / 1024 / 1024 * 10) / 10 + "MB)");
+      return;
+    }
+    onUpdateCase && onUpdateCase({ [editKey]: cleaned });
+    setEditing(false); setDraft(null);
+  };
+  const resetEdit = () => {
+    onUpdateCase && onUpdateCase({ [editKey]: null });
+    setEditing(false); setDraft(null);
+  };
+  // 환경(센터↔학교) 또는 기능이 바뀌면 편집 중이던 draft를 폐기 (다른 환경에 잘못 저장 방지)
+  useEffect(() => {
+    setEditing(false); setDraft(null);
+  }, [editKey, bip.func]);
+  const setDraftField = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
+  const setDraftItem = (k, i, v) => setDraft((d) => ({ ...d, [k]: d[k].map((x, j) => j === i ? v : x) }));
+  const addDraftItem = (k) => setDraft((d) => ({ ...d, [k]: [...d[k], ""] }));
+  const removeDraftItem = (k, i) => setDraft((d) => ({ ...d, [k]: d[k].filter((_, j) => j !== i) }));
+  // 사진 핸들러
+  const [photoErr, setPhotoErr] = useState("");
+  const addDraftPhotos = async (section, fileList) => {
+    setPhotoErr("");
+    try {
+      const files = Array.from(fileList).slice(0, 6);
+      const encoded = [];
+      for (const f of files) encoded.push(await compressImage(f));
+      setDraft((d) => {
+        const nextPhotos = { ...d.photos, [section]: [...d.photos[section], ...encoded] };
+        // 누적 용량 확인 (사진 base64 합산). 한계 초과면 추가 취소하고 경고
+        const approx = JSON.stringify({ ...d, photos: nextPhotos }).length;
+        if (approx > 4_000_000) {
+          setPhotoErr("사진을 더 추가하면 저장 용량을 초과합니다. 기존 사진을 줄이거나 크기가 작은 사진을 사용해 주세요.");
+          return d; // 추가 취소
+        }
+        return { ...d, photos: nextPhotos };
+      });
+    } catch (e) {
+      setPhotoErr("사진을 추가하지 못했습니다: " + e.message);
+    }
+  };
+  const removeDraftPhoto = (section, i) =>
+    setDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
 
   const copyText = () => {
     if (viewMode === "parent") {
@@ -2356,8 +2521,8 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
       if (navigator.clipboard) navigator.clipboard.writeText(lines.join("\n"));
       return;
     }
-    const b2 = usingAi ? { ...bip, antecedent: showAnt, replacement: showRep, consequence: showCon } : bip;
-    const txt = bipToText(b2, c, agg) + (usingAi ? "\n\n※ 이 계획은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요." : "");
+    const b2 = { ...bip, hypothesis: showHyp, antecedent: showAnt, replacement: showRep, consequence: showCon, _meaning: showMean };
+    const txt = bipToText(b2, c, agg) + (usingAi && !savedEdit ? "\n\n※ 이 계획은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요." : "");
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
   };
 
@@ -2367,6 +2532,8 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
     const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
     const tiers = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor") : []);
     const li = (arr) => arr.map((t) => `<div class="item">${esc(t)}</div>`).join("");
+    const photoHtml = (arr) => (!arr || !arr.length) ? "" :
+      `<div class="photos">${arr.map((src) => `<img class="photo" src="${src}" />`).join("")}</div>`;
     const title = bip.setting === "school" ? "개별 행동중재계획서 (PBIP)" : "행동중재계획 (BIP)";
     const aiBadge = usingAi ? `<span style="display:inline-block;background:#F0E8FB;color:#8A6FB0;font-size:10px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;">AI 맞춤 생성</span>` : "";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
@@ -2391,6 +2558,8 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 .secH .n{background:#D4728A;color:#fff;min-width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
 .secH .t{font-size:14.5px;font-weight:800;color:#C4557A;}
 .item{position:relative;padding:11px 14px 11px 30px;background:#FFFBFC;border:1px solid #F5E4EA;border-radius:9px;font-size:13px;line-height:1.65;margin-bottom:7px;break-inside:avoid;}
+.photos{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
+.photo{width:150px;height:150px;object-fit:cover;border-radius:9px;border:1px solid #F5E4EA;break-inside:avoid;}
 .item::before{content:"";position:absolute;left:13px;top:16px;width:7px;height:7px;border-radius:50%;background:#F5A0B1;}
 .hyp{background:linear-gradient(135deg,#FFF0F3,#FFF6F8);border:1px solid #F3C9D5;border-radius:10px;padding:15px 17px;font-size:13.5px;line-height:1.7;margin:10px 0;}
 .hyp b{color:#C4557A;}
@@ -2412,23 +2581,26 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 <div class="secH"><span class="n">1</span><span class="t">행동의 기능 및 가설</span></div>
 <div class="meta"><b>표적행동</b> · ${esc(c.target)}</div>
 <div class="meta">${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} — ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</div>
-<div class="hyp"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(bip.hypothesis)}</div>
-<div class="meta"><b>행동의 의미</b><br>${esc(FUNC_MEANING(bip.func, c.name, c.target, bip.setting))}</div>
+<div class="hyp"><b>주 기능: ${esc(bip.funcName)}</b><br>${esc(showHyp)}</div>
+<div class="meta"><b>행동의 의미</b><br>${esc(showMean)}</div>
 </div>
 
 <div class="sec">
 <div class="secH"><span class="n">2</span><span class="t">선행중재 (예방 전략)</span></div>
 ${li(showAnt)}
+${photoHtml(showPhotos.antecedent)}
 </div>
 
 <div class="sec">
 <div class="secH"><span class="n">3</span><span class="t">대체행동중재 (교수 전략)</span></div>
 ${li(showRep)}
+${photoHtml(showPhotos.replacement)}
 </div>
 
 <div class="sec">
 <div class="secH"><span class="n">4</span><span class="t">후속결과중재 (반응 전략)</span></div>
 ${li(showCon)}
+${photoHtml(showPhotos.consequence)}
 </div>
 
 <div class="sec sec-break">
@@ -2519,9 +2691,27 @@ ${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC"
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 4 }}>
-        <button onClick={copyText} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>📋 복사</button>
-        <button onClick={doPrint} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>📄 PDF 저장</button>
+        {viewMode === "expert" && !editing && (
+          <button onClick={startEdit} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>✏️ 편집</button>
+        )}
+        {viewMode === "expert" && editing && (
+          <>
+            <button onClick={cancelEdit} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>취소</button>
+            <button onClick={saveEdit} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>✓ 저장</button>
+          </>
+        )}
+        {!editing && <button onClick={copyText} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>📋 복사</button>}
+        {!editing && <button onClick={doPrint} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>📄 PDF 저장</button>}
       </div>
+      {viewMode === "expert" && savedEdit && !editing && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFF9E9", border: "1px solid #F0DDA8", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#8A6D3B" }}>
+          ✏️ 직접 수정한 내용이 반영되어 있습니다.
+          <button onClick={resetEdit} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>원래대로</button>
+        </div>
+      )}
+      {editing && photoErr && (
+        <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{photoErr}</div>
+      )}
       {printWarn && (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 12.5, color: "#C04040", lineHeight: 1.6 }}>
           <span style={{ flexShrink: 0 }}>⚠️</span>
@@ -2605,27 +2795,44 @@ ${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC"
 
         <div style={{ padding: "12px 14px", background: PKL, borderRadius: 10, fontSize: 13.5, lineHeight: 1.7, marginBottom: 12 }}>
           <span style={{ fontWeight: 700, color: PKD }}>주 기능: {bip.funcName}</span><br />
-          {bip.hypothesis}
+          {editing
+            ? <div style={{ marginTop: 6 }}><EditableText value={draft.hypothesis} onChange={(v) => setDraftField("hypothesis", v)} /></div>
+            : showHyp}
         </div>
 
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 5 }}>행동의 의미</div>
-          <div style={{ fontSize: 13, lineHeight: 1.7, color: INK }}>
-            {FUNC_MEANING(bip.func, c.name, c.target, bip.setting)}
-          </div>
+          {editing
+            ? <EditableText value={draft.meaning} onChange={(v) => setDraftField("meaning", v)} />
+            : <div style={{ fontSize: 13, lineHeight: 1.7, color: INK }}>{showMean}</div>}
         </div>
       </BIPBlock>
 
       <BIPBlock num="2" title="선행중재 (예방 전략)">
-        <BulletList items={showAnt} />
+        {editing
+          ? <EditableList items={draft.antecedent} onChange={(i, v) => setDraftItem("antecedent", i, v)} onAdd={() => addDraftItem("antecedent")} onRemove={(i) => removeDraftItem("antecedent", i)} />
+          : <BulletList items={showAnt} />}
+        {editing
+          ? <PhotoEditor photos={draft.photos.antecedent} onAdd={(fl) => addDraftPhotos("antecedent", fl)} onRemove={(i) => removeDraftPhoto("antecedent", i)} />
+          : <PhotoStrip photos={showPhotos.antecedent} />}
       </BIPBlock>
 
       <BIPBlock num="3" title="대체행동중재 (교수 전략)">
-        <BulletList items={showRep} />
+        {editing
+          ? <EditableList items={draft.replacement} onChange={(i, v) => setDraftItem("replacement", i, v)} onAdd={() => addDraftItem("replacement")} onRemove={(i) => removeDraftItem("replacement", i)} />
+          : <BulletList items={showRep} />}
+        {editing
+          ? <PhotoEditor photos={draft.photos.replacement} onAdd={(fl) => addDraftPhotos("replacement", fl)} onRemove={(i) => removeDraftPhoto("replacement", i)} />
+          : <PhotoStrip photos={showPhotos.replacement} />}
       </BIPBlock>
 
       <BIPBlock num="4" title="후속결과중재 (반응 전략)">
-        <BulletList items={showCon} />
+        {editing
+          ? <EditableList items={draft.consequence} onChange={(i, v) => setDraftItem("consequence", i, v)} onAdd={() => addDraftItem("consequence")} onRemove={(i) => removeDraftItem("consequence", i)} />
+          : <BulletList items={showCon} />}
+        {editing
+          ? <PhotoEditor photos={draft.photos.consequence} onAdd={(fl) => addDraftPhotos("consequence", fl)} onRemove={(i) => removeDraftPhoto("consequence", i)} />
+          : <PhotoStrip photos={showPhotos.consequence} />}
       </BIPBlock>
 
       <BIPBlock num="5" title="시각지원 자료 (인쇄용)">
@@ -3167,6 +3374,28 @@ function getVisualCards(func) {
       breathing,
       emotionScale,
     ],
+    physical: [
+      { type: "strip", title: "아플 때 알리는 카드", items: [
+        { label: "아파요", emoji: "🤕" },
+        { label: "도와주세요", icon: "help" },
+      ] },
+      { type: "strip", title: "어디가 아파요? (짚어보기)", items: [
+        { label: "머리", emoji: "🧠" },
+        { label: "배", emoji: "🫃" },
+        { label: "귀", emoji: "👂" },
+        { label: "이(치아)", emoji: "🦷" },
+      ] },
+      { type: "strip", title: "얼마나 아파요? (통증 정도)", items: [
+        { label: "괜찮아요", emoji: "🙂" },
+        { label: "조금 아파요", emoji: "😟" },
+        { label: "많이 아파요", emoji: "😣" },
+      ] },
+      { type: "strip", title: "쉼 공간 (조용한 코너)", items: [
+        { label: "쉼 공간", icon: "corner" },
+        { label: "쉬고 싶어요", icon: "rest" },
+      ] },
+      breathing,
+    ],
   };
   return sets[func] || sets.escape;
 }
@@ -3303,6 +3532,68 @@ function BulletList({ items }) {
   );
 }
 
+// 편집 가능한 항목 리스트 (선행·대체·후속용)
+function EditableList({ items, onChange, onAdd, onRemove }) {
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {items.map((t, i) => (
+        <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+          <span style={{ color: PK, flexShrink: 0, fontWeight: 800, marginTop: 8 }}>·</span>
+          <textarea value={t} onChange={(e) => onChange(i, e.target.value)} rows={Math.max(1, Math.ceil((t.length || 1) / 34))}
+            style={{ flex: 1, fontSize: 13.5, lineHeight: 1.6, padding: "7px 9px", border: `1px solid ${PKL}`, borderRadius: 8, fontFamily: "inherit", color: INK, resize: "vertical" }} />
+          <button onClick={() => onRemove(i)} title="삭제"
+            style={{ flexShrink: 0, width: 26, height: 26, marginTop: 4, borderRadius: 6, border: `1px solid ${PKL}`, background: "#fff", color: "#C56", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
+        </div>
+      ))}
+      <button onClick={onAdd}
+        style={{ justifySelf: "start", fontSize: 12, color: PKD, background: "#fff", border: `1px dashed ${PK}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 700 }}>+ 항목 추가</button>
+    </div>
+  );
+}
+
+// 편집 가능한 텍스트 (가설·의미용)
+function EditableText({ value, onChange }) {
+  return (
+    <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={Math.max(2, Math.ceil((value.length || 1) / 40))}
+      style={{ width: "100%", fontSize: 13.5, lineHeight: 1.7, padding: "9px 11px", border: `1px solid ${PKL}`, borderRadius: 8, fontFamily: "inherit", color: INK, resize: "vertical", boxSizing: "border-box" }} />
+  );
+}
+
+// 사진 보기 (읽기 전용, 화면용)
+function PhotoStrip({ photos }) {
+  if (!photos || !photos.length) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+      {photos.map((src, i) => (
+        <img key={i} src={src} alt={`설명 사진 ${i + 1}`}
+          style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: `1px solid ${PKL}` }} />
+      ))}
+    </div>
+  );
+}
+
+// 사진 편집 (업로드/삭제)
+function PhotoEditor({ photos, onAdd, onRemove }) {
+  const inputRef = React.useRef(null);
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: photos.length ? 8 : 0 }}>
+        {photos.map((src, i) => (
+          <div key={i} style={{ position: "relative" }}>
+            <img src={src} alt={`사진 ${i + 1}`} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, border: `1px solid ${PKL}` }} />
+            <button onClick={() => onRemove(i)} title="삭제"
+              style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
+          </div>
+        ))}
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" multiple style={{ display: "none" }}
+        onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
+      <button onClick={() => inputRef.current && inputRef.current.click()}
+        style={{ fontSize: 12, color: PKD, background: "#fff", border: `1px dashed ${PK}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 700 }}>📷 사진 추가</button>
+    </div>
+  );
+}
+
 // 부모님용 쉬운 뷰
 function ParentView({ content, childName }) {
   const nm = displayName(childName);
@@ -3356,7 +3647,7 @@ function bipToText(bip, c, agg) {
     ...tierLines,
     "주 기능: " + bip.funcName,
     bip.hypothesis,
-    FUNC_MEANING(bip.func, c.name, c.target, bip.setting),
+    bip._meaning != null ? bip._meaning : FUNC_MEANING(bip.func, c.name, c.target, bip.setting),
     "",
     "2. 선행중재",
     ...bip.antecedent.map((t) => "  - " + t),
@@ -3501,6 +3792,32 @@ const btnGhost = { padding: "10px 16px", borderRadius: 10, border: `1.5px solid 
 function today() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 이미지 파일 → 리사이즈(가로 최대 maxW) + JPEG 압축 → base64 dataURL
+function compressImage(file, maxW = 800, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith("image/")) { reject(new Error("이미지 파일이 아닙니다.")); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); // 투명 png 대비 흰 배경
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("파일을 읽지 못했습니다."));
+    reader.readAsDataURL(file);
+  });
 }
 
 // "2026-07-08" → "2026. 7. 8." (빈값이면 빈 문자열)
