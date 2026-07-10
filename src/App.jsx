@@ -3402,16 +3402,25 @@ function visualCardToHtml(card, esc) {
     return frame(`<table style="border-collapse:separate;width:100%;"><tr>${cells}</tr></table>`);
   }
   if (card.type === "strip") {
-    const rows = card.items.map((it) => {
+    const n = card.items.length;
+    const cols = n === 1 ? 1 : n === 2 ? 2 : n === 4 ? 2 : 3;
+    const tiles = card.items.map((it, i) => {
       const label = typeof it === "string" ? it : it.label;
       const emoji = typeof it === "string" ? "" : it.emoji;
       const icon = (typeof it === "string" || !it.icon) ? "" : cardIconSvg(it.icon);
-      const iconHtml = emoji ? `<span style="font-size:28px;line-height:1;">${emoji}</span>` : icon;
-      return `<div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#fff;border:2px solid #F5A0B1;border-radius:14px;margin:8px 0;">
-        <span style="display:inline-block;width:44px;height:44px;background:#FFF0F3;border-radius:12px;text-align:center;line-height:44px;">${iconHtml}</span>
-        <span style="font-size:15px;font-weight:800;color:#3A2C30;">${esc(label)}</span></div>`;
-    }).join("");
-    return frame(rows);
+      const iconHtml = emoji ? `<span style="font-size:36px;line-height:1;">${emoji}</span>` : (icon || `<span style="color:#D4728A;font-weight:800;font-size:22px;">${i + 1}</span>`);
+      return `<td style="width:${Math.floor(100 / cols)}%;padding:5px;vertical-align:top;">
+        <div style="background:#fff;border:2px solid #F5A0B1;border-radius:14px;padding:14px 6px;text-align:center;">
+          <div style="min-height:40px;margin-bottom:6px;">${iconHtml}</div>
+          <div style="font-size:14px;font-weight:800;color:#3A2C30;line-height:1.35;">${esc(label)}</div>
+        </div></td>`;
+    });
+    // cols개씩 끊어서 tr로
+    let rows = "";
+    for (let i = 0; i < tiles.length; i += cols) {
+      rows += `<tr>${tiles.slice(i, i + cols).join("")}</tr>`;
+    }
+    return frame(`<table style="border-collapse:collapse;width:100%;">${rows}</table>`);
   }
   if (card.type === "choice") {
     const palette = [["#5B8BB5", "#EEF3FB"], ["#C99A4B", "#FBF6EC"]];
@@ -3831,19 +3840,21 @@ function VisualCard({ card }) {
     );
   }
   if (card.type === "strip") {
+    const n = card.items.length;
+    const cols = n === 1 ? 1 : n === 2 ? 2 : n === 4 ? 2 : 3; // 4개는 2x2, 나머지 최대 3열
     return (
       <CardFrame title={card.title}>
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10 }}>
           {card.items.map((it, i) => {
             const label = typeof it === "string" ? it : it.label;
             const icon = typeof it === "string" ? null : it.icon;
             const emoji = typeof it === "string" ? null : it.emoji;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "#fff", border: "2px solid #F5A0B1", borderRadius: 14, boxShadow: "0 1px 4px rgba(212,114,138,0.06)" }}>
-                <span style={{ width: 48, height: 48, borderRadius: 12, background: "#FFF0F3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {emoji ? <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={30} /> : <span style={{ color: "#D4728A", fontWeight: 800, fontSize: 18 }}>{i + 1}</span>}
-                </span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#3A2C30" }}>{label}</span>
+              <div key={i} style={{ background: "#fff", border: "2px solid #F5A0B1", borderRadius: 14, padding: "16px 8px", textAlign: "center", boxShadow: "0 1px 4px rgba(212,114,138,0.06)" }}>
+                <div style={{ marginBottom: 8, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 42 }}>
+                  {emoji ? <span style={{ fontSize: 40, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={40} /> : <span style={{ color: "#D4728A", fontWeight: 800, fontSize: 24 }}>{i + 1}</span>}
+                </div>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: "#3A2C30", lineHeight: 1.35 }}>{label}</div>
               </div>
             );
           })}
