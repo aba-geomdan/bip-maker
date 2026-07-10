@@ -2461,6 +2461,16 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
   const removePPhoto = (section, i) => setPDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
   const removePVisualCard = (i) => setPDraft((d) => ({ ...d, visualCards: d.visualCards.filter((_, j) => j !== i) }));
   const addPVisualCard = (card) => setPDraft((d) => ({ ...d, visualCards: [...d.visualCards, card] }));
+  const setPCardSlotPhoto = (cardIdx, slotIdx, dataUrl) =>
+    setPDraft((d) => ({
+      ...d,
+      visualCards: d.visualCards.map((c, ci) => {
+        if (ci !== cardIdx) return c;
+        const photos = [...(c.photos || [])];
+        photos[slotIdx] = dataUrl;
+        return { ...c, photos };
+      }),
+    }));
   // 환경/기능 바뀌면 부모 편집 폐기
   useEffect(() => { setPEditing(false); setPDraft(null); }, [pEditKey, bip.func]);
 
@@ -2579,6 +2589,16 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
     setDraft((d) => ({ ...d, visualCards: d.visualCards.filter((_, j) => j !== i) }));
   const addDraftVisualCard = (card) =>
     setDraft((d) => ({ ...d, visualCards: [...d.visualCards, card] }));
+  const setDraftCardSlotPhoto = (cardIdx, slotIdx, dataUrl) =>
+    setDraft((d) => ({
+      ...d,
+      visualCards: d.visualCards.map((c, ci) => {
+        if (ci !== cardIdx) return c;
+        const photos = [...(c.photos || [])];
+        photos[slotIdx] = dataUrl; // null이면 제거
+        return { ...c, photos };
+      }),
+    }));
 
   const copyText = () => {
     if (viewMode === "parent") {
@@ -2848,7 +2868,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
           <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{pErr}</div>
         )}
         <ParentView content={parentContent} childName={c.name}
-          visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard} onAddCard={addPVisualCard}
+          visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard} onAddCard={addPVisualCard} onSlotPhoto={setPCardSlotPhoto}
           editing={pEditing} draft={pDraft} photos={parentPhotos}
           onField={setPField} onItem={setPItem} onAddItem={addPItem} onRemoveItem={removePItem}
           onAddPhotos={addPPhotos} onRemovePhoto={removePPhoto} />
@@ -2954,15 +2974,11 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
             : "이 기능에 맞춰 자동 생성된 시각카드예요. 화면 그대로 인쇄해 교실·가정에서 사용할 수 있어요."}
         </div>
         <div style={{ display: "grid", gap: 12 }}>
-          {(editing ? (draft.visualCards || []) : showVisualCardsX).map((card, i) => (
-            <div key={i} style={{ position: "relative" }}>
-              {editing && (
-                <button onClick={() => removeDraftVisualCard(i)} title="이 카드 빼기"
-                  style={{ position: "absolute", top: 4, right: 4, zIndex: 2, width: 24, height: 24, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 14 }}>×</button>
-              )}
-              <VisualCard card={card} />
-            </div>
-          ))}
+          {editing
+            ? (draft.visualCards || []).map((card, i) => (
+                <EditableVisualCard key={i} card={card} cardIndex={i} onRemove={removeDraftVisualCard} onSlotPhoto={setDraftCardSlotPhoto} />
+              ))
+            : showVisualCardsX.map((card, i) => <VisualCard key={i} card={card} />)}
         </div>
         {editing && <CardPicker onAdd={addDraftVisualCard} />}
       </BIPBlock>
@@ -3404,18 +3420,18 @@ function visualCardToHtml(card, esc) {
   if (card.type === "strip") {
     const n = card.items.length;
     const cols = n === 1 ? 1 : n === 2 ? 2 : n === 4 ? 2 : 3;
+    const big = n === 1;
     const tiles = card.items.map((it, i) => {
       const label = typeof it === "string" ? it : it.label;
       const emoji = typeof it === "string" ? "" : it.emoji;
       const icon = (typeof it === "string" || !it.icon) ? "" : cardIconSvg(it.icon);
-      const iconHtml = emoji ? `<span style="font-size:36px;line-height:1;">${emoji}</span>` : (icon || `<span style="color:#D4728A;font-weight:800;font-size:22px;">${i + 1}</span>`);
+      const iconHtml = emoji ? `<span style="font-size:${big ? 60 : 36}px;line-height:1;">${emoji}</span>` : (icon || `<span style="color:#D4728A;font-weight:800;font-size:22px;">${i + 1}</span>`);
       return `<td style="width:${Math.floor(100 / cols)}%;padding:5px;vertical-align:top;">
-        <div style="background:#fff;border:2px solid #F5A0B1;border-radius:14px;padding:14px 6px;text-align:center;">
-          <div style="min-height:40px;margin-bottom:6px;">${iconHtml}</div>
-          <div style="font-size:14px;font-weight:800;color:#3A2C30;line-height:1.35;">${esc(label)}</div>
+        <div style="background:#fff;border:2px solid #F5A0B1;border-radius:14px;padding:${big ? "34px 6px" : "14px 6px"};text-align:center;">
+          <div style="min-height:${big ? 66 : 40}px;margin-bottom:${big ? 12 : 6}px;">${iconHtml}</div>
+          <div style="font-size:${big ? 19 : 14}px;font-weight:800;color:#3A2C30;line-height:1.35;">${esc(label)}</div>
         </div></td>`;
     });
-    // cols개씩 끊어서 tr로
     let rows = "";
     for (let i = 0; i < tiles.length; i += cols) {
       rows += `<tr>${tiles.slice(i, i + cols).join("")}</tr>`;
@@ -3465,10 +3481,14 @@ function visualCardToHtml(card, esc) {
   if (card.type === "photoslot") {
     const showArrow = card.arrow !== false;
     const palette = [["#E8EDF7", "#9CB0DE"], ["#FBEAEE", "#E0A0B0"], ["#EAF5EC", "#9CCBA0"]];
+    const photos = card.photos || [];
     const cells = card.slots.map((s, i) => {
       const [bg, bd] = palette[i % palette.length];
-      return `<td style="text-align:center;vertical-align:top;">
-        <div style="height:96px;border-radius:14px;background:${bg};border:2px dashed ${bd};text-align:center;line-height:96px;font-size:26px;color:#B0A0A8;">&#128247;</div>
+      const photo = photos[i];
+      const slot = photo
+        ? `<div style="height:96px;border-radius:14px;border:2px solid ${bd};overflow:hidden;"><img src="${photo}" style="width:100%;height:100%;object-fit:cover;"/></div>`
+        : `<div style="height:96px;border-radius:14px;background:${bg};border:2px dashed ${bd};text-align:center;line-height:96px;font-size:26px;color:#B0A0A8;">&#128247;</div>`;
+      return `<td style="text-align:center;vertical-align:top;">${slot}
         ${s ? `<div style="font-size:15px;font-weight:800;color:#3A2C30;margin-top:8px;">${esc(s)}</div>` : ""}</td>` +
       (showArrow && i < card.slots.length - 1 ? `<td style="border:none;text-align:center;color:#8A8A8A;font-size:22px;width:24px;">&#8594;</td>` : "");
     }).join("");
@@ -3513,7 +3533,7 @@ const CARD_LIBRARY = [
   { id: "seq_firstthen", category: "순서·구조", type: "sequence", title: "먼저 - 그다음", steps: [
     { emoji: "📚", label: "먼저 (할 일)" }, { emoji: "🎈", label: "그다음 (좋아하는 것)" } ] },
   { id: "seq_selfreg", category: "순서·구조", type: "sequence", title: "자기조절 순서", steps: [
-    { emoji: "✋", label: "멈추기" }, { emoji: "🌬️", label: "숨쉬기" }, { emoji: "🧩", label: "도구 쓰기" } ] },
+    { emoji: "✋", label: "멈추기" }, { emoji: "🌬️", label: "숨쉬기" }, { emoji: "🧸", label: "도구 쓰기" } ] },
   { id: "seq_nowlater", category: "순서·구조", type: "sequence", title: "지금 - 이따가", steps: [
     { emoji: "🚫", label: "지금은 안돼요" }, { emoji: "⏰", label: "이따가 할 수 있어요" } ] },
   { id: "daily", category: "순서·구조", type: "strip", title: "오늘의 일과 (순서)", items: [
@@ -3528,7 +3548,7 @@ const CARD_LIBRARY = [
     { label: "코로 천천히 들이쉬기", emoji: "🌬️" }, { label: "잠깐 멈추기 (하나·둘·셋)", emoji: "✋" },
     { label: "입으로 후~ 내쉬기", emoji: "😮‍💨" } ] },
   { id: "calm_choice", category: "감정·진정", type: "choice", title: "진정 방법 고르기", options: [
-    { label: "조용한 곳으로", icon: "corner" }, { label: "심호흡 하기", icon: "rest" } ] },
+    { label: "조용한 곳으로", emoji: "🤫" }, { label: "심호흡 하기", emoji: "🌬️" } ] },
 
   // [감각]
   { id: "sensory_tool", category: "감각", type: "strip", title: "감각 도구 카드", items: [
@@ -3545,7 +3565,8 @@ const CARD_LIBRARY = [
 
   // [신체·통증]
   { id: "pain_where", category: "신체·통증", type: "strip", title: "어디가 아파요? (짚어보기)", items: [
-    { label: "머리", emoji: "😵" }, { label: "배", emoji: "🤢" }, { label: "귀", emoji: "👂" }, { label: "이(치아)", emoji: "🦷" } ] },
+    { label: "머리", emoji: "😵" }, { label: "귀", emoji: "👂" }, { label: "이(치아)", emoji: "🦷" },
+    { label: "코", emoji: "👃" }, { label: "목", emoji: "😷" }, { label: "눈", emoji: "👁️" } ] },
   { id: "pain_level", category: "신체·통증", type: "strip", title: "얼마나 아파요? (통증 정도)", items: [
     { label: "괜찮아요", emoji: "🙂" }, { label: "조금 아파요", emoji: "😟" }, { label: "많이 아파요", emoji: "😣" } ] },
 
@@ -3596,8 +3617,8 @@ const CARD_LIBRARY = [
     { label: "잘했어요", emoji: "👏" }, { label: "최고예요", emoji: "🌟" } ] },
 
   // [강화·보상] 추가
-  { id: "goal_today", category: "강화·보상", type: "bigstep", title: "오늘의 목표", steps: [
-    { head: "이걸 하면", emoji: "✅", label: "목표 활동" }, { head: "이걸 받아요", emoji: "🎁", label: "보상" } ] },
+  { id: "goal_today", category: "강화·보상", type: "photoslot", title: "오늘의 목표 (사진)", slots: ["목표 활동", "보상"] },
+  { id: "goal_blank", category: "강화·보상", type: "photoslot", title: "목표 - 보상 (빈칸)", slots: ["", ""] },
 
   // [의사소통] 추가 2차
   { id: "refuse", category: "의사소통", type: "strip", title: "싫어요 / 그만 카드", items: [
@@ -3610,7 +3631,7 @@ const CARD_LIBRARY = [
   { id: "brush", category: "순서·구조", type: "sequence", title: "양치 순서", steps: [
     { emoji: "🦷", label: "칫솔에 치약" }, { emoji: "😁", label: "이 닦기" }, { emoji: "💧", label: "헹구기" } ] },
   { id: "dress", category: "순서·구조", type: "sequence", title: "옷 입기 순서", steps: [
-    { emoji: "👕", label: "속옷" }, { emoji: "👚", label: "상의" }, { emoji: "👖", label: "하의" }, { emoji: "🧦", label: "양말" } ] },
+    { emoji: "👕", label: "상의" }, { emoji: "👖", label: "하의" }, { emoji: "🧦", label: "양말" }, { emoji: "👟", label: "신발" } ] },
   { id: "bedtime", category: "순서·구조", type: "strip", title: "자기 전 루틴", items: [
     { label: "씻기", emoji: "🛁" }, { label: "양치", emoji: "🦷" }, { label: "잠옷 입기", emoji: "👕" },
     { label: "책 읽기", emoji: "📖" }, { label: "잠자기", emoji: "😴" } ] },
@@ -3629,7 +3650,7 @@ const CARD_LIBRARY = [
   { id: "hygiene", category: "행동·규칙", type: "strip", title: "위생 규칙", items: [
     { label: "손 씻어요", emoji: "🧼" }, { label: "마스크 써요", emoji: "😷" } ] },
   { id: "waiting", category: "행동·규칙", type: "strip", title: "기다려요 카드", items: [
-    { label: "기다리는 중", icon: "wait" } ] },
+    { label: "기다려요", emoji: "⏳" } ] },
   { id: "cleanup", category: "행동·규칙", type: "strip", title: "정리 시간", items: [
     { label: "장난감 제자리에", emoji: "🧸" }, { label: "다 정리했어요", emoji: "✨" } ] },
 
@@ -3642,7 +3663,7 @@ const CARD_LIBRARY = [
   { id: "study_play_tidy", category: "학습·활동", type: "strip", title: "일과 카드 (공부·쉬기·정리)", items: [
     { label: "공부 시간", emoji: "📚" }, { label: "쉬는 시간", emoji: "🧸" }, { label: "정리 시간", emoji: "🧹" } ] },
   { id: "study_time", category: "학습·활동", type: "bigstep", title: "공부하고 놀아요", steps: [
-    { head: "공부 시간", emoji: "✏️", label: "학습지 하기" }, { head: "그다음", emoji: "🧩", label: "놀이 시간" } ] },
+    { head: "공부 시간", emoji: "✏️", label: "학습지 하기" }, { head: "그다음", emoji: "🎈", label: "놀이 시간" } ] },
   { id: "learn_attitude", category: "학습·활동", type: "strip", title: "학습 태도", items: [
     { label: "집중해요", emoji: "🎯" }, { label: "잘 보고 있어요", icon: "look" }, { label: "끝까지 해요", emoji: "💪" } ] },
 
@@ -3652,7 +3673,7 @@ const CARD_LIBRARY = [
   { id: "take_turns", category: "놀이·상호작용", type: "sequence", title: "순서 바꾸기 (차례 놀이)", steps: [
     { emoji: "🙋", label: "내 차례" }, { emoji: "👉", label: "네 차례" }, { emoji: "🙋", label: "내 차례" } ] },
   { id: "win_lose", category: "놀이·상호작용", type: "choice", title: "이겼어요 / 졌어요", options: [
-    { label: "이겼어요", emoji: "🎉" }, { label: "졌어요 (괜찮아)", emoji: "🙂" } ] },
+    { label: "이겼어요", emoji: "🎉" }, { label: "졌어요 (괜찮아)", emoji: "😌" } ] },
   { id: "play_invite", category: "놀이·상호작용", type: "strip", title: "친구에게 말 걸기", items: [
     { label: "같이 할래?", emoji: "🤝" }, { label: "이거 재밌어", emoji: "😄" }, { label: "고마워", emoji: "🙏" } ] },
   { id: "share", category: "놀이·상호작용", type: "choice", title: "나눠 쓰기", options: [
@@ -3665,8 +3686,9 @@ const CARD_LIBRARY = [
     { label: "오늘", emoji: "📅" }, { label: "내일", emoji: "➡️" } ] },
   { id: "time_beforeafter", category: "시간·개념", type: "sequence", title: "먼저 - 나중 (시간 순서)", steps: [
     { emoji: "1️⃣", label: "먼저" }, { emoji: "2️⃣", label: "나중에" } ] },
+  { id: "time_beforeafter_photo", category: "시간·개념", type: "photoslot", title: "먼저 - 나중 (사진)", slots: ["먼저", "나중에"] },
   { id: "weather", category: "시간·개념", type: "strip", title: "오늘 날씨", items: [
-    { label: "맑음", emoji: "☀️" }, { label: "흐림", emoji: "☁️" }, { label: "비", emoji: "🌧️" }, { label: "눈", emoji: "❄️" } ] },
+    { label: "맑음", emoji: "☀️" }, { label: "흐림", emoji: "☁️" }, { label: "비", emoji: "🌧️" }, { label: "더워요", emoji: "🥵" }, { label: "추워요", emoji: "🥶" } ] },
 
   // [자기표현·자율성]
   { id: "offer_help", category: "의사소통", type: "strip", title: "도움·마음 표현 카드", items: [
@@ -3811,7 +3833,7 @@ function CardIcon({ name, size = 34 }) {
   return <svg {...svg}>{icons[name] || icons.yes}</svg>;
 }
 
-function VisualCard({ card }) {
+function VisualCard({ card, slotEditable, onSlotPhoto }) {
   if (card.type === "sequence") {
     const stepColors = ["#5B8BB5", "#7BB07B", "#C99A4B", "#9B7BB5"];
     const vertical = card.steps.length >= 4; // 4단계 이상은 세로 배치
@@ -3842,6 +3864,7 @@ function VisualCard({ card }) {
   if (card.type === "strip") {
     const n = card.items.length;
     const cols = n === 1 ? 1 : n === 2 ? 2 : n === 4 ? 2 : 3; // 4개는 2x2, 나머지 최대 3열
+    const big = n === 1; // 1개짜리는 크게
     return (
       <CardFrame title={card.title}>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10 }}>
@@ -3850,11 +3873,11 @@ function VisualCard({ card }) {
             const icon = typeof it === "string" ? null : it.icon;
             const emoji = typeof it === "string" ? null : it.emoji;
             return (
-              <div key={i} style={{ background: "#fff", border: "2px solid #F5A0B1", borderRadius: 14, padding: "16px 8px", textAlign: "center", boxShadow: "0 1px 4px rgba(212,114,138,0.06)" }}>
-                <div style={{ marginBottom: 8, display: "flex", justifyContent: "center", alignItems: "center", minHeight: 42 }}>
-                  {emoji ? <span style={{ fontSize: 40, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={40} /> : <span style={{ color: "#D4728A", fontWeight: 800, fontSize: 24 }}>{i + 1}</span>}
+              <div key={i} style={{ background: "#fff", border: "2px solid #F5A0B1", borderRadius: 14, padding: big ? "36px 8px" : "16px 8px", textAlign: "center", boxShadow: "0 1px 4px rgba(212,114,138,0.06)" }}>
+                <div style={{ marginBottom: big ? 14 : 8, display: "flex", justifyContent: "center", alignItems: "center", minHeight: big ? 70 : 42 }}>
+                  {emoji ? <span style={{ fontSize: big ? 68 : 40, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={big ? 68 : 40} /> : <span style={{ color: "#D4728A", fontWeight: 800, fontSize: 24 }}>{i + 1}</span>}
                 </div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, color: "#3A2C30", lineHeight: 1.35 }}>{label}</div>
+                <div style={{ fontSize: big ? 20 : 14.5, fontWeight: 800, color: "#3A2C30", lineHeight: 1.35 }}>{label}</div>
               </div>
             );
           })}
@@ -3954,16 +3977,34 @@ function VisualCard({ card }) {
     // 사진 넣는 빈 칸 (arrow=false면 화살표 없이 선택지처럼 나란히)
     const showArrow = card.arrow !== false;
     const slotColors = [["#E8EDF7", "#9CB0DE"], ["#FBEAEE", "#E0A0B0"], ["#EAF5EC", "#9CCBA0"]];
+    const photos = card.photos || [];
     return (
       <CardFrame title={card.title}>
-        <div style={{ fontSize: 11.5, color: "#9A8A8F", marginBottom: 10, textAlign: "center" }}>빈 칸에 실제 사진을 인쇄해 붙이거나, 편집에서 사진을 추가하세요.</div>
+        <div style={{ fontSize: 11.5, color: "#9A8A8F", marginBottom: 10, textAlign: "center" }}>
+          {slotEditable ? "각 칸의 📷 를 눌러 사진을 넣으세요. (안 넣으면 인쇄 후 손으로 붙일 수 있어요)" : "빈 칸에 실제 사진을 인쇄해 붙이거나, 편집에서 사진을 넣으세요."}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
           {card.slots.map((s, i) => {
             const [bg, bd] = slotColors[i % slotColors.length];
+            const photo = photos[i];
             return (
               <React.Fragment key={i}>
                 <div style={{ flex: 1, textAlign: "center", minWidth: 78 }}>
-                  <div style={{ height: 90, borderRadius: 14, background: bg, border: `2px dashed ${bd}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#B0A0A8", fontSize: 26 }}>📷</div>
+                  <div style={{ position: "relative", height: 90, borderRadius: 14, background: photo ? "#fff" : bg, border: `2px ${photo ? "solid" : "dashed"} ${bd}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#B0A0A8", fontSize: 26, overflow: "hidden" }}>
+                    {photo
+                      ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : "📷"}
+                    {slotEditable && (
+                      <button onClick={() => onSlotPhoto(i)} title="사진 넣기"
+                        style={{ position: "absolute", bottom: 4, right: 4, fontSize: 11, fontWeight: 700, background: "rgba(212,114,138,0.92)", color: "#fff", border: "none", borderRadius: 7, padding: "3px 8px", cursor: "pointer" }}>
+                        {photo ? "변경" : "📷 넣기"}
+                      </button>
+                    )}
+                    {slotEditable && photo && (
+                      <button onClick={() => onSlotPhoto(i, true)} title="사진 빼기"
+                        style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 12, lineHeight: 1 }}>×</button>
+                    )}
+                  </div>
                   {s ? <div style={{ fontSize: 15, fontWeight: 800, color: "#3A2C30", marginTop: 8 }}>{s}</div> : null}
                 </div>
                 {showArrow && i < card.slots.length - 1 && <span style={{ fontSize: 24, color: "#8A8A8A", flexShrink: 0 }}>{"\u2192"}</span>}
@@ -3998,6 +4039,39 @@ function VisualCard({ card }) {
     );
   }
   return null;
+}
+
+// 편집 모드에서 카드 + 슬롯 사진 넣기를 감싸는 래퍼
+function EditableVisualCard({ card, cardIndex, onRemove, onSlotPhoto }) {
+  const fileRef = React.useRef(null);
+  const pendingSlot = React.useRef(null);
+  const [err, setErr] = useState("");
+  const isPhotoslot = card.type === "photoslot";
+
+  const handleSlot = (slotIdx, remove) => {
+    if (remove) { onSlotPhoto(cardIndex, slotIdx, null); return; }
+    pendingSlot.current = slotIdx;
+    fileRef.current && fileRef.current.click();
+  };
+  const onFile = async (e) => {
+    setErr("");
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const dataUrl = await compressImage(file, 600, 0.7);
+      onSlotPhoto(cardIndex, pendingSlot.current, dataUrl);
+    } catch (er) { setErr("사진을 넣지 못했습니다: " + er.message); }
+  };
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => onRemove(cardIndex)} title="이 카드 빼기"
+        style={{ position: "absolute", top: 4, right: 4, zIndex: 3, width: 24, height: 24, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 14 }}>×</button>
+      {isPhotoslot && <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFile} />}
+      <VisualCard card={card} slotEditable={isPhotoslot} onSlotPhoto={handleSlot} />
+      {err && <div style={{ fontSize: 11, color: "#C04040", marginTop: 4 }}>{err}</div>}
+    </div>
+  );
 }
 
 // 카드 라이브러리에서 골라 추가하는 선택기
@@ -4129,7 +4203,7 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
 }
 
 // 부모님용 쉬운 뷰
-function ParentView({ content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
+function ParentView({ content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, onSlotPhoto, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
   const nm = displayName(childName);
   const ph = photos || { prevent: [], teach: [], respond: [] };
   const Block = ({ title, desc, items, bg, accent, secKey }) => (
@@ -4214,13 +4288,9 @@ function ParentView({ content, childName, visualCards, draftVisualCards, onRemov
               {editing ? "필요없는 카드는 × 버튼으로 뺄 수 있어요." : "아래 카드를 출력해서 아이와 함께 사용해 보세요."}
             </div>
             {cards.map((card, i) => (
-              <div key={i} style={{ position: "relative" }}>
-                {editing && (
-                  <button onClick={() => onRemoveCard(i)} title="이 카드 빼기"
-                    style={{ position: "absolute", top: 4, right: 4, zIndex: 2, width: 24, height: 24, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 14 }}>×</button>
-                )}
-                <VisualCard card={card} />
-              </div>
+              editing
+                ? <EditableVisualCard key={i} card={card} cardIndex={i} onRemove={onRemoveCard} onSlotPhoto={onSlotPhoto} />
+                : <VisualCard key={i} card={card} />
             ))}
             {editing && <CardPicker onAdd={onAddCard} />}
           </div>
