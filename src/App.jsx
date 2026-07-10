@@ -2460,6 +2460,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
   };
   const removePPhoto = (section, i) => setPDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
   const removePVisualCard = (i) => setPDraft((d) => ({ ...d, visualCards: d.visualCards.filter((_, j) => j !== i) }));
+  const addPVisualCard = (card) => setPDraft((d) => ({ ...d, visualCards: [...d.visualCards, card] }));
   // 환경/기능 바뀌면 부모 편집 폐기
   useEffect(() => { setPEditing(false); setPDraft(null); }, [pEditKey, bip.func]);
 
@@ -2576,6 +2577,8 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
     setDraft((d) => ({ ...d, photos: { ...d.photos, [section]: d.photos[section].filter((_, j) => j !== i) } }));
   const removeDraftVisualCard = (i) =>
     setDraft((d) => ({ ...d, visualCards: d.visualCards.filter((_, j) => j !== i) }));
+  const addDraftVisualCard = (card) =>
+    setDraft((d) => ({ ...d, visualCards: [...d.visualCards, card] }));
 
   const copyText = () => {
     if (viewMode === "parent") {
@@ -2845,7 +2848,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
           <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{pErr}</div>
         )}
         <ParentView content={parentContent} childName={c.name}
-          visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard}
+          visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard} onAddCard={addPVisualCard}
           editing={pEditing} draft={pDraft} photos={parentPhotos}
           onField={setPField} onItem={setPItem} onAddItem={addPItem} onRemoveItem={removePItem}
           onAddPhotos={addPPhotos} onRemovePhoto={removePPhoto} />
@@ -2961,6 +2964,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
             </div>
           ))}
         </div>
+        {editing && <CardPicker onAdd={addDraftVisualCard} />}
       </BIPBlock>
 
       {/* AI 맞춤 생성 */}
@@ -3377,25 +3381,32 @@ function cardIconSvg(name) {
 
 // 시각카드 1장 → 워드용 HTML 문자열
 function visualCardToHtml(card, esc) {
-  const frame = (inner) =>
-    `<div style="border:1px solid #FFF0F3;border-radius:12px;padding:12px;margin:8px 0;">
-      <div style="font-size:12px;font-weight:700;color:#D4728A;margin-bottom:8px;">${esc(card.title)}</div>${inner}</div>`;
+  // 헤더 바 있는 프레임 (화면 CardFrame과 통일)
+  const frame = (inner, accent = "#D4728A", bodyBg = "#FFF0F3") =>
+    `<div style="border:2px solid ${accent}33;border-radius:16px;overflow:hidden;margin:10px 0;break-inside:avoid;">
+      <div style="background:${accent};color:#fff;font-size:13px;font-weight:800;padding:8px 14px;">${esc(card.title)}</div>
+      <div style="padding:12px;background:${bodyBg};">${inner}</div></div>`;
+
   if (card.type === "sequence") {
-    const cells = card.steps.map((s, i) =>
-      `<td style="border:2px solid #F5A0B1;background:#FFF0F3;border-radius:10px;padding:12px 8px;text-align:center;font-weight:700;font-size:13px;">${esc(s)}</td>` +
-      (i < card.steps.length - 1 ? `<td style="border:none;text-align:center;color:#D4728A;font-size:18px;">&#8594;</td>` : "")
-    ).join("");
-    return frame(`<table style="border-collapse:collapse;width:100%;"><tr>${cells}</tr></table>`);
+    const cols = ["#5B8BB5", "#7BB07B", "#C99A4B", "#9B7BB5"];
+    const cells = card.steps.map((s, i) => {
+      const c = cols[i % cols.length];
+      return `<td style="border:2px solid ${c};background:#fff;border-radius:12px;padding:0;text-align:center;overflow:hidden;">
+        <div style="background:${c};color:#fff;font-size:10px;font-weight:700;padding:3px 0;">${i + 1}단계</div>
+        <div style="padding:11px 6px;font-weight:800;font-size:13px;color:#3A2C30;">${esc(s)}</div></td>` +
+      (i < card.steps.length - 1 ? `<td style="border:none;text-align:center;color:#D4728A;font-size:18px;width:22px;">&#8594;</td>` : "");
+    }).join("");
+    return frame(`<table style="border-collapse:separate;width:100%;"><tr>${cells}</tr></table>`);
   }
   if (card.type === "strip") {
     const rows = card.items.map((it) => {
       const label = typeof it === "string" ? it : it.label;
       const emoji = typeof it === "string" ? "" : it.emoji;
       const icon = (typeof it === "string" || !it.icon) ? "" : cardIconSvg(it.icon);
-      const iconHtml = emoji ? `<span style="font-size:24px;line-height:1;">${emoji}</span>` : icon;
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FFF0F3;border:2px solid #F5A0B1;border-radius:10px;margin:6px 0;">
-        <span style="display:inline-block;width:32px;height:32px;background:#fff;border-radius:8px;text-align:center;line-height:32px;">${iconHtml}</span>
-        <span style="font-size:14px;font-weight:700;color:#3A2C30;">${esc(label)}</span></div>`;
+      const iconHtml = emoji ? `<span style="font-size:28px;line-height:1;">${emoji}</span>` : icon;
+      return `<div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:#fff;border:2px solid #F5A0B1;border-radius:14px;margin:8px 0;">
+        <span style="display:inline-block;width:44px;height:44px;background:#FFF0F3;border-radius:12px;text-align:center;line-height:44px;">${iconHtml}</span>
+        <span style="font-size:15px;font-weight:800;color:#3A2C30;">${esc(label)}</span></div>`;
     }).join("");
     return frame(rows);
   }
@@ -3403,20 +3414,214 @@ function visualCardToHtml(card, esc) {
     const cols = card.options.map((op, i) => {
       const label = typeof op === "string" ? op : op.label;
       const icon = typeof op === "string" ? "" : cardIconSvg(op.icon);
-      const bg = i === 0 ? "#EAF5EC" : "#FDECEC", bd = i === 0 ? "#7FB77E" : "#E89AAC";
-      return `<td style="width:50%;text-align:center;padding:14px 8px;background:${bg};border:2px solid ${bd};border-radius:12px;">
-        <div>${icon}</div><div style="font-size:14px;font-weight:800;color:#3A2C30;margin-top:4px;">${esc(label)}</div></td>`;
-    }).join(`<td style="width:8px;border:none;"></td>`);
+      const good = i === 0, c = good ? "#7BB07B" : "#E57A8A", bg = good ? "#F2F9F2" : "#FDF2F4";
+      return `<td style="width:50%;background:${bg};border:2px solid ${c}55;border-radius:14px;overflow:hidden;vertical-align:top;">
+        <div style="background:${c};color:#fff;font-size:12.5px;font-weight:800;text-align:center;padding:6px 2px;">${good ? "&#9711; " : "&#10007; "}${esc(label)}</div>
+        <div style="text-align:center;padding:14px 6px;">${icon}</div></td>`;
+    }).join(`<td style="width:10px;border:none;"></td>`);
     return frame(`<table style="border-collapse:separate;width:100%;"><tr>${cols}</tr></table>`);
   }
   if (card.type === "token") {
     const dots = Array.from({ length: card.count }).map(() =>
-      `<span style="display:inline-block;width:32px;height:32px;border:2px dashed #F5A0B1;border-radius:50%;color:#E89AAC;text-align:center;line-height:30px;font-size:16px;margin:3px;">&#9733;</span>`
+      `<span style="display:inline-block;width:38px;height:38px;border:2px dashed #E89AAC;border-radius:11px;color:#F0C0CC;text-align:center;line-height:36px;font-size:18px;margin:3px;">&#9733;</span>`
     ).join("");
-    return frame(`<div style="text-align:center;">${dots}<div style="font-size:11px;color:#9A8A8F;margin-top:4px;">모으면 좋아하는 활동!</div></div>`);
+    return frame(`<div style="text-align:center;">${dots}<span style="font-size:20px;color:#D4728A;margin:0 6px;">&#8594;</span><span style="display:inline-block;width:46px;height:46px;background:#FFF0F3;border:2px solid #F5A0B1;border-radius:11px;text-align:center;line-height:44px;font-size:24px;">&#127873;</span><div style="font-size:12px;font-weight:700;color:#C4557A;margin-top:8px;">${card.count}개 모으면 좋아하는 활동!</div></div>`);
+  }
+  if (card.type === "compare") {
+    const cols = card.sides.map((s) => {
+      const c = s.good ? "#7BB07B" : "#E57A8A", bg = s.good ? "#F2F9F2" : "#FDF2F4";
+      return `<td style="width:50%;background:${bg};border:2px solid ${c}55;border-radius:16px;overflow:hidden;vertical-align:top;">
+        <div style="background:${c};color:#fff;font-size:13px;font-weight:800;text-align:center;padding:8px 4px;">${s.good ? "&#9711; " : "&#10007; "}${esc(s.label)}</div>
+        <div style="text-align:center;padding:14px 8px;"><div style="font-size:32px;line-height:1;margin-bottom:8px;">${s.emoji}</div><div style="font-size:12px;color:#5A4A4E;line-height:1.5;">${esc(s.desc)}</div></div></td>`;
+    }).join(`<td style="width:10px;border:none;"></td>`);
+    return frame(`<table style="border-collapse:separate;width:100%;"><tr>${cols}</tr></table>`);
+  }
+  if (card.type === "bigstep") {
+    const cols = ["#5B8BB5", "#7BB07B", "#C99A4B"];
+    const cells = card.steps.map((s, i) => {
+      const c = cols[i % cols.length];
+      return `<td style="border:2px solid ${c};background:#fff;border-radius:14px;overflow:hidden;text-align:center;vertical-align:top;">
+        <div style="background:${c};color:#fff;font-size:12.5px;font-weight:800;padding:6px 4px;">${esc(s.head)}</div>
+        <div style="padding:14px 8px;"><div style="font-size:36px;line-height:1;margin-bottom:8px;">${s.emoji}</div><div style="font-size:14px;font-weight:800;color:#3A2C30;">${esc(s.label)}</div></div></td>` +
+      (i < card.steps.length - 1 ? `<td style="border:none;text-align:center;color:#D4728A;font-size:24px;width:26px;">&#9654;</td>` : "");
+    }).join("");
+    return frame(`<table style="border-collapse:separate;width:100%;"><tr>${cells}</tr></table>`);
+  }
+  if (card.type === "photoslot") {
+    const cells = card.slots.map((s, i) => {
+      const bg = i === 0 ? "#E8EDF7" : "#FBEAEE", bd = i === 0 ? "#9CB0DE" : "#E0A0B0";
+      return `<td style="text-align:center;vertical-align:top;">
+        <div style="height:96px;border-radius:14px;background:${bg};border:2px dashed ${bd};text-align:center;line-height:96px;font-size:26px;color:#B0A0A8;">&#128247;</div>
+        <div style="font-size:15px;font-weight:800;color:#3A2C30;margin-top:8px;">${esc(s)}</div></td>` +
+      (i < card.slots.length - 1 ? `<td style="border:none;text-align:center;color:#8A8A8A;font-size:22px;width:24px;">&#8594;</td>` : "");
+    }).join("");
+    return frame(`<div style="font-size:11px;color:#9A8A8F;text-align:center;margin-bottom:8px;">빈 칸에 실제 사진을 인쇄해 붙여 사용하세요.</div><table style="border-collapse:separate;width:100%;"><tr>${cells}</tr></table>`);
+  }
+  if (card.type === "team") {
+    return frame(`<table style="width:100%;border-collapse:collapse;"><tr>
+      <td style="text-align:center;width:33%;"><div style="width:60px;height:60px;border-radius:50%;background:#E8EDF7;border:3px solid #9CB0DE;text-align:center;line-height:58px;font-size:30px;margin:0 auto;">${card.left.emoji}</div><div style="font-size:14px;font-weight:800;margin-top:6px;">${esc(card.left.label)}</div>${card.left.sub ? `<div style="font-size:11px;color:#9A8A8F;">${esc(card.left.sub)}</div>` : ""}</td>
+      <td style="text-align:center;width:34%;"><div style="font-size:13px;font-weight:800;color:#C4557A;margin-bottom:4px;">${esc(card.center)}</div><div style="font-size:18px;color:#D4728A;">&#9664;&#8213;&#9654;</div></td>
+      <td style="text-align:center;width:33%;"><div style="width:60px;height:60px;border-radius:50%;background:#FBEAEE;border:3px solid #E0A0B0;text-align:center;line-height:58px;font-size:30px;margin:0 auto;">${card.right.emoji}</div><div style="font-size:14px;font-weight:800;margin-top:6px;">${esc(card.right.label)}</div>${card.right.sub ? `<div style="font-size:11px;color:#9A8A8F;">${esc(card.right.sub)}</div>` : ""}</td>
+      </tr></table>`);
   }
   return "";
 }
+
+// ── 시각카드 라이브러리 (카탈로그) ──────────────────────────
+// 편집 모드에서 여기서 골라 추가할 수 있음. 각 카드에 고유 id + category.
+const CARD_LIBRARY = [
+  // [의사소통 요청]
+  { id: "req_help", category: "의사소통", type: "strip", title: "도움 요청 카드", items: [
+    { label: "도와주세요", icon: "help" }, { label: "쉬고 싶어요", icon: "rest" } ] },
+  { id: "req_want", category: "의사소통", type: "strip", title: "요청 카드", items: [
+    { label: "주세요", icon: "give" }, { label: "하고 싶어요", icon: "want" } ] },
+  { id: "req_attention", category: "의사소통", type: "strip", title: "관심 요청 카드", items: [
+    { label: "봐 주세요", icon: "look" }, { label: "같이 해요", icon: "together" } ] },
+  { id: "req_pain", category: "의사소통", type: "strip", title: "아플 때 알리는 카드", items: [
+    { label: "아파요", emoji: "🤕" }, { label: "도와주세요", icon: "help" } ] },
+  { id: "yesno", category: "의사소통", type: "strip", title: "네 / 아니요 카드", items: [
+    { label: "네 (좋아요)", emoji: "⭕" }, { label: "아니요 (싫어요)", emoji: "❌" } ] },
+
+  // [선택]
+  { id: "choice_more", category: "선택", type: "choice", title: "선택판 (계속/그만)", options: [
+    { label: "더 할래요", icon: "yes" }, { label: "그만할래요", icon: "stop" } ] },
+  { id: "choice_turn", category: "선택", type: "choice", title: "차례 카드", options: [
+    { label: "내 차례", icon: "me" }, { label: "기다리기", icon: "wait" } ] },
+  { id: "choice_feel", category: "선택", type: "choice", title: "지금 기분", options: [
+    { label: "괜찮아요", icon: "happy" }, { label: "힘들어요", icon: "sad" } ] },
+
+  // [순서·구조]
+  { id: "seq_activity", category: "순서·구조", type: "sequence", title: "활동 순서판", steps: ["앉기", "3개 하기", "쉬기"] },
+  { id: "seq_firstthen", category: "순서·구조", type: "sequence", title: "먼저 - 그다음", steps: ["먼저 (할 일)", "그다음 (좋아하는 것)"] },
+  { id: "seq_selfreg", category: "순서·구조", type: "sequence", title: "자기조절 순서", steps: ["멈추기", "숨쉬기", "도구 쓰기"] },
+  { id: "seq_nowlater", category: "순서·구조", type: "sequence", title: "지금 - 이따가", steps: ["지금은 안돼요", "이따가 할 수 있어요"] },
+  { id: "daily", category: "순서·구조", type: "strip", title: "오늘의 일과 (순서)", items: [
+    { label: "아침 준비", emoji: "☀️" }, { label: "공부·활동", emoji: "📚" },
+    { label: "밥·간식", emoji: "🍽️" }, { label: "놀이·휴식", emoji: "🧩" }, { label: "집에 가기", emoji: "🏠" } ] },
+
+  // [감정·진정]
+  { id: "emotion_scale", category: "감정·진정", type: "strip", title: "감정 온도계", items: [
+    { label: "편안해요", emoji: "😌" }, { label: "조금 힘들어요", emoji: "😟" },
+    { label: "많이 힘들어요", emoji: "😣" }, { label: "폭발하기 직전!", emoji: "😡" } ] },
+  { id: "breathing", category: "감정·진정", type: "strip", title: "진정 심호흡 (숨쉬기 순서)", items: [
+    { label: "코로 천천히 들이쉬기", emoji: "🌬️" }, { label: "잠깐 멈추기 (하나·둘·셋)", emoji: "✋" },
+    { label: "입으로 후~ 내쉬기", emoji: "😮‍💨" } ] },
+  { id: "calm_choice", category: "감정·진정", type: "choice", title: "진정 방법 고르기", options: [
+    { label: "조용한 곳으로", icon: "corner" }, { label: "심호흡 하기", icon: "rest" } ] },
+
+  // [감각]
+  { id: "sensory_tool", category: "감각", type: "strip", title: "감각 도구 카드", items: [
+    { label: "감각 도구", icon: "fidget" }, { label: "쉼 공간 (조용한 코너)", icon: "corner" } ] },
+  { id: "sensory_rest", category: "감각", type: "strip", title: "쉼 공간 카드", items: [
+    { label: "쉼 공간", icon: "corner" }, { label: "쉬고 싶어요", icon: "rest" } ] },
+
+  // [강화·보상]
+  { id: "token5", category: "강화·보상", type: "token", title: "토큰판 (5개)", count: 5 },
+  { id: "token3", category: "강화·보상", type: "token", title: "기다리기 토큰판 (3개)", count: 3 },
+  { id: "reinforcer", category: "강화·보상", type: "strip", title: "강화제 메뉴판 (하나 고르기)", items: [
+    { label: "간식", emoji: "🍬" }, { label: "좋아하는 장난감", emoji: "🧸" },
+    { label: "영상 보기", emoji: "📱" }, { label: "안아주기·칭찬", emoji: "🤗" } ] },
+
+  // [신체·통증]
+  { id: "pain_where", category: "신체·통증", type: "strip", title: "어디가 아파요? (짚어보기)", items: [
+    { label: "머리", emoji: "😵" }, { label: "배", emoji: "🤢" }, { label: "귀", emoji: "👂" }, { label: "이(치아)", emoji: "🦷" } ] },
+  { id: "pain_level", category: "신체·통증", type: "strip", title: "얼마나 아파요? (통증 정도)", items: [
+    { label: "괜찮아요", emoji: "🙂" }, { label: "조금 아파요", emoji: "😟" }, { label: "많이 아파요", emoji: "😣" } ] },
+
+  // [부모교육·안내] — 대비/관계/사진 카드
+  { id: "cmp_avoid", category: "부모교육", type: "compare", title: "이렇게 도와주세요", sides: [
+    { good: false, label: "매번 피하기", emoji: "🚧😰", desc: "피할수록 → 고집이 더 굳어져요" },
+    { good: true, label: "조금씩 유연하게", emoji: "🧸✨", desc: "짧게 허용·대체 → 부드럽게 넘어가요" } ] },
+  { id: "cmp_react", category: "부모교육", type: "compare", title: "문제행동에 반응할 때", sides: [
+    { good: false, label: "바로 들어주기", emoji: "🍬😮", desc: "떼쓰면 얻어요 → 행동이 늘어요" },
+    { good: true, label: "바르게 말하면 주기", emoji: "🗣️👍", desc: "적절히 요청 → 바로 반응해요" } ] },
+  { id: "team_family", category: "부모교육", type: "team", title: "한 팀이 되어요", center: "같은 순서·같은 규칙",
+    left: { emoji: "👵", label: "양육자 A", sub: "분명하게" }, right: { emoji: "👩", label: "양육자 B", sub: "따뜻하게" } },
+
+  // [순서·구조] — 큰 카드/사진칸
+  { id: "big_firstthen", category: "순서·구조", type: "bigstep", title: "먼저 - 그다음", steps: [
+    { head: "먼저", emoji: "📚", label: "해야 할 일" }, { head: "그다음", emoji: "🛁", label: "좋아하는 것" } ] },
+  { id: "photo_nowlater", category: "순서·구조", type: "photoslot", title: "지금 - 다음에 (사진 붙이기)", slots: ["지금", "다음에"] },
+
+  // [의사소통] 추가
+  { id: "emotion_express", category: "의사소통", type: "strip", title: "지금 내 기분 (감정 표현)", items: [
+    { label: "기뻐요", emoji: "😄" }, { label: "슬퍼요", emoji: "😢" },
+    { label: "화나요", emoji: "😠" }, { label: "무서워요", emoji: "😨" } ] },
+  { id: "greeting", category: "의사소통", type: "strip", title: "인사 카드", items: [
+    { label: "안녕하세요", emoji: "🙋" }, { label: "고마워요", emoji: "🙏" }, { label: "미안해요", emoji: "😌" } ] },
+  { id: "toilet", category: "의사소통", type: "strip", title: "화장실 카드", items: [
+    { label: "화장실 가고 싶어요", emoji: "🚽" } ] },
+
+  // [순서·구조] 추가
+  { id: "arrival", category: "순서·구조", type: "sequence", title: "등원 루틴", steps: ["가방 걸기", "손 씻기", "자리 앉기"] },
+  { id: "handwash", category: "순서·구조", type: "sequence", title: "손 씻기 순서", steps: ["물 묻히기", "비누칠", "헹구기", "닦기"] },
+  { id: "timer", category: "순서·구조", type: "strip", title: "시각 타이머 (전이 준비)", items: [
+    { label: "5분 남았어요", emoji: "⏰" }, { label: "이제 끝낼 시간", emoji: "🔔" } ] },
+
+  // [감정·진정] 추가
+  { id: "when_angry", category: "감정·진정", type: "strip", title: "화날 때 할 수 있는 것", items: [
+    { label: "심호흡 하기", emoji: "🌬️" }, { label: "잠깐 자리 뜨기", icon: "corner" }, { label: "도와달라고 말하기", icon: "help" } ] },
+  { id: "checkin", category: "감정·진정", type: "choice", title: "오늘 내 기분은?", options: [
+    { label: "좋아요", icon: "happy" }, { label: "힘들어요", icon: "sad" } ] },
+
+  // [행동·규칙]
+  { id: "promise", category: "행동·규칙", type: "strip", title: "우리의 약속", items: [
+    { label: "친구와 사이좋게", emoji: "🤝" }, { label: "차례 지키기", emoji: "🔢" }, { label: "선생님 말씀 듣기", emoji: "👂" } ] },
+  { id: "quiet_slow", category: "행동·규칙", type: "strip", title: "이렇게 해요", items: [
+    { label: "조용히 해요", emoji: "🤫" }, { label: "천천히 걸어요", emoji: "🚶" }, { label: "손은 무릎에", emoji: "🙌" } ] },
+  { id: "welldone", category: "행동·규칙", type: "strip", title: "참 잘했어요!", items: [
+    { label: "잘했어요", emoji: "👏" }, { label: "최고예요", emoji: "🌟" } ] },
+
+  // [강화·보상] 추가
+  { id: "goal_today", category: "강화·보상", type: "bigstep", title: "오늘의 목표", steps: [
+    { head: "이걸 하면", emoji: "✅", label: "목표 활동" }, { head: "이걸 받아요", emoji: "🎁", label: "보상" } ] },
+
+  // [의사소통] 추가 2차
+  { id: "refuse", category: "의사소통", type: "strip", title: "싫어요 / 그만 카드", items: [
+    { label: "싫어요", emoji: "🙅" }, { label: "그만할래요", icon: "stop" }, { label: "멈춰요", emoji: "✋" } ] },
+  { id: "more_done", category: "의사소통", type: "choice", title: "더 / 다 했어요", options: [
+    { label: "더 주세요", icon: "give" }, { label: "다 했어요", icon: "yes" } ] },
+  { id: "choice3", category: "선택", type: "strip", title: "골라보세요 (3가지 중)", items: [
+    { label: "첫 번째", emoji: "1️⃣" }, { label: "두 번째", emoji: "2️⃣" }, { label: "세 번째", emoji: "3️⃣" } ] },
+
+  // [순서·구조] 생활자립 루틴
+  { id: "brush", category: "순서·구조", type: "sequence", title: "양치 순서", steps: ["칫솔에 치약", "이 닦기", "헹구기"] },
+  { id: "dress", category: "순서·구조", type: "sequence", title: "옷 입기 순서", steps: ["속옷", "상의", "하의", "양말"] },
+  { id: "bedtime", category: "순서·구조", type: "strip", title: "자기 전 루틴", items: [
+    { label: "씻기", emoji: "🛁" }, { label: "양치", emoji: "🪥" }, { label: "잠옷 입기", emoji: "👕" },
+    { label: "책 읽기", emoji: "📖" }, { label: "잠자기", emoji: "😴" } ] },
+  { id: "mealtime", category: "순서·구조", type: "sequence", title: "식사 순서", steps: ["자리에 앉기", "먹기", "그릇 치우기"] },
+
+  // [감정·진정] 세분
+  { id: "feel4", category: "감정·진정", type: "strip", title: "내 감정 알기 (4가지)", items: [
+    { label: "편안해요", emoji: "😌" }, { label: "불안해요", emoji: "😰" },
+    { label: "화나요", emoji: "😠" }, { label: "무서워요", emoji: "😨" } ] },
+  { id: "scale5", category: "감정·진정", type: "strip", title: "감정 5점 척도", items: [
+    { label: "1 - 괜찮아요", emoji: "😊" }, { label: "2 - 조금 불편", emoji: "🙂" },
+    { label: "3 - 힘들어요", emoji: "😟" }, { label: "4 - 많이 힘들어요", emoji: "😣" }, { label: "5 - 폭발 직전!", emoji: "😡" } ] },
+
+  // [행동·규칙] 추가
+  { id: "hygiene", category: "행동·규칙", type: "strip", title: "위생 규칙", items: [
+    { label: "손 씻어요", emoji: "🧼" }, { label: "마스크 써요", emoji: "😷" } ] },
+  { id: "waiting", category: "행동·규칙", type: "strip", title: "기다려요 카드", items: [
+    { label: "기다리는 중", icon: "wait" } ] },
+  { id: "cleanup", category: "행동·규칙", type: "strip", title: "정리 시간", items: [
+    { label: "장난감 제자리에", emoji: "🧸" }, { label: "다 정리했어요", emoji: "✨" } ] },
+
+  // [강화·보상] 추가
+  { id: "sticker", category: "강화·보상", type: "token", title: "스티커 판 (5개)", count: 5 },
+  { id: "praise_type", category: "강화·보상", type: "strip", title: "칭찬 종류", items: [
+    { label: "하이파이브", emoji: "🙌" }, { label: "안아주기", emoji: "🤗" }, { label: "박수", emoji: "👏" } ] },
+
+  // [학습·활동]
+  { id: "study_play_tidy", category: "학습·활동", type: "strip", title: "일과 카드 (공부·쉬기·정리)", items: [
+    { label: "공부 시간", emoji: "📚" }, { label: "쉬는 시간", emoji: "🧸" }, { label: "정리 시간", emoji: "🧹" } ] },
+  { id: "study_time", category: "학습·활동", type: "bigstep", title: "공부하고 놀아요", steps: [
+    { head: "공부 시간", emoji: "✏️", label: "학습지 하기" }, { head: "그다음", emoji: "🧩", label: "놀이 시간" } ] },
+  { id: "learn_attitude", category: "학습·활동", type: "strip", title: "학습 태도", items: [
+    { label: "집중해요", emoji: "🎯" }, { label: "잘 보고 있어요", icon: "look" }, { label: "끝까지 해요", emoji: "💪" } ] },
+];
+const CARD_CATEGORIES = ["의사소통", "선택", "순서·구조", "감정·진정", "감각", "강화·보상", "신체·통증", "부모교육", "행동·규칙", "학습·활동"];
 
 function getVisualCards(func) {
   // 여러 기능에 공통으로 유용한 카드 (이모지 기반)
@@ -3519,11 +3724,11 @@ function getVisualCards(func) {
   return sets[func] || sets.escape;
 }
 
-function CardFrame({ title, children }) {
+function CardFrame({ title, children, accent = "#D4728A", accentBg = "#FFF0F3" }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #FFF0F3", borderRadius: 14, padding: 14, boxShadow: "0 1px 6px rgba(212,114,138,0.05)" }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#D4728A", marginBottom: 10 }}>{title}</div>
-      {children}
+    <div style={{ background: "#fff", border: `2px solid ${accent}33`, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(212,114,138,0.08)", marginBottom: 4 }}>
+      <div style={{ background: accent, color: "#fff", fontSize: 13.5, fontWeight: 800, padding: "9px 14px", letterSpacing: "0.2px" }}>{title}</div>
+      <div style={{ padding: 14, background: accentBg }}>{children}</div>
     </div>
   );
 }
@@ -3553,39 +3758,40 @@ function CardIcon({ name, size = 34 }) {
 
 function VisualCard({ card }) {
   if (card.type === "sequence") {
-    const n = card.steps.length, W = 300, bw = (W - 20 - (n - 1) * 24) / n;
+    const stepColors = ["#5B8BB5", "#7BB07B", "#C99A4B", "#9B7BB5"];
     return (
       <CardFrame title={card.title}>
-        <svg viewBox={`0 0 ${W} 96`} style={{ width: "100%", height: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
           {card.steps.map((s, i) => {
-            const x = 10 + i * (bw + 24);
+            const col = stepColors[i % stepColors.length];
             return (
-              <g key={i}>
-                <rect x={x} y={18} width={bw} height={60} rx={10} fill="#FFF0F3" stroke="#F5A0B1" strokeWidth="2" />
-                <text x={x + bw / 2} y={13} textAnchor="middle" fontSize="11" fill="#9A8A8F">{i + 1}</text>
-                <text x={x + bw / 2} y={53} textAnchor="middle" fontSize="13" fontWeight="700" fill="#3A2C30">{s}</text>
-                {i < n - 1 && <text x={x + bw + 12} y={53} textAnchor="middle" fontSize="18" fill="#D4728A">{"\u2192"}</text>}
-              </g>
+              <React.Fragment key={i}>
+                <div style={{ flex: "1 1 0", minWidth: 72, background: "#fff", border: `2px solid ${col}`, borderRadius: 12, overflow: "hidden", textAlign: "center" }}>
+                  <div style={{ background: col, color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "3px 0" }}>{i + 1}단계</div>
+                  <div style={{ padding: "12px 6px", fontSize: 13.5, fontWeight: 800, color: "#3A2C30" }}>{s}</div>
+                </div>
+                {i < card.steps.length - 1 && <span style={{ fontSize: 20, color: "#D4728A", flexShrink: 0 }}>{"\u2192"}</span>}
+              </React.Fragment>
             );
           })}
-        </svg>
+        </div>
       </CardFrame>
     );
   }
   if (card.type === "strip") {
     return (
       <CardFrame title={card.title}>
-        <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ display: "grid", gap: 10 }}>
           {card.items.map((it, i) => {
             const label = typeof it === "string" ? it : it.label;
             const icon = typeof it === "string" ? null : it.icon;
             const emoji = typeof it === "string" ? null : it.emoji;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "#FFF0F3", border: "2px solid #F5A0B1", borderRadius: 12 }}>
-                <span style={{ width: 34, height: 34, borderRadius: 9, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {emoji ? <span style={{ fontSize: 22, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={22} /> : <span style={{ color: "#D4728A", fontWeight: 800 }}>{i + 1}</span>}
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "#fff", border: "2px solid #F5A0B1", borderRadius: 14, boxShadow: "0 1px 4px rgba(212,114,138,0.06)" }}>
+                <span style={{ width: 48, height: 48, borderRadius: 12, background: "#FFF0F3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {emoji ? <span style={{ fontSize: 30, lineHeight: 1 }}>{emoji}</span> : icon ? <CardIcon name={icon} size={30} /> : <span style={{ color: "#D4728A", fontWeight: 800, fontSize: 18 }}>{i + 1}</span>}
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#3A2C30" }}>{label}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#3A2C30" }}>{label}</span>
               </div>
             );
           })}
@@ -3596,14 +3802,19 @@ function VisualCard({ card }) {
   if (card.type === "choice") {
     return (
       <CardFrame title={card.title}>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 12 }}>
           {card.options.map((op, i) => {
             const label = typeof op === "string" ? op : op.label;
             const icon = typeof op === "string" ? null : op.icon;
+            const good = i === 0;
+            const col = good ? "#7BB07B" : "#E57A8A";
+            const bg = good ? "#F2F9F2" : "#FDF2F4";
             return (
-              <div key={i} style={{ flex: 1, textAlign: "center", padding: "16px 8px", background: i === 0 ? "#EAF5EC" : "#FDECEC", border: `2px solid ${i === 0 ? "#7FB77E" : "#E89AAC"}`, borderRadius: 14 }}>
-                {icon && <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CardIcon name={icon} size={30} /></div>}
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#3A2C30" }}>{label}</div>
+              <div key={i} style={{ flex: 1, borderRadius: 16, overflow: "hidden", border: `2px solid ${col}55`, background: bg }}>
+                <div style={{ background: col, color: "#fff", fontSize: 13, fontWeight: 800, textAlign: "center", padding: "7px 0" }}>{good ? "◯ " : "✕ "}{label}</div>
+                <div style={{ padding: "16px 8px", textAlign: "center" }}>
+                  {icon && <div style={{ display: "flex", justifyContent: "center" }}><CardIcon name={icon} size={40} /></div>}
+                </div>
               </div>
             );
           })}
@@ -3614,16 +3825,151 @@ function VisualCard({ card }) {
   if (card.type === "token") {
     return (
       <CardFrame title={card.title}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", padding: "8px 0" }}>
-          {Array.from({ length: card.count }).map((_, i) => (
-            <div key={i} style={{ width: 40, height: 40, borderRadius: "50%", border: "2px dashed #F5A0B1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#E89AAC" }}>{"\u2605"}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            {Array.from({ length: card.count }).map((_, i) => (
+              <div key={i} style={{ width: 44, height: 44, borderRadius: 12, border: "2px dashed #E89AAC", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "#F0C0CC" }}>{"\u2605"}</div>
+            ))}
+          </div>
+          <span style={{ fontSize: 22, color: "#D4728A" }}>{"\u2192"}</span>
+          <div style={{ width: 52, height: 52, borderRadius: 12, background: "#FFF0F3", border: "2px solid #F5A0B1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>🎁</div>
+        </div>
+        <div style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: "#C4557A" }}>{card.count}개 모으면 좋아하는 활동!</div>
+      </CardFrame>
+    );
+  }
+  if (card.type === "compare") {
+    // 대비 카드: 왼쪽(부정)/오른쪽(긍정)
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ display: "flex", gap: 12 }}>
+          {card.sides.map((s, i) => {
+            const good = s.good;
+            const col = good ? "#7BB07B" : "#E57A8A";
+            const bg = good ? "#F2F9F2" : "#FDF2F4";
+            return (
+              <div key={i} style={{ flex: 1, borderRadius: 16, overflow: "hidden", border: `2px solid ${col}55`, background: bg }}>
+                <div style={{ background: col, color: "#fff", fontSize: 13.5, fontWeight: 800, textAlign: "center", padding: "8px 4px" }}>{good ? "◯ " : "✕ "}{s.label}</div>
+                <div style={{ padding: "14px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 34, marginBottom: 8, lineHeight: 1 }}>{s.emoji}</div>
+                  <div style={{ fontSize: 12.5, color: "#5A4A4E", lineHeight: 1.5 }}>{s.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardFrame>
+    );
+  }
+  if (card.type === "bigstep") {
+    // 먼저-그다음 큰 카드
+    const cols = ["#5B8BB5", "#7BB07B", "#C99A4B"];
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
+          {card.steps.map((s, i) => {
+            const col = cols[i % cols.length];
+            return (
+              <React.Fragment key={i}>
+                <div style={{ flex: 1, borderRadius: 14, overflow: "hidden", border: `2px solid ${col}`, background: "#fff", textAlign: "center", minWidth: 90 }}>
+                  <div style={{ background: col, color: "#fff", fontSize: 13, fontWeight: 800, padding: "6px 4px" }}>{s.head}</div>
+                  <div style={{ padding: "16px 8px" }}>
+                    <div style={{ fontSize: 38, lineHeight: 1, marginBottom: 8 }}>{s.emoji}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#3A2C30" }}>{s.label}</div>
+                  </div>
+                </div>
+                {i < card.steps.length - 1 && <span style={{ fontSize: 26, color: "#D4728A", flexShrink: 0 }}>{"\u25B6"}</span>}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </CardFrame>
+    );
+  }
+  if (card.type === "photoslot") {
+    // 지금-다음에 사진 넣는 빈 칸
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ fontSize: 11.5, color: "#9A8A8F", marginBottom: 10, textAlign: "center" }}>빈 칸에 실제 사진을 인쇄해 붙이거나, 편집에서 사진을 추가하세요.</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+          {card.slots.map((s, i) => (
+            <React.Fragment key={i}>
+              <div style={{ flex: 1, textAlign: "center", minWidth: 90 }}>
+                <div style={{ height: 90, borderRadius: 14, background: i === 0 ? "#E8EDF7" : "#FBEAEE", border: `2px dashed ${i === 0 ? "#9CB0DE" : "#E0A0B0"}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#B0A0A8", fontSize: 26 }}>📷</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#3A2C30", marginTop: 8 }}>{s}</div>
+              </div>
+              {i < card.slots.length - 1 && <span style={{ fontSize: 24, color: "#8A8A8A", flexShrink: 0 }}>{"\u2192"}</span>}
+            </React.Fragment>
           ))}
         </div>
-        <div style={{ textAlign: "center", fontSize: 11.5, color: "#9A8A8F", marginTop: 4 }}>모으면 좋아하는 활동!</div>
+      </CardFrame>
+    );
+  }
+  if (card.type === "team") {
+    // 한 팀 다이어그램 (양쪽 인물 + 가운데 메시지)
+    return (
+      <CardFrame title={card.title}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
+          <div style={{ textAlign: "center", flex: "0 0 auto" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#E8EDF7", border: "3px solid #9CB0DE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>{card.left.emoji}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#3A2C30", marginTop: 6 }}>{card.left.label}</div>
+            {card.left.sub && <div style={{ fontSize: 11, color: "#9A8A8F" }}>{card.left.sub}</div>}
+          </div>
+          <div style={{ flex: 1, textAlign: "center", minWidth: 80 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#C4557A", marginBottom: 4 }}>{card.center}</div>
+            <div style={{ fontSize: 20, color: "#D4728A" }}>{"\u25C0\u2015\u25B6"}</div>
+          </div>
+          <div style={{ textAlign: "center", flex: "0 0 auto" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FBEAEE", border: "3px solid #E0A0B0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>{card.right.emoji}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#3A2C30", marginTop: 6 }}>{card.right.label}</div>
+            {card.right.sub && <div style={{ fontSize: 11, color: "#9A8A8F" }}>{card.right.sub}</div>}
+          </div>
+        </div>
       </CardFrame>
     );
   }
   return null;
+}
+
+// 카드 라이브러리에서 골라 추가하는 선택기
+function CardPicker({ onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState(CARD_CATEGORIES[0]);
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        style={{ marginTop: 12, fontSize: 13, color: PKD, background: "#fff", border: `1.5px dashed ${PK}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontWeight: 700, width: "100%" }}>
+        + 카드 라이브러리에서 추가
+      </button>
+    );
+  }
+  const cards = CARD_LIBRARY.filter((c) => c.category === cat);
+  return (
+    <div style={{ marginTop: 12, border: `1.5px solid ${PKL}`, borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: PKL }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: PKD }}>카드 추가</span>
+        <button onClick={() => setOpen(false)} style={{ fontSize: 12, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>닫기</button>
+      </div>
+      {/* 카테고리 탭 */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "10px 14px 4px" }}>
+        {CARD_CATEGORIES.map((c) => (
+          <button key={c} onClick={() => setCat(c)}
+            style={{ fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 14, cursor: "pointer",
+              border: `1.5px solid ${cat === c ? PKD : PKL}`, background: cat === c ? PKD : "#fff", color: cat === c ? "#fff" : MUTE }}>{c}</button>
+        ))}
+      </div>
+      {/* 해당 카테고리 카드 목록 */}
+      <div style={{ padding: 14, display: "grid", gap: 10, maxHeight: 340, overflowY: "auto" }}>
+        {cards.map((card) => (
+          <div key={card.id} style={{ position: "relative" }}>
+            <VisualCard card={card} />
+            <button onClick={() => onAdd({ ...card })}
+              style={{ position: "absolute", top: 8, right: 8, zIndex: 2, fontSize: 12, fontWeight: 800, color: "#fff", background: "#5C9A72", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer" }}>+ 추가</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function BIPBlock({ num, title, children, accent }) {
@@ -3714,7 +4060,7 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
 }
 
 // 부모님용 쉬운 뷰
-function ParentView({ content, childName, visualCards, draftVisualCards, onRemoveCard, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
+function ParentView({ content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
   const nm = displayName(childName);
   const ph = photos || { prevent: [], teach: [], respond: [] };
   const Block = ({ title, desc, items, bg, accent, secKey }) => (
@@ -3791,7 +4137,7 @@ function ParentView({ content, childName, visualCards, draftVisualCards, onRemov
       <Block title="이렇게 반응해주세요" items={content.respond} bg="#FFF6EC" accent="#C99A4B" secKey="respond" />
       {(() => {
         const cards = editing ? (draftVisualCards || []) : (visualCards || []);
-        if (!cards.length) return null;
+        if (!cards.length && !editing) return null;
         return (
           <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px dashed ${PKL}` }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: PKD, marginBottom: 4 }}>집에서 함께 쓰는 자료</div>
@@ -3807,6 +4153,7 @@ function ParentView({ content, childName, visualCards, draftVisualCards, onRemov
                 <VisualCard card={card} />
               </div>
             ))}
+            {editing && <CardPicker onAdd={onAddCard} />}
           </div>
         );
       })()}
