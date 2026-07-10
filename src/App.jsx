@@ -3025,7 +3025,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
 }
 
 // ── Claude API 호출: 이 아동 맞춤 BIP 전체 재작성 ───
-async function enhanceBIPWithAI(bip, c) {
+async function enhanceBIPWithAI(bip, c, onDelta) {
   const isPbs = c.type === "pbs";
 
   // 케이스에 쌓인 ABC 기록을 요약해 프롬프트에 반영 (있으면)
@@ -3098,17 +3098,52 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, max_tokens: 1500 }),
+    body: JSON.stringify({ prompt, max_tokens: 1500 }), // stream 미지정 → Edge Function이 SSE로 응답
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
     try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
     throw new Error(msg);
   }
-  const data = await res.json();
-  const text = Array.isArray(data.content)
-    ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
-    : (data.text || "");
+
+  // SSE(text/event-stream) 스트림을 읽어 텍스트 델타를 이어붙인다.
+  // (스트림이 아니라 그냥 JSON이 오는 경우 — 하위호환 — 도 처리)
+  const ctype = res.headers.get("content-type") || "";
+  let text = "";
+  if (ctype.includes("text/event-stream") && res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamErr = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        const jsonStr = line.slice(5).trim();
+        if (!jsonStr) continue;
+        try {
+          const evt = JSON.parse(jsonStr);
+          if (evt.type === "delta" && evt.text) {
+            text += evt.text;
+            if (typeof onDelta === "function") { try { onDelta(text); } catch (_) {} }
+          } else if (evt.type === "error") {
+            streamErr = evt.error || "AI 스트림 오류";
+          }
+        } catch (_) { /* 파싱 실패 라인 무시 */ }
+      }
+    }
+    if (streamErr && !text) throw new Error(streamErr);
+  } else {
+    const data = await res.json();
+    text = Array.isArray(data.content)
+      ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
+      : (data.text || "");
+  }
 
   // JSON 파싱 → 실패 시 잘린 응답도 최대한 복구
   const cleaned = String(text).replace(/```json|```/g, "").trim();
@@ -3191,7 +3226,7 @@ ${abcSummary}
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, max_tokens: 1500 }),
+    body: JSON.stringify({ prompt, max_tokens: 1500, stream: false }),
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -3280,7 +3315,7 @@ ${scaleGuide}
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1500 }),
+    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1500, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
@@ -3346,7 +3381,7 @@ async function readAbcPhoto(file) {
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1200 }),
+    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1200, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
