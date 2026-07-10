@@ -3521,8 +3521,8 @@ function visualCardToHtml(card, esc) {
       const [bg, bd] = palette[i % palette.length];
       const photo = photos[i];
       const slot = photo
-        ? `<div style="height:96px;border-radius:14px;border:2px solid ${bd};overflow:hidden;"><img src="${photo}" style="width:100%;height:100%;object-fit:cover;"/></div>`
-        : `<div style="height:96px;border-radius:14px;background:${bg};border:2px dashed ${bd};text-align:center;line-height:96px;font-size:26px;color:#B0A0A8;">&#128247;</div>`;
+        ? `<div style="width:110px;height:110px;margin:0 auto;border-radius:14px;border:2px solid ${bd};overflow:hidden;background:#fff;"><img src="${photo}" style="width:100%;height:100%;object-fit:contain;"/></div>`
+        : `<div style="width:110px;height:110px;margin:0 auto;border-radius:14px;background:${bg};border:2px dashed ${bd};text-align:center;line-height:110px;font-size:26px;color:#B0A0A8;">&#128247;</div>`;
       return `<td style="text-align:center;vertical-align:top;">${slot}
         ${s ? `<div style="font-size:15px;font-weight:800;color:#3A2C30;margin-top:8px;">${esc(s)}</div>` : ""}</td>` +
       (showArrow && i < card.slots.length - 1 ? `<td style="border:none;text-align:center;color:#8A8A8A;font-size:22px;width:24px;">&#8594;</td>` : "");
@@ -4024,10 +4024,10 @@ function VisualCard({ card, slotEditable, onSlotPhoto }) {
             const photo = photos[i];
             return (
               <React.Fragment key={i}>
-                <div style={{ flex: 1, textAlign: "center", minWidth: 78 }}>
-                  <div style={{ position: "relative", height: 90, borderRadius: 14, background: photo ? "#fff" : bg, border: `2px ${photo ? "solid" : "dashed"} ${bd}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#B0A0A8", fontSize: 26, overflow: "hidden" }}>
+                <div style={{ flex: "0 0 auto", width: 110, textAlign: "center" }}>
+                  <div style={{ position: "relative", width: 110, height: 110, borderRadius: 14, background: photo ? "#fff" : bg, border: `2px ${photo ? "solid" : "dashed"} ${bd}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#B0A0A8", fontSize: 26, overflow: "hidden" }}>
                     {photo
-                      ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       : "📷"}
                     {slotEditable && (
                       <button onClick={() => onSlotPhoto(i)} title="사진 넣기"
