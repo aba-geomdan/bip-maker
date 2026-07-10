@@ -3529,7 +3529,7 @@ const CARD_LIBRARY = [
 
   // [순서·구조]
   { id: "seq_activity", category: "순서·구조", type: "sequence", title: "활동 순서판", steps: [
-    { emoji: "💺", label: "앉기" }, { emoji: "✏️", label: "3개 하기" }, { emoji: "🧸", label: "쉬기" } ] },
+    { emoji: "💺", label: "앉기" }, { emoji: "✏️", label: "" }, { emoji: "🧸", label: "쉬기" } ] },
   { id: "seq_firstthen", category: "순서·구조", type: "sequence", title: "먼저 - 그다음", steps: [
     { emoji: "📚", label: "먼저 (할 일)" }, { emoji: "🎈", label: "그다음 (좋아하는 것)" } ] },
   { id: "seq_selfreg", category: "순서·구조", type: "sequence", title: "자기조절 순서", steps: [
@@ -3538,7 +3538,7 @@ const CARD_LIBRARY = [
     { emoji: "🚫", label: "지금은 안돼요" }, { emoji: "⏰", label: "이따가 할 수 있어요" } ] },
   { id: "daily", category: "순서·구조", type: "strip", title: "오늘의 일과 (순서)", items: [
     { label: "아침 준비", emoji: "☀️" }, { label: "공부·활동", emoji: "📚" },
-    { label: "밥·간식", emoji: "🍽️" }, { label: "놀이·휴식", emoji: "🧩" }, { label: "집에 가기", emoji: "🏠" } ] },
+    { label: "밥·간식", emoji: "🍽️" }, { label: "놀이·휴식", emoji: "🤸" }, { label: "집에 가기", emoji: "🏠" } ] },
 
   // [감정·진정]
   { id: "emotion_scale", category: "감정·진정", type: "strip", title: "감정 온도계", items: [
