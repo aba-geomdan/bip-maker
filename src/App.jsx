@@ -3089,6 +3089,8 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
 ■ 형식·용어
 - 각 영역당 3~4개 항목. 각 항목은 관찰·측정 가능하게(누가 봐도 실행 여부를 판단할 수 있게) 한 문장으로 쓰세요. 모호한 표현("적절히", "충분히", "잘") 대신 구체적 조건·빈도·방법을 명시하세요. 문장은 간결하게(한 항목이 너무 길지 않게).
 - 올바른 ABA 용어를 정확히 사용하세요(NCR, FCT, DRA, DRO, 촉구·용암, 행동탄력, 소거, 프리맥 등). 단, 용어만 나열하지 말고 이 아동에게 실제로 어떻게 적용하는지를 함께 쓰세요.
+- ★대체행동중재(replacement) 항목 중 최소 1개에는 '숙달·진행 기준'을 넣으세요. 즉 대체행동을 어느 수준까지 끌어올릴지와 촉구를 언제 줄일지를 구체적 수치로 쓰세요(예: "대체행동 요청이 3회기 연속 독립적으로 80% 이상 나타나면 신체촉구를 언어촉구로 용암한다").
+- ★후속결과중재(consequence) 항목 중 최소 1개에는 '데이터 수집·측정 방법'을 넣으세요. 무엇을 어떻게 기록해 효과를 판단할지 구체적으로 쓰세요(예: "매 회기 도전행동 발생 빈도와 대체행동 요청 발생률을 기록표에 기록하고, 2주 단위로 감소 추세를 검토한다").
 - 관찰기록이 없으면, 표적행동과 기능가설만으로 최대한 구체적으로 추정해 쓰되 무리한 단정은 피하세요.
 
 반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운·서론 절대 금지):
@@ -3098,7 +3100,7 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, max_tokens: 1500 }), // stream 미지정 → Edge Function이 SSE로 응답
+    body: JSON.stringify({ prompt, model: "claude-haiku-4-5-20251001", max_tokens: 2500 }), // stream 미지정 → Edge Function이 SSE로 응답. haiku로 속도 개선. 측정·숙달기준 추가로 내용이 길어져 1500→2500
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -3215,9 +3217,9 @@ ${abcSummary}
 - 아이를 "${displayNm}"로 부르고 한국어 조사를 올바르게 쓰세요.
 - why: 이 행동을 왜 하는지 2~3문장으로 차분하게 설명(말썽이 아니라 마음의 표현이라는 관점).
 - prevent(미리 예방): 집에서 미리 할 수 있는 구체적 방법 3~4개.
-- teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개.
-- respond(반응 방법): 문제행동과 바른행동에 어떻게 반응할지 2~3개.
-- prevent/teach/respond의 각 항목은 한 문장으로 구체적이고 실천 가능하게.
+- teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개. ★이 중 최소 1개에는 부모가 그대로 따라 할 수 있는 실제 대화 예시를 큰따옴표로 넣으세요(예: 아이가 ~할 때 "○○아, 이렇게 말해볼까? '저거 주세요'" 하고 알려주세요).
+- respond(반응 방법): 문제행동과 바른행동에 어떻게 반응할지 2~3개. ★respond의 마지막 항목에는 반드시 '소거 폭발' 안내를 부드럽게 넣으세요. 즉 새 방법을 시작하면 처음 며칠은 오히려 행동이 더 심해질 수 있는데 이는 정상이고 꾸준히 하면 곧 줄어든다는 점을, 부모가 포기하지 않도록 따뜻하게 설명하세요(전문용어 '소거 폭발'이라는 말은 쓰지 말고 쉬운 말로).
+- prevent/teach/respond의 각 항목은 한 문장으로 구체적이고 실천 가능하게(단, 위에 별표(★)로 지시한 대화 예시·안내 항목은 두 문장까지 허용).
 
 반드시 아래 JSON 형식만 출력하세요(설명·마크다운 절대 금지):
 {"why":"...","prevent":["...","..."],"teach":["...","..."],"respond":["...","..."]}`;
@@ -3226,7 +3228,7 @@ ${abcSummary}
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, max_tokens: 1500, stream: false }),
+    body: JSON.stringify({ prompt, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }),
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -3315,7 +3317,7 @@ ${scaleGuide}
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1500, stream: false }),
+    body: JSON.stringify({ prompt: promptText, model: "claude-haiku-4-5-20251001", image: { media_type: mediaType, data: base64 }, max_tokens: 1500, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
@@ -3381,7 +3383,7 @@ async function readAbcPhoto(file) {
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt: promptText, image: { media_type: mediaType, data: base64 }, max_tokens: 1200, stream: false }),
+    body: JSON.stringify({ prompt: promptText, model: "claude-haiku-4-5-20251001", image: { media_type: mediaType, data: base64 }, max_tokens: 1200, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
