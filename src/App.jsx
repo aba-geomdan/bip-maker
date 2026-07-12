@@ -1870,10 +1870,18 @@ function ExternalFillPage({ token }) {
 // ── 척도(설문) 외부 작성 페이지 ─────
 function ScaleFillPage({ info }) {
   const scale = info ? SCALES[info.sc] : null;
+  // 이 케이스+척도 조합의 "이미 제출함" 표시 키 (기기별)
+  const doneKey = info && info.cid ? `bip-scale-done::${info.cid}::${info.sc}` : null;
   const [answers, setAnswers] = useState(() => (scale ? scale.items.map(() => null) : []));
   const [preInfo, setPreInfo] = useState({}); // FAST 앞부분 응답 (해당 척도에 preInfo 있을 때만)
   const [writer, setWriter] = useState("");
-  const [state, setState] = useState("form"); // form | saving | done | error
+  const [state, setState] = useState(() => {
+    // 이 폰에서 이미 제출했으면 제출완료 화면으로 시작
+    if (doneKey) {
+      try { if (localStorage.getItem(doneKey)) return "done"; } catch (e) {}
+    }
+    return "form";
+  }); // form | saving | done | error
   const [errMsg, setErrMsg] = useState("");
   const setPre = (k, v) => setPreInfo((prev) => ({ ...prev, [k]: v }));
 
@@ -1900,7 +1908,11 @@ function ScaleFillPage({ info }) {
       writer: writer.trim(), answers,
       preInfo: (scale.preInfo && scale.preInfo.length) ? preInfo : undefined,
     });
-    if (res) setState("done");
+    if (res) {
+      // 이 폰에 "제출 완료" 기록 (다시 열면 제출완료 화면으로 시작)
+      try { if (doneKey) localStorage.setItem(doneKey, String(Date.now())); } catch (e) {}
+      setState("done");
+    }
     else { setState("error"); setErrMsg("제출에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."); }
   };
 
@@ -1911,6 +1923,22 @@ function ScaleFillPage({ info }) {
           <div style={{ fontSize: 40, marginBottom: 10 }}>✅</div>
           <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>제출 완료</div>
           <div style={{ fontSize: 13.5, color: MUTE, lineHeight: 1.6 }}>{info.cn} 아동의 {scale.name} 설문이 제출되었어요.<br />창을 닫으셔도 됩니다. 감사합니다 🙏</div>
+          <div style={{ marginTop: 20 }}>
+            <button
+              onClick={() => {
+                try { if (doneKey) localStorage.removeItem(doneKey); } catch (e) {}
+                setAnswers(scale ? scale.items.map(() => null) : []);
+                setPreInfo({});
+                setWriter("");
+                setState("form");
+                if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              style={{ background: "none", border: `1px solid ${PKD}`, color: PKD, borderRadius: 9, padding: "10px 20px", fontSize: 13.5, fontFamily: "inherit", cursor: "pointer", fontWeight: 600 }}
+            >
+              다시 작성하기
+            </button>
+            <div style={{ fontSize: 11.5, color: MUTE, marginTop: 8 }}>다시 제출하면 새 답변으로 한 번 더 전달됩니다.</div>
+          </div>
         </div>
       </div>
     );
@@ -2625,7 +2653,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
       return;
     }
     const b2 = { ...bip, hypothesis: showHyp, antecedent: showAnt, replacement: showRep, consequence: showCon, _meaning: showMean };
-    const txt = bipToText(b2, c, agg) + (usingAi && !savedEdit ? "\n\n※ 이 계획은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요." : "");
+    const txt = bipToText(b2, c, agg);
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
   };
 
@@ -2638,7 +2666,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase }) {
     const photoHtml = (arr) => (!arr || !arr.length) ? "" :
       `<div class="photos">${arr.map((src) => `<img class="photo" src="${src}" />`).join("")}</div>`;
     const title = bip.setting === "school" ? "개별 행동중재계획서 (PBIP)" : "행동중재계획 (BIP)";
-    const aiBadge = usingAi ? `<span style="display:inline-block;background:#F0E8FB;color:#8A6FB0;font-size:10px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;">AI 맞춤 생성</span>` : "";
+    const aiBadge = "";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
@@ -2711,7 +2739,7 @@ ${showVisualCardsX.length ? `<div class="sec sec-break">
 ${showVisualCardsX.map((card) => visualCardToHtml(card, esc)).join("")}
 </div>` : ""}
 
-${usingAi ? `<div style="font-size:10.5px;color:#9A8A8F;font-style:italic;margin-top:8px;">※ 본 계획의 중재안(2~4)은 AI가 아동 정보를 반영해 생성했습니다. 전문가 검토 후 사용하세요.</div>` : ""}
+${""}
 <div class="foot">© 검단ABA언어행동연구소 (민다혜). All rights reserved.</div>
 </body></html>`;
   };
@@ -3070,7 +3098,7 @@ ${abcSummary}
 
 ■ 각 영역의 역할 (반드시 구분해서 작성)
 - 선행중재(antecedent): 행동이 일어나기 '전에' 환경·상황을 바꿔 도전행동의 동기 자체를 낮추는 예방 전략. (동기조작, 환경조정, 예측가능성 제공 등)
-- 대체행동중재(replacement): 도전행동과 '같은 기능'을 하되 사회적으로 수용 가능하고 더 효율적인 행동을 '가르치는' 교수 전략. ★핵심: 대체행동은 반드시 표적행동과 동일한 기능(같은 강화를 얻음)을 해야 하며, 도전행동보다 쉽고 빠르게 그 강화를 얻을 수 있어야 한다(반응효율성).
+- 대체행동중재(replacement): 도전행동과 '같은 기능'을 하되 사회적으로 수용 가능하고 더 효율적인 행동을 '가르치는' 교수 전략. ★핵심: 대체행동은 반드시 표적행동과 동일한 기능(같은 강화를 얻음)을 해야 하며, 도전행동보다 쉽고 빠르게 그 강화를 얻을 수 있어야 한다(반응효율성). ★★기능 불일치 금지: 주기능이 '획득/요구'인 경우, 대체행동은 '원하는 것을 적절히 요청·표현하는 행동'이어야 합니다. 심호흡·정서조절·자기진정 같은 활동은 기능이 다르므로(획득이 아니라 회피/정서 대상) 대체행동중재에 넣지 마세요. (그런 정서조절은 필요하면 선행중재나 후속의 보조 전략으로만 짧게 언급 가능하되, 이 아동의 주기능과 맞지 않으면 아예 넣지 마세요.)
 - 후속결과중재(consequence): 행동이 일어난 '후에' 어떻게 반응할지 — 적절행동은 강화하고, 도전행동은 강화하지 않는(소거) 전략.
 
 ■ 품질 기준 (아래 대조를 반드시 지킬 것)
@@ -3093,8 +3121,17 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
 - ★후속결과중재(consequence) 항목 중 최소 1개에는 '데이터 수집·측정 방법'을 넣으세요. 무엇을 어떻게 기록해 효과를 판단할지 구체적으로 쓰세요(예: "매 회기 도전행동 발생 빈도와 대체행동 요청 발생률을 기록표에 기록하고, 2주 단위로 감소 추세를 검토한다").
 - 관찰기록이 없으면, 표적행동과 기능가설만으로 최대한 구체적으로 추정해 쓰되 무리한 단정은 피하세요.
 
-반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운·서론 절대 금지):
-{"antecedent":["...","..."],"replacement":["...","..."],"consequence":["...","..."]}`;
+■ ★정보가 일부 비어 있을 때 (매우 중요)
+- 아동 정보(좋아하는 것·의사소통 수준·심해지는 상황 등)가 비어 있더라도, "선호물", "적절한 방법", "좋아하는 활동" 같은 막연한 표현으로 얼버무리지 마세요. 그런 일반론은 금지입니다.
+- 대신 표적행동('${c.target || "미기재"}')과 주기능(${bip.funcName}), 그리고 연령(${c.age || "미기재"})을 근거로, 이 또래·이 기능의 아동에게 임상적으로 흔한 구체적 예시를 '예:' 형태로 제시해 문장을 살아있게 만드세요. (예: "간식·좋아하는 장난감 등 다솔이가 선호하는 것" 처럼 실제 물건을 예시로 든다)
+- 단, 추측한 예시는 단정하지 말고 "예:" 또는 "(치료사가 파악한 선호물로 대체)"처럼 표시해, 치료사가 실제 정보로 바꿔 넣을 수 있게 하세요.
+- 연령이 어릴수록(영유아) 발달수준에 맞는 방법을 쓰세요. 예를 들어 만 1~2세 아동에게는 긴 문장 말하기나 복잡한 토큰경제 대신, 몸짓·그림카드 건네기·단어 한두 개 요청처럼 발달에 맞는 대체행동을 제시하세요. 연령에 안 맞는 기법(어린 영아에게 PECS 상위 단계, 복잡한 자기점검 등)은 쓰지 마세요.
+
+★★출력 형식(반드시 준수) — 아래 JSON 객체 '하나만' 출력하세요. 설명·마크다운·서론·코드펜스(백틱) 절대 금지.
+- 키 이름은 정확히 "antecedent", "replacement", "consequence" 세 개만 사용하세요. 다른 키 이름(예: "영역1", "선행조건관리", "전략", "목표", "측정" 등)으로 바꾸거나 중첩 구조로 만들지 마세요. 절대 금지.
+- 각 키의 값은 문자열들의 배열입니다. 측정·숙달기준 등도 별도 키로 빼지 말고 해당 영역 배열 안의 한 문장 항목으로 넣으세요.
+- 정확한 형식:
+{"antecedent":["문장","문장","문장"],"replacement":["문장","문장","문장"],"consequence":["문장","문장","문장"]}`;
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
@@ -3215,14 +3252,20 @@ ${abcSummary}
 - 차분하고 신뢰감 있는 존댓말로 쓰세요. 지나치게 가볍거나 들뜬 말투(과한 물결표, 감탄, 애칭 남발)는 피하되, 부모를 탓하는 느낌도 들지 않게 하세요. 실천 지침은 "~해주세요" 형태로, 설명 문장은 "~입니다 / ~것입니다" 형태로 정돈해 쓰세요.
 - 위 관찰기록이 있으면 그 상황을 예로 들어 구체적으로 쓰세요.
 - 아이를 "${displayNm}"로 부르고 한국어 조사를 올바르게 쓰세요.
-- why: 이 행동을 왜 하는지 2~3문장으로 차분하게 설명(말썽이 아니라 마음의 표현이라는 관점).
+- why: 이 행동을 왜 하는지 2~3문장으로 차분하게 설명(말썽이 아니라 마음의 표현이라는 관점). 관찰기록이 있으면 그 상황을 짧게 예로 들어 "이 아이" 이야기로 느껴지게 쓰세요.
 - prevent(미리 예방): 집에서 미리 할 수 있는 구체적 방법 3~4개.
-- teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개. ★이 중 최소 1개에는 부모가 그대로 따라 할 수 있는 실제 대화 예시를 큰따옴표로 넣으세요(예: 아이가 ~할 때 "○○아, 이렇게 말해볼까? '저거 주세요'" 하고 알려주세요).
-- respond(반응 방법): 문제행동과 바른행동에 어떻게 반응할지 2~3개. ★respond의 마지막 항목에는 반드시 '소거 폭발' 안내를 부드럽게 넣으세요. 즉 새 방법을 시작하면 처음 며칠은 오히려 행동이 더 심해질 수 있는데 이는 정상이고 꾸준히 하면 곧 줄어든다는 점을, 부모가 포기하지 않도록 따뜻하게 설명하세요(전문용어 '소거 폭발'이라는 말은 쓰지 말고 쉬운 말로).
-- prevent/teach/respond의 각 항목은 한 문장으로 구체적이고 실천 가능하게(단, 위에 별표(★)로 지시한 대화 예시·안내 항목은 두 문장까지 허용).
+- teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개. ★이 중 최소 1개에는 부모가 그대로 따라 할 수 있는 실제 대화 예시를 큰따옴표로 넣으세요(예: 아이가 ~할 때 "○○아, 이렇게 말해볼까? '저거 주세요'" 하고 알려주세요). ★가르치는 행동은 '원하는 것을 적절히 요청·표현하는 방법'에 집중하세요. 아이의 행동 이유가 '원하는 것 얻기'라면, 심호흡·차분해지기 같은 감정조절 방법은 이유와 맞지 않으니 teach에 넣지 마세요(요청하는 법을 가르치는 데 집중).
+- respond(반응 방법): 3개로 쓰되, 반드시 아래 세 가지를 각각 명확하게 담으세요.
+  (1) ★문제행동을 할 때는 '원하는 것을 주지 않는다'는 점을 분명하고 쉽게 쓰세요. "관심을 돌린다" 같은 모호한 표현 대신, "머리를 때려도 원하던 물건을 주지 않습니다. 그러면 때리는 방법으로는 얻을 수 없다는 것을 배웁니다"처럼 원리를 명확히 설명하세요. (단 아이를 혼내거나 벌주라는 뜻이 아님을 부드럽게 덧붙이세요.)
+  (2) ★바르게 요청하면(손 내밀기·가리키기·말하기 등) '즉시' 원하는 것을 주고 기뻐해 주라고 쓰세요. 문제행동엔 안 주고 바른 행동엔 바로 주는 이 대비가 핵심임을 느끼게 하세요.
+  (3) ★'소거 폭발' 안내: 새 방법을 시작하면 처음 며칠은 오히려 행동이 더 심해질 수 있는데 이는 정상이고 꾸준히 하면 곧 줄어든다는 점을, 부모가 포기하지 않도록 따뜻하게 설명하세요(전문용어 '소거 폭발'이라는 말은 쓰지 말고 쉬운 말로).
+- prevent/teach/respond의 각 항목은 한 문장으로 구체적이고 실천 가능하게(단, 위에 별표(★)로 지시한 항목은 두 문장까지 허용).
+- 좋아하는 것·상황 정보가 비어 있어도 "좋아하는 것", "적절한 방법" 같은 막연한 표현으로 얼버무리지 마세요. 대신 이 나이·이 행동의 아이에게 흔한 구체적 예를 "예:"로 들어 살아있게 쓰세요(예: "젤리·좋아하는 장난감처럼 아이가 좋아하는 것"). 단 추측한 예는 "예:"로 표시해 부모가 실제 것으로 바꿔 떠올릴 수 있게 하세요.
 
-반드시 아래 JSON 형식만 출력하세요(설명·마크다운 절대 금지):
-{"why":"...","prevent":["...","..."],"teach":["...","..."],"respond":["...","..."]}`;
+★★출력 형식(반드시 준수): 아래 JSON 객체 하나만 출력하세요. 설명·마크다운·서론·코드펜스(백틱) 절대 금지.
+키 이름은 정확히 "why", "prevent", "teach", "respond" 네 개만 사용하세요. 다른 키로 바꾸거나 중첩 구조로 만들지 마세요.
+why는 문자열, prevent·teach·respond는 문자열 배열입니다.
+{"why":"문장","prevent":["문장","문장"],"teach":["문장","문장"],"respond":["문장","문장","문장"]}`;
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
   const res = await fetch(SUPABASE_FN_URL, {
