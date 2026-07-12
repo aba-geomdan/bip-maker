@@ -1056,8 +1056,11 @@ function AuthGate({ adminHash, teachers, onSetupAdmin, onLogin }) {
           </>
         ) : (
           <>
-            <Field label="이름" value={name} onChange={setName} placeholder="이름" />
-            <Field label="비밀번호" value={pw} onChange={setPw} type="password" placeholder="비밀번호" onEnter={doLogin} />
+            {/* 브라우저 자동완성 차단용 미끼 필드 (화면에 보이지 않음) */}
+            <input type="text" name="username" tabIndex={-1} aria-hidden="true" autoComplete="username" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none", zIndex: -1 }} />
+            <input type="password" name="password" tabIndex={-1} aria-hidden="true" autoComplete="current-password" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none", zIndex: -1 }} />
+            <Field label="이름" value={name} onChange={setName} placeholder="이름" autoComplete="off" />
+            <Field label="비밀번호" value={pw} onChange={setPw} type="password" placeholder="비밀번호" onEnter={doLogin} autoComplete="new-password" />
             {err && <div style={{ color: PKD, fontSize: 12, marginBottom: 8 }}>{err}</div>}
             <button onClick={doLogin} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}>
               {busy ? "확인 중..." : "로그인"}
@@ -4519,11 +4522,12 @@ function InfoRow({ label, value, last }) {
   );
 }
 
-function Field({ label, value, onChange, placeholder, type = "text", onEnter }) {
+function Field({ label, value, onChange, placeholder, type = "text", onEnter, autoComplete }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 12, color: MUTE, marginBottom: 5, fontWeight: 600 }}>{label}</div>
       <input type={type} value={value} placeholder={placeholder}
+        autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && onEnter) onEnter(); }}
         style={inputStyle}
