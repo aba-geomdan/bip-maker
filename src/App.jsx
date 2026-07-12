@@ -3100,7 +3100,7 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, model: "claude-haiku-4-5-20251001", max_tokens: 2500 }), // stream 미지정 → Edge Function이 SSE로 응답. haiku로 속도 개선. 측정·숙달기준 추가로 내용이 길어져 1500→2500
+    body: JSON.stringify({ prompt, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }), // stream:false → JSON 한번에(스트리밍 멈춤 방지). haiku로 빠름. 측정·숙달기준 추가로 1500→2500
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
