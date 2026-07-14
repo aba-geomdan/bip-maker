@@ -29,6 +29,269 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = "https://vdubgrxwijydwfabwpnk.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkdWJncnh3aWp5ZHdmYWJ3cG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDk1ODgsImV4cCI6MjA5NzE4NTU4OH0.nqNO3vany3M6fzmG5BG6QVdvi8BW2UbhTDhxNnwvA88";
 const _sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ═══════════════════════════════════════════════════════════════
+// A방식 인증 인프라 (SCERTS v2 패턴 이식)
+// ═══════════════════════════════════════════════════════════════
+
+// Auth 세션 관리 (Supabase Auth)
+// =====================================================================
+const AUTH_SESSION_KEY = 'sb-auth-session';
+
+function getStoredSession() {
+  try {
+    const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    // 만료 확인 (5분 여유)
+    if (s.expires_at && s.expires_at * 1000 < Date.now() + 5 * 60 * 1000) {
+      return null; // 만료됨 (refresh 필요)
+    }
+    return s;
+  } catch (e) { return null; }
+}
+
+function saveSession(session) {
+  try {
+    if (session) sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    else sessionStorage.removeItem(AUTH_SESSION_KEY);
+    // 과거 localStorage에 남아있던 자동로그인 흔적 제거 (보안)
+    localStorage.removeItem(AUTH_SESSION_KEY);
+  } catch (e) {}
+}
+
+async function refreshSession(refreshToken) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (data.access_token) {
+      saveSession(data);
+      return data;
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+async function getValidAccessToken() {
+  let session = getStoredSession();
+  if (session?.access_token) return session.access_token;
+  // 만료됐거나 없음: refresh 시도
+  const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+  if (raw) {
+    try {
+      const old = JSON.parse(raw);
+      if (old.refresh_token) {
+        const refreshed = await refreshSession(old.refresh_token);
+        if (refreshed?.access_token) return refreshed.access_token;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+// 인증 헤더 (Auth 세션의 access_token 사용)
+async function authHeaders() {
+  const token = await getValidAccessToken();
+  return {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': token ? `Bearer ${token}` : `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+// =====================================================================
+// Auth API 함수들
+// =====================================================================
+async function signInWithPassword(email, password) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      return { error: data.error_description || data.msg || data.error || '로그인 실패' };
+    }
+    saveSession(data);
+    return { session: data, user: data.user };
+  } catch (e) {
+    return { error: '네트워크 오류: ' + e.message };
+  }
+}
+
+async function signOut() {
+  try {
+    const token = await getValidAccessToken();
+    if (token) {
+      await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` },
+      });
+    }
+  } catch (e) {}
+  saveSession(null);
+}
+
+async function getCurrentUser() {
+  try {
+    const token = await getValidAccessToken();
+    if (!token) return null;
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+// 관리자용: 새 유저 만들기 (Edge Function 호출)
+async function adminCreateUser(email, password, displayName) {
+  try {
+    const headers = await authHeaders();
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action: 'create',
+        email,
+        password,
+        display_name: displayName || email.split('@')[0],
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) return { error: data.error || '계정 생성 실패' };
+    return { user: data.user };
+  } catch (e) { return { error: '네트워크 오류: ' + e.message }; }
+}
+
+async function adminDeleteUser(userId) {
+  try {
+    const headers = await authHeaders();
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action: 'delete', user_id: userId }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      return { error: data.error || '삭제 실패' };
+    }
+    return { ok: true };
+  } catch (e) { return { error: '네트워크 오류: ' + e.message }; }
+}
+
+async function adminUpdateUserPassword(userId, newPassword) {
+  try {
+    const headers = await authHeaders();
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action: 'update_password', user_id: userId, password: newPassword }),
+    });
+    const data = await r.json();
+    if (!r.ok) return { error: data.error || '비번 변경 실패' };
+    return { ok: true };
+  } catch (e) { return { error: '네트워크 오류: ' + e.message }; }
+}
+
+// 관리자용: 전체 유저 목록 (RPC)
+async function adminListUsers() {
+  try {
+    const headers = await authHeaders();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_list_users`, {
+      method: 'POST',
+      headers,
+      body: '{}',
+    });
+    if (!r.ok) return [];
+    return await r.json();
+  } catch (e) { return []; }
+}
+
+async function adminGetUserData(userId) {
+  try {
+    const headers = await authHeaders();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_get_user_data_bip`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ target_user_id: userId }),
+    });
+    if (!r.ok) return [];
+    return await r.json();
+  } catch (e) { return []; }
+}
+
+// =====================================================================
+// 데이터 저장/조회 (bip_data 테이블 — RLS로 본인 데이터만 접근)
+// =====================================================================
+async function dataGet(key) {
+  try {
+    const headers = await authHeaders();
+    const user = await getCurrentUser();
+    if (!user?.id) return null;
+    const url = `${SUPABASE_URL}/rest/v1/bip_data?user_id=eq.${user.id}&key=eq.${encodeURIComponent(key)}&select=key,value`;
+    const r = await fetch(url, { headers });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (rows && rows.length > 0) {
+      return { key: rows[0].key, value: rows[0].value };
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+async function dataSet(key, value) {
+  try {
+    const headers = await authHeaders();
+    const user = await getCurrentUser();
+    if (!user?.id) return null;
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/bip_data`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({
+        user_id: user.id,
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    if (!r.ok) return null;
+    return { key, value };
+  } catch (e) { return null; }
+}
+
+async function dataDelete(key) {
+  try {
+    const headers = await authHeaders();
+    const user = await getCurrentUser();
+    if (!user?.id) return null;
+    const url = `${SUPABASE_URL}/rest/v1/bip_data?user_id=eq.${user.id}&key=eq.${encodeURIComponent(key)}`;
+    await fetch(url, { method: 'DELETE', headers });
+    return { key, deleted: true };
+  } catch (e) { return null; }
+}
+
+async function dataList(prefix) {
+  try {
+    const headers = await authHeaders();
+    const user = await getCurrentUser();
+    if (!user?.id) return { keys: [] };
+    const filter = prefix ? `&key=like.${encodeURIComponent(prefix)}*` : '';
+    const url = `${SUPABASE_URL}/rest/v1/bip_data?user_id=eq.${user.id}&select=key${filter}`;
+    const r = await fetch(url, { headers });
+    if (!r.ok) return { keys: [] };
+    const rows = await r.json();
+    return { keys: (rows || []).map((row) => row.key) };
+  } catch (e) { return { keys: [] }; }
+}
+
+// ── 외부 제출용 저장소 (shared_store 유지: 부모는 로그인 없이 접근) ──
 const SKEY = (k) => `bipmaker::${k}`;
 
 const bipStore = {
@@ -160,40 +423,6 @@ const COPYRIGHT = "© 검단ABA언어행동연구소 (민다혜). All rights res
 const LOGO_B64 = "data:image/png;base64,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";
 const LOGO_PDF_B64 = "data:image/png;base64,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";
 
-// ── PBKDF2 인증 (통합본과 동일) ─────────────────
-const PBKDF2_ITER = 120000;
-function _bufToHex(buf) {
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function _hexToBuf(hex) {
-  const arr = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < arr.length; i++) arr[i] = parseInt(hex.substr(i * 2, 2), 16);
-  return arr;
-}
-async function hashPasswordSecure(password, saltHex) {
-  const enc = new TextEncoder();
-  const salt = saltHex ? _hexToBuf(saltHex) : crypto.getRandomValues(new Uint8Array(16));
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITER, hash: "SHA-256" },
-    keyMaterial, 256
-  );
-  const saltOut = saltHex || _bufToHex(salt.buffer);
-  return `pbkdf2$${PBKDF2_ITER}$${saltOut}$${_bufToHex(bits)}`;
-}
-async function verifyPassword(password, storedHash) {
-  if (!storedHash) return false;
-  if (typeof storedHash === "string" && storedHash.startsWith("pbkdf2$")) {
-    const parts = storedHash.split("$");
-    if (parts.length !== 4) return false;
-    try {
-      return (await hashPasswordSecure(password, parts[2])) === storedHash;
-    } catch (e) { return false; }
-  }
-  return false;
-}
-
-const ADMIN_NAME = "민다혜";
 
 // ══════════════════════════════════════════════
 //  간접평가 척도 정의 (FAST · QABF · MAS)
@@ -857,107 +1086,182 @@ export default function App() {
 }
 
 function MainApp() {
-  // 인증 상태
-  const [adminHash, setAdminHash] = useState(null); // 관리자 비번 해시 (null = 미설정)
-  const [teachers, setTeachers] = useState([]);       // [{name, hash}]
-  const [current, setCurrent] = useState(null);       // {role:'admin'|'teacher', name}
-  const didRestoreSession = React.useRef(false);
+  // ── 인증 상태 (Supabase Auth) ──
+  const [authUser, setAuthUser] = useState(null); // {id, email, name, role}
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPw, setLoginPw] = useState("");
+  const [loginError, setLoginError] = useState("");
 
-  // 데이터 (Supabase 로드)
-  const [cases, setCases] = useState([]);
+  // ── 데이터 ──
+  const [cases, setCases] = useState([]);          // 화면에 보이는 전체(관리자=전체, 선생님=본인)
   const [loaded, setLoaded] = useState(false);
   const didHydrate = React.useRef(false);
   const hadCasesAtLoad = React.useRef(false);
-  const hadTeachersAtLoad = React.useRef(false);
 
   const [tab, setTab] = useState("center");
-  const [selectedId, setSelectedId] = useState(null); // 열람 중인 케이스 id
+  const [selectedId, setSelectedId] = useState(null);
 
+  const isAdmin = authUser?.role === "admin";
+
+  // 세션 복원 (앱 시작 시)
   useEffect(() => {
     (async () => {
-      const [ah, tc, cs] = await Promise.all([
-        bipStore.get("adminHash"),
-        bipStore.get("teachers"),
-        bipStore.get("cases"),
-      ]);
-      if (ah) setAdminHash(ah);
-      if (Array.isArray(tc)) { setTeachers(tc); hadTeachersAtLoad.current = tc.length > 0; }
-      if (Array.isArray(cs)) { setCases(cs); hadCasesAtLoad.current = cs.length > 0; }
-      didHydrate.current = true;
-      setLoaded(true);
+      const user = await getCurrentUser();
+      if (user?.id) {
+        const meta = user.user_metadata || {};
+        setAuthUser({
+          id: user.id,
+          email: user.email,
+          name: meta.display_name || user.email.split("@")[0],
+          role: meta.role || "therapist",
+        });
+      }
+      setAuthLoading(false);
     })();
   }, []);
 
-  useEffect(() => { if (didHydrate.current && adminHash) bipStore.set("adminHash", adminHash); }, [adminHash]);
+  // 로그인 성공 후 데이터 로드
+  useEffect(() => {
+    if (!authUser?.id) { setCases([]); setLoaded(false); didHydrate.current = false; return; }
+    (async () => {
+      setLoaded(false);
+      didHydrate.current = false;
+      if (authUser.role === "admin") {
+        // 관리자: 본인 것 + 모든 선생님 것 열람(합침). owner로 소유 구분.
+        const all = [];
+        // 본인 데이터
+        const mine = await dataGet("cases");
+        if (mine?.value) { try { (JSON.parse(mine.value) || []).forEach((c) => all.push({ ...c, _ownerId: authUser.id })); } catch (e) {} }
+        // 다른 선생님 데이터 (RPC 열람)
+        try {
+          const users = await adminListUsers();
+          for (const t of (users || [])) {
+            if (t.user_id === authUser.id) continue;
+            try {
+              const rows = await adminGetUserData(t.user_id);
+              const row = (rows || []).find((r) => r.key === "cases");
+              if (row?.value) { (JSON.parse(row.value) || []).forEach((c) => all.push({ ...c, _ownerId: t.user_id })); }
+            } catch (e) {}
+          }
+        } catch (e) {}
+        setCases(all);
+        hadCasesAtLoad.current = all.length > 0;
+      } else {
+        // 선생님: 본인 것만 (RLS 격리)
+        const mine = await dataGet("cases");
+        let arr = [];
+        if (mine?.value) { try { arr = JSON.parse(mine.value) || []; } catch (e) {} }
+        arr = arr.map((c) => ({ ...c, _ownerId: authUser.id }));
+        setCases(arr);
+        hadCasesAtLoad.current = arr.length > 0;
+      }
+      didHydrate.current = true;
+      setLoaded(true);
+    })();
+  }, [authUser?.id]);
+
+  // cases 저장: 본인 소유분만 dataSet (관리자가 열람 중인 남의 데이터는 저장 안 함)
+  const persistCases = React.useCallback(async (nextCases) => {
+    if (!authUser?.id) return;
+    const mineOnly = nextCases.filter((c) => (c._ownerId || authUser.id) === authUser.id);
+    const clean = mineOnly.map(({ _ownerId, ...rest }) => rest); // 내부 필드 제거
+    await dataSet("cases", JSON.stringify(clean));
+  }, [authUser?.id]);
+
+  // cases 변경 시 자동 저장 (본인 소유분만)
   useEffect(() => {
     if (!didHydrate.current) return;
-    if (teachers.length === 0 && hadTeachersAtLoad.current) return; // 비정상 빈 배열 덮어쓰기 방지
-    bipStore.set("teachers", teachers);
-  }, [teachers]);
-  useEffect(() => {
-    if (!didHydrate.current) return;
-    if (cases.length === 0 && hadCasesAtLoad.current) return; // 비정상 빈 배열 덮어쓰기 방지
-    bipStore.set("cases", cases);
+    if (cases.length === 0 && hadCasesAtLoad.current) {
+      // 빈 배열: 본인 것이 실제로 0개가 됐을 때만 저장 (열람 데이터 유실 방지)
+      const mineCount = cases.filter((c) => (c._ownerId || authUser?.id) === authUser?.id).length;
+      if (mineCount === 0) persistCases(cases);
+      return;
+    }
+    persistCases(cases);
   }, [cases]);
 
-  useEffect(() => {
-    try { const r = sessionStorage.getItem("bipmaker-current"); if (r) setCurrent(JSON.parse(r)); } catch (e) {}
-    didRestoreSession.current = true;
-  }, []);
-  useEffect(() => {
-    if (!didRestoreSession.current) return;
-    if (current) { try { sessionStorage.setItem("bipmaker-current", JSON.stringify(current)); } catch (e) {} }
-  }, [current]);
+  // ── 로그인 처리 ──
+  const handleLogin = async () => {
+    const email = loginEmail.trim();
+    const pw = loginPw.trim();
+    if (!email || !pw) { setLoginError("이메일과 비밀번호를 입력하세요."); return; }
+    setLoginError("");
+    const result = await signInWithPassword(email, pw);
+    if (result.error) {
+      const err = result.error.toLowerCase();
+      if (err.includes("invalid") || err.includes("credential")) setLoginError("이메일 또는 비밀번호가 일치하지 않습니다.");
+      else if (err.includes("not confirmed")) setLoginError("이메일 확인이 필요합니다. 관리자에게 문의하세요.");
+      else setLoginError(result.error);
+      return;
+    }
+    const user = result.user;
+    const meta = user?.user_metadata || {};
+    setAuthUser({
+      id: user.id,
+      email: user.email,
+      name: meta.display_name || user.email.split("@")[0],
+      role: meta.role || "therapist",
+    });
+    setLoginEmail(""); setLoginPw("");
+  };
 
+  const handleLogout = async () => {
+    setAuthUser(null);
+    setCases([]);
+    setSelectedId(null);
+    setLoginEmail(""); setLoginPw(""); setLoginError("");
+    await signOut();
+  };
+
+  // 로딩 중
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: "100vh", background: PKL, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Pretendard', -apple-system, sans-serif", color: MUTE }}>
+        불러오는 중...
+      </div>
+    );
+  }
 
   // 로그인 전
-  if (!current) {
+  if (!authUser) {
     return (
       <AuthGate
-        adminHash={adminHash}
-        teachers={teachers}
-        onSetupAdmin={async (pw) => {
-          const h = await hashPasswordSecure(pw);
-          setAdminHash(h);
-        }}
-        onLogin={setCurrent}
+        email={loginEmail} setEmail={setLoginEmail}
+        pw={loginPw} setPw={setLoginPw}
+        error={loginError} onLogin={handleLogin}
       />
     );
   }
 
-  const handleLogout = () => {
-    try { sessionStorage.removeItem("bipmaker-current"); } catch (e) {}
-    setCurrent(null);
-  };
+  const current = { role: authUser.role, name: authUser.name };
 
-  const isAdmin = current.role === "admin";
-  // 관리자는 전체, 선생님은 본인 owner만
-  const visible = cases.filter((c) => c.type === tab && (isAdmin || c.owner === current.name));
+  // 소유 판별: 관리자여도 본인 소유(_ownerId===authUser.id)만 수정 가능
+  const canEdit = (c) => (c._ownerId || authUser.id) === authUser.id;
+
+  // 화면에 보이는 케이스 (탭 기준). 관리자=전체, 선생님=본인(이미 본인만 로드됨)
+  const visible = cases.filter((c) => c.type === tab);
 
   const selectedCase = selectedId ? cases.find((c) => c.id === selectedId) : null;
 
-  // 기록 추가/삭제 헬퍼
+  // 기록/평가/케이스 헬퍼 (본인 소유만 수정)
   const addRecord = (caseId, rec) =>
-    setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, records: [{ ...rec, id: Date.now() }, ...(c.records || [])] } : c));
+    setCases((prev) => prev.map((c) => c.id === caseId && canEdit(c) ? { ...c, records: [{ ...rec, id: Date.now() }, ...(c.records || [])] } : c));
   const removeRecord = (caseId, recId) =>
-    setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, records: (c.records || []).filter((r) => r.id !== recId) } : c));
-
-  // 평가 추가/삭제 헬퍼
+    setCases((prev) => prev.map((c) => c.id === caseId && canEdit(c) ? { ...c, records: (c.records || []).filter((r) => r.id !== recId) } : c));
   const addAssessment = (caseId, asmt) =>
-    setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, assessments: [{ ...asmt, id: Date.now() }, ...(c.assessments || [])] } : c));
+    setCases((prev) => prev.map((c) => c.id === caseId && canEdit(c) ? { ...c, assessments: [{ ...asmt, id: Date.now() }, ...(c.assessments || [])] } : c));
   const removeAssessment = (caseId, asmtId) =>
-    setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, assessments: (c.assessments || []).filter((a) => a.id !== asmtId) } : c));
-
-  // 케이스 필드 부분 업데이트 (제공일 등 영구 저장)
+    setCases((prev) => prev.map((c) => c.id === caseId && canEdit(c) ? { ...c, assessments: (c.assessments || []).filter((a) => a.id !== asmtId) } : c));
   const updateCase = (caseId, patch) =>
-    setCases((prev) => prev.map((c) => c.id === caseId ? { ...c, ...patch } : c));
+    setCases((prev) => prev.map((c) => c.id === caseId && canEdit(c) ? { ...c, ...patch } : c));
 
-  // 케이스 삭제
   const removeCase = (caseId) => {
     setCases((prev) => {
+      const target = prev.find((c) => c.id === caseId);
+      if (target && !canEdit(target)) return prev; // 남의 케이스는 삭제 불가
       const next = prev.filter((c) => c.id !== caseId);
-      hadCasesAtLoad.current = next.length > 0; // 의도적 삭제로 0개가 되면 이후 자동저장 허용
-      bipStore.set("cases", next);              // 빈 배열이어도 명시적으로 저장
+      hadCasesAtLoad.current = next.filter((c) => (c._ownerId || authUser.id) === authUser.id).length > 0;
       return next;
     });
     setSelectedId(null);
@@ -965,6 +1269,7 @@ function MainApp() {
 
   // 상세 화면
   if (selectedCase) {
+    const editable = canEdit(selectedCase);
     return (
       <div style={{ minHeight: "100vh", background: PKL, fontFamily: "'Pretendard', -apple-system, sans-serif", color: INK, display: "flex", flexDirection: "column" }}>
         <Header current={current} isAdmin={isAdmin} onLogout={handleLogout} />
@@ -972,6 +1277,7 @@ function MainApp() {
           <CaseDetail
             c={selectedCase}
             isAdmin={isAdmin}
+            readOnly={!editable}
             onBack={() => setSelectedId(null)}
             onAddRecord={(rec) => addRecord(selectedCase.id, rec)}
             onRemoveRecord={(recId) => removeRecord(selectedCase.id, recId)}
@@ -991,23 +1297,14 @@ function MainApp() {
       <Header current={current} isAdmin={isAdmin} onLogout={handleLogout} />
 
       <div style={{ flex: 1, maxWidth: 860, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "0 16px 40px" }}>
-        {isAdmin && (
-          <AdminPanel
-            teachers={teachers}
-            onAddTeacher={async (name, pw) => {
-              const h = await hashPasswordSecure(pw);
-              setTeachers((prev) => [...prev.filter((t) => t.name !== name), { name, hash: h }]);
-            }}
-            onRemoveTeacher={(name) => setTeachers((prev) => prev.filter((t) => t.name !== name))}
-          />
-        )}
+        {isAdmin && <AdminPanel />}
 
         <div style={{ display: "flex", gap: 8, margin: "18px 0" }}>
           <TabBtn active={tab === "center"} onClick={() => setTab("center")}>
-            센터 아동 <Badge>{cases.filter((c) => c.type === "center" && (isAdmin || c.owner === current.name)).length}</Badge>
+            센터 아동 <Badge>{cases.filter((c) => c.type === "center").length}</Badge>
           </TabBtn>
           <TabBtn active={tab === "pbs"} onClick={() => setTab("pbs")}>
-            PBS 아동 <Badge>{cases.filter((c) => c.type === "pbs" && (isAdmin || c.owner === current.name)).length}</Badge>
+            PBS 아동 <Badge>{cases.filter((c) => c.type === "pbs").length}</Badge>
           </TabBtn>
         </div>
 
@@ -1016,7 +1313,7 @@ function MainApp() {
           isAdmin={isAdmin}
           cases={visible}
           onSelect={(id) => setSelectedId(id)}
-          onAdd={(nc) => setCases((prev) => { hadCasesAtLoad.current = true; return [...prev, { ...nc, id: Date.now(), type: tab, owner: current.name, createdAt: today(), records: [], assessments: [] }]; })}
+          onAdd={(nc) => setCases((prev) => { hadCasesAtLoad.current = true; return [...prev, { ...nc, id: Date.now(), type: tab, owner: authUser.name, _ownerId: authUser.id, createdAt: today(), records: [], assessments: [] }]; })}
         />
       </div>
 
@@ -1025,35 +1322,12 @@ function MainApp() {
   );
 }
 
-// ── 인증 게이트: 최초 관리자 설정 / 로그인 ───────
-function AuthGate({ adminHash, teachers, onSetupAdmin, onLogin }) {
-  const needSetup = !adminHash;
-  const [name, setName] = useState("");
-  const [pw, setPw] = useState("");
-  const [pw2, setPw2] = useState("");
-  const [err, setErr] = useState("");
+// ── 인증 게이트: 이메일+비번 로그인 ───────
+function AuthGate({ email, setEmail, pw, setPw, error, onLogin }) {
   const [busy, setBusy] = useState(false);
-
-  const doSetup = async () => {
-    if (pw.length < 4) return setErr("비밀번호는 4자 이상이어야 해요.");
-    if (pw !== pw2) return setErr("비밀번호가 서로 달라요.");
-    setBusy(true);
-    await onSetupAdmin(pw);
-    setBusy(false);
-    setPw(""); setPw2(""); setErr("");
-  };
-
   const doLogin = async () => {
-    setErr(""); setBusy(true);
-    try {
-      if (name.trim() === ADMIN_NAME) {
-        if (await verifyPassword(pw, adminHash)) return onLogin({ role: "admin", name: ADMIN_NAME });
-        return setErr("관리자 비밀번호가 맞지 않아요.");
-      }
-      const t = teachers.find((x) => x.name === name.trim());
-      if (t && (await verifyPassword(pw, t.hash))) return onLogin({ role: "teacher", name: t.name });
-      setErr("이름 또는 비밀번호가 맞지 않아요.");
-    } finally { setBusy(false); }
+    setBusy(true);
+    try { await onLogin(); } finally { setBusy(false); }
   };
 
   return (
@@ -1067,35 +1341,18 @@ function AuthGate({ adminHash, teachers, onSetupAdmin, onLogin }) {
           <div style={{ fontSize: 13, color: MUTE, marginTop: 4 }}>도전행동 평가 · 중재 도구</div>
         </div>
 
-        {needSetup ? (
-          <>
-            <div style={{ background: PKL, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: PKD, marginBottom: 16, lineHeight: 1.5 }}>
-              🔒 <b>처음 사용</b>이시군요! 관리자(센터장) 비밀번호를 먼저 설정해 주세요.
-            </div>
-            <Field label="새 관리자 비밀번호 (4자 이상)" value={pw} onChange={setPw} type="password" placeholder="비밀번호" />
-            <Field label="비밀번호 확인" value={pw2} onChange={setPw2} type="password" placeholder="다시 입력" onEnter={doSetup} />
-            {err && <div style={{ color: PKD, fontSize: 12, marginBottom: 8 }}>{err}</div>}
-            <button onClick={doSetup} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "설정 중..." : "관리자 비밀번호 설정"}
-            </button>
-          </>
-        ) : (
-          <>
-            {/* 브라우저 자동완성 차단용 미끼 필드 (화면에 보이지 않음) */}
-            <input type="text" name="username" tabIndex={-1} aria-hidden="true" autoComplete="username" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none", zIndex: -1 }} />
-            <input type="password" name="password" tabIndex={-1} aria-hidden="true" autoComplete="current-password" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none", zIndex: -1 }} />
-            <Field label="이름" value={name} onChange={setName} placeholder="이름" autoComplete="off" />
-            <Field label="비밀번호" value={pw} onChange={setPw} type="password" placeholder="비밀번호" onEnter={doLogin} autoComplete="new-password" />
-            {err && <div style={{ color: PKD, fontSize: 12, marginBottom: 8 }}>{err}</div>}
-            <button onClick={doLogin} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "확인 중..." : "로그인"}
-            </button>
-          </>
-        )}
+        {/* 브라우저 자동완성 차단용 미끼 필드 (화면에 보이지 않음) */}
+        <input type="text" name="username" tabIndex={-1} aria-hidden="true" autoComplete="username" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none", zIndex: -1 }} />
+        <input type="password" name="password" tabIndex={-1} aria-hidden="true" autoComplete="current-password" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none", zIndex: -1 }} />
+        <Field label="이메일" value={email} onChange={setEmail} placeholder="이메일" type="email" autoComplete="off" />
+        <Field label="비밀번호" value={pw} onChange={setPw} type="password" placeholder="비밀번호" onEnter={doLogin} autoComplete="new-password" />
+        {error && <div style={{ color: PKD, fontSize: 12, marginBottom: 8 }}>{error}</div>}
+        <button onClick={doLogin} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 6, opacity: busy ? 0.6 : 1 }}>
+          {busy ? "확인 중..." : "로그인"}
+        </button>
+
         <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px dashed #e8d0d6", fontSize: 10.5, color: MUTE, textAlign: "center", lineHeight: 1.6 }}>
-          {needSetup
-            ? "이 비밀번호는 클라우드에 안전하게 저장되며, 어느 기기에서든 로그인할 수 있습니다."
-            : "검단ABA언어행동연구소 · 도전행동 평가·중재 도구"}
+          계정이 필요하면 연구소 관리자에게 문의하세요.
         </div>
         <div style={{ marginTop: 12, fontSize: 10, color: "#bbb", textAlign: "center" }}>
           {COPYRIGHT}
@@ -1131,52 +1388,106 @@ function Header({ current, isAdmin, onLogout }) {
 }
 
 // ── 관리자 패널: 선생님 계정 추가/삭제 ──────────
-function AdminPanel({ teachers, onAddTeacher, onRemoveTeacher }) {
+function AdminPanel() {
   const [open, setOpen] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
+  const refresh = async () => {
+    setLoading(true);
+    const list = await adminListUsers();
+    setUsers(list || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { if (open) refresh(); }, [open]);
+
   const add = async () => {
-    if (!name.trim()) return setMsg("이름을 입력해 주세요.");
-    if (pw.length < 4) return setMsg("비밀번호는 4자 이상이어야 해요.");
-    if (name.trim() === ADMIN_NAME) return setMsg("'민다혜'는 선생님 이름으로 쓸 수 없어요.");
+    const em = email.trim().toLowerCase();
+    const nm = name.trim();
+    if (!em || !em.includes("@")) return setMsg("올바른 이메일을 입력해 주세요.");
+    if (!nm) return setMsg("선생님 이름을 입력해 주세요.");
+    if (pw.length < 6) return setMsg("비밀번호는 6자 이상이어야 해요.");
+    if (users.some((u) => u.email === em)) return setMsg("이미 등록된 이메일이에요.");
     setBusy(true);
-    await onAddTeacher(name.trim(), pw);
+    const result = await adminCreateUser(em, pw, nm);
     setBusy(false);
-    setName(""); setPw(""); setMsg(`✓ ${name.trim()} 선생님 계정을 추가했어요.`);
+    if (result.error) return setMsg(result.error);
+    setEmail(""); setName(""); setPw("");
+    setMsg(`✓ ${nm} 선생님 계정을 추가했어요.`);
+    await refresh();
+  };
+
+  const del = async (u) => {
+    if (u.role === "admin") return;
+    if (!window.confirm(`${u.display_name || u.email} 계정을 삭제할까요?`)) return;
+    setBusy(true);
+    const result = await adminDeleteUser(u.user_id);
+    setBusy(false);
+    if (result.error) return setMsg(result.error);
+    setMsg("계정을 삭제했어요.");
+    await refresh();
+  };
+
+  const resetPw = async (u) => {
+    const np = window.prompt(`${u.display_name || u.email}의 새 비밀번호 (6자 이상)`);
+    if (np == null) return;
+    if (np.trim().length < 6) return setMsg("비밀번호는 6자 이상이어야 해요.");
+    setBusy(true);
+    const result = await adminUpdateUserPassword(u.user_id, np.trim());
+    setBusy(false);
+    setMsg(result.error ? result.error : "비밀번호를 변경했어요.");
   };
 
   return (
     <div style={{ background: "#fff", borderRadius: 14, marginTop: 18, boxShadow: "0 2px 12px rgba(212,114,138,0.06)", overflow: "hidden" }}>
       <button onClick={() => setOpen((v) => !v)} style={{ width: "100%", padding: "13px 16px", background: "none", border: "none", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, fontWeight: 700, color: PKD }}>
-        <span>⚙️ 선생님 계정 관리 <span style={{ color: MUTE, fontWeight: 400, fontSize: 12 }}>({teachers.length}명)</span></span>
+        <span>⚙️ 선생님 계정 관리 <span style={{ color: MUTE, fontWeight: 400, fontSize: 12 }}>({users.length}명)</span></span>
         <span style={{ color: MUTE }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div style={{ padding: "0 16px 16px", borderTop: `1px solid ${PKL}` }}>
           <div style={{ display: "grid", gap: 6, margin: "12px 0" }}>
-            {teachers.length === 0 && <div style={{ fontSize: 12.5, color: MUTE }}>아직 추가된 선생님이 없어요.</div>}
-            {teachers.map((t) => (
-              <div key={t.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: PKL, borderRadius: 8, padding: "8px 12px" }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>👩‍🏫 {t.name}</span>
-                <button onClick={() => onRemoveTeacher(t.name)} style={{ fontSize: 11.5, color: PKD, background: "none", border: `1px solid ${PK}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>삭제</button>
+            {loading && <div style={{ fontSize: 12.5, color: MUTE }}>불러오는 중...</div>}
+            {!loading && users.length === 0 && <div style={{ fontSize: 12.5, color: MUTE }}>계정이 없어요.</div>}
+            {users.map((u) => (
+              <div key={u.user_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: PKL, borderRadius: 8, padding: "8px 12px", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, minWidth: 0 }}>
+                  {u.role === "admin" ? "👑 " : "👩‍🏫 "}{u.display_name || u.email}
+                  <span style={{ color: MUTE, fontWeight: 400, fontSize: 11.5, marginLeft: 6 }}>{u.email}</span>
+                </span>
+                <span style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => resetPw(u)} disabled={busy} style={{ fontSize: 11.5, color: PKD, background: "none", border: `1px solid ${PK}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>비번변경</button>
+                  {u.role !== "admin" && <button onClick={() => del(u)} disabled={busy} style={{ fontSize: 11.5, color: PKD, background: "none", border: `1px solid ${PK}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>삭제</button>}
+                </span>
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 120px" }}>
-              <div style={{ fontSize: 11, color: MUTE, marginBottom: 4, fontWeight: 600 }}>선생님 이름</div>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 이선생" style={inputStyle} />
+          <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 140px" }}>
+                <div style={{ fontSize: 11, color: MUTE, marginBottom: 4, fontWeight: 600 }}>이메일</div>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="예: teacher@geomdan.com" style={inputStyle} />
+              </div>
+              <div style={{ flex: "1 1 100px" }}>
+                <div style={{ fontSize: 11, color: MUTE, marginBottom: 4, fontWeight: 600 }}>선생님 이름</div>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 이선생" style={inputStyle} />
+              </div>
             </div>
-            <div style={{ flex: "1 1 120px" }}>
-              <div style={{ fontSize: 11, color: MUTE, marginBottom: 4, fontWeight: 600 }}>초기 비밀번호</div>
-              <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" placeholder="4자 이상" style={inputStyle} />
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 120px" }}>
+                <div style={{ fontSize: 11, color: MUTE, marginBottom: 4, fontWeight: 600 }}>초기 비밀번호</div>
+                <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" placeholder="6자 이상" style={inputStyle} />
+              </div>
+              <button onClick={add} disabled={busy} style={{ ...btnPrimary, flexShrink: 0, opacity: busy ? 0.6 : 1 }}>
+                {busy ? "..." : "추가"}
+              </button>
             </div>
-            <button onClick={add} disabled={busy} style={{ ...btnPrimary, flexShrink: 0, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "..." : "추가"}
-            </button>
           </div>
           {msg && <div style={{ fontSize: 12, color: msg.startsWith("✓") ? "#2e8b57" : PKD, marginTop: 8 }}>{msg}</div>}
         </div>
@@ -1239,7 +1550,7 @@ const SEVERITY = [
   { v: "중도", label: "중도", desc: "보건·안전에 대한 중대한 위협", color: "#D85A5A" },
 ];
 
-function CaseDetail({ c, isAdmin, onBack, onAddRecord, onRemoveRecord, onAddAssessment, onRemoveAssessment, onUpdateCase, onRemoveCase }) {
+function CaseDetail({ c, isAdmin, readOnly = false, onBack, onAddRecord, onRemoveRecord, onAddAssessment, onRemoveAssessment, onUpdateCase, onRemoveCase }) {
   const [showForm, setShowForm] = useState(false);
   const [section, setSection] = useState("record"); // record | assess | bip
   const [runningScale, setRunningScale] = useState(null); // 진행 중인 척도 id
