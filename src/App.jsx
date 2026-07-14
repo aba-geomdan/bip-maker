@@ -3395,88 +3395,12 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
 async function enhanceBIPWithAI(bip, c, onDelta) {
   const isPbs = c.type === "pbs";
 
-  // 케이스에 쌓인 ABC 기록을 요약해 프롬프트에 반영 (있으면)
-  const records = (c.records || []).slice(0, 12);
-  let abcSummary = "기록 없음";
-  if (records.length) {
-    abcSummary = records.map((r, i) =>
-      `${i + 1}) ${[r.datetime && `[${r.datetime}]`, r.antecedent && `선행:${r.antecedent}`, r.behavior && `행동:${r.behavior}`, r.consequence && `후속:${r.consequence}`].filter(Boolean).join(" ")}`
-    ).join("\n");
-  }
-
-  // 위험 행동이면 안전 계획을 포함하도록 지시 (표적행동 문자열 기반 추정)
-  const target = String(c.target || "");
-  const isRisky = /공격|자해|폭력|던지|때리|물기|머리|위험|난폭|소리지르|이탈|도주|뛰쳐/.test(target);
-  const displayNm = (() => {
-    const raw = (c.name || "").trim();
-    if (!raw) return "아동";
-    const allHangul = [...raw].every((ch) => { const x = ch.charCodeAt(0); return x >= 0xac00 && x <= 0xd7a3; });
-    if (!allHangul) return raw;
-    let g = raw.length >= 3 ? raw.slice(1) : raw;
-    const last = g.charCodeAt(g.length - 1);
-    const hasJong = (last - 0xac00) % 28 !== 0;
-    return hasJong ? g + "이" : g;
-  })();
-
-  const prompt = `당신은 ABA(응용행동분석) 전문가입니다. 아래 정보를 바탕으로 이 아동에게 딱 맞는 행동중재계획(BIP)의 세 영역(선행중재·대체행동중재·후속결과중재)을 작성하세요.
-
-[아동 정보]
-- 이름: ${c.name} (문장에서 아동을 지칭할 때는 "${displayNm}"로 부르고, 한국어 조사를 올바르게 붙이세요. 예: "${displayNm}는", "${displayNm}가")
-- 연령/학년: ${c.age || "미기재"}
-- 환경: ${isPbs ? `학교(${c.school || "일반학교"})` : "ABA 센터 (1:1 치료 가능)"}
-- 표적행동: ${c.target || "미기재"}${c.behaviorDetail ? `\n- 행동의 구체적 모습: ${c.behaviorDetail}` : ""}${c.likes ? `\n- 좋아하는 것(강화제로 활용): ${c.likes}` : ""}${c.comm ? `\n- 의사소통 수준: ${c.comm}` : ""}${c.triggers ? `\n- 심해지는·진정되는 상황: ${c.triggers}` : ""}
-
-[기능평가 결과]
-- 추정 주기능: ${bip.funcName}
-- 기능 가설: ${bip.hypothesis}
-
-[실제 관찰기록 (ABC)]
-${abcSummary}
-
-[작성 지침]
-
-■ 각 영역의 역할 (반드시 구분해서 작성)
-- 선행중재(antecedent): 행동이 일어나기 '전에' 환경·상황을 바꿔 도전행동의 동기 자체를 낮추는 예방 전략. (동기조작, 환경조정, 예측가능성 제공 등)
-- 대체행동중재(replacement): 도전행동과 '같은 기능'을 하되 사회적으로 수용 가능하고 더 효율적인 행동을 '가르치는' 교수 전략. ★핵심: 대체행동은 반드시 표적행동과 동일한 기능(같은 강화를 얻음)을 해야 하며, 도전행동보다 쉽고 빠르게 그 강화를 얻을 수 있어야 한다(반응효율성). ★★기능 불일치 금지: 주기능이 '획득/요구'인 경우, 대체행동은 '원하는 것을 적절히 요청·표현하는 행동'이어야 합니다. 심호흡·정서조절·자기진정 같은 활동은 기능이 다르므로(획득이 아니라 회피/정서 대상) 대체행동중재에 넣지 마세요. (그런 정서조절은 필요하면 선행중재나 후속의 보조 전략으로만 짧게 언급 가능하되, 이 아동의 주기능과 맞지 않으면 아예 넣지 마세요.)
-- 후속결과중재(consequence): 행동이 일어난 '후에' 어떻게 반응할지 — 적절행동은 강화하고, 도전행동은 강화하지 않는(소거) 전략.
-
-■ 품질 기준 (아래 대조를 반드시 지킬 것)
-- 나쁜 예(추상적, 금지): "유사한 감각을 주는 활동을 환경에 풍부하게 배치한다"
-- 좋은 예(구체적, 권장): "착석 자리에 커튼과 비슷한 촉감의 술 리본을 붙여, 자리를 뜨지 않고도 촉각을 얻게 한다"
-- 즉 '무엇을 / 언제 / 어떻게'가 드러나고, 이 아동의 실제 상황(관찰기록·표적행동)에 밀착된 문장을 쓸 것. 교과서적 일반론은 금지.
-
-■ 개별화 지침
-- 위 ABC 기록에서 드러나는 이 아동의 구체적 패턴(어떤 자극/상황에서, 무엇을 하고, 어떤 결과가 따르는지)을 반드시 반영하세요. 기록이 있으면 일반론이 아니라 "이 아이"의 사례에 근거해 쓰세요.
-- 표적행동('${c.target || "미기재"}')이 위 추정 주기능(${bip.funcName})을 어떻게 충족하는지 구체적으로 해석하고, 그 해석에 맞는 중재를 쓰세요. 관찰기록이 있으면 그 기록에서 근거를 찾으세요.
-${c.likes ? `- 강화(보상)가 필요한 부분에서는 이 아이가 좋아하는 것(${c.likes})을 구체적으로 활용해 쓰세요.\n` : ""}${c.comm ? `- 대체행동·의사소통 방법은 이 아이의 의사소통 수준(${c.comm})에 맞춰 쓰세요. 수준을 넘는 방법(예: 무발화 아동에게 긴 문장 말하기)은 피하세요.\n` : ""}${c.triggers ? `- 이 아이가 심해지거나 진정되는 상황(${c.triggers})을 선행중재에 반드시 반영하세요.\n` : ""}- ${c.age ? `아동의 연령/언어수준(${c.age})에 맞는 대체행동과 의사소통 방법을 쓰세요.` : "연령 정보가 없으니 일반적 수준으로 쓰되 과하게 어렵지 않게."}
-- ${isPbs
-  ? "학교 상황입니다. 교사 1명이 학급 전체를 지도하므로 1:1 개별개입이 어렵습니다. 선행조정·환경세팅·또래활용·학급차원 지원·자기관리 위주로 교사가 혼자 실행 가능하게 쓰세요."
-  : "ABA 센터로 치료사가 1:1 지도 가능한 환경입니다."}
-${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후속결과중재에 위기 상황 대응·안전 확보(주변 정리, 위해 예방, 진정 절차 등) 항목을 최소 1개 포함하세요.\n" : ""}
-■ 형식·용어
-- 각 영역당 3~4개 항목. 각 항목은 관찰·측정 가능하게(누가 봐도 실행 여부를 판단할 수 있게) 한 문장으로 쓰세요. 모호한 표현("적절히", "충분히", "잘") 대신 구체적 조건·빈도·방법을 명시하세요. 문장은 간결하게(한 항목이 너무 길지 않게).
-- 올바른 ABA 용어를 정확히 사용하세요(NCR, FCT, DRA, DRO, 촉구·용암, 행동탄력, 소거, 프리맥 등). 단, 용어만 나열하지 말고 이 아동에게 실제로 어떻게 적용하는지를 함께 쓰세요.
-- ★대체행동중재(replacement) 항목 중 최소 1개에는 '숙달·진행 기준'을 넣으세요. 즉 대체행동을 어느 수준까지 끌어올릴지와 촉구를 언제 줄일지를 구체적 수치로 쓰세요(예: "대체행동 요청이 3회기 연속 독립적으로 80% 이상 나타나면 신체촉구를 언어촉구로 용암한다").
-- ★후속결과중재(consequence) 항목 중 최소 1개에는 '데이터 수집·측정 방법'을 넣으세요. 무엇을 어떻게 기록해 효과를 판단할지 구체적으로 쓰세요(예: "매 회기 도전행동 발생 빈도와 대체행동 요청 발생률을 기록표에 기록하고, 2주 단위로 감소 추세를 검토한다").
-- 관찰기록이 없으면, 표적행동과 기능가설만으로 최대한 구체적으로 추정해 쓰되 무리한 단정은 피하세요.
-
-■ ★정보가 일부 비어 있을 때 (매우 중요)
-- 아동 정보(좋아하는 것·의사소통 수준·심해지는 상황 등)가 비어 있더라도, "선호물", "적절한 방법", "좋아하는 활동" 같은 막연한 표현으로 얼버무리지 마세요. 그런 일반론은 금지입니다.
-- 대신 표적행동('${c.target || "미기재"}')과 주기능(${bip.funcName}), 그리고 연령(${c.age || "미기재"})을 근거로, 이 또래·이 기능의 아동에게 임상적으로 흔한 구체적 예시를 '예:' 형태로 제시해 문장을 살아있게 만드세요. (예: "간식·좋아하는 장난감 등 다솔이가 선호하는 것" 처럼 실제 물건을 예시로 든다)
-- 단, 추측한 예시는 단정하지 말고 "예:" 또는 "(치료사가 파악한 선호물로 대체)"처럼 표시해, 치료사가 실제 정보로 바꿔 넣을 수 있게 하세요.
-- 연령이 어릴수록(영유아) 발달수준에 맞는 방법을 쓰세요. 예를 들어 만 1~2세 아동에게는 긴 문장 말하기나 복잡한 토큰경제 대신, 몸짓·그림카드 건네기·단어 한두 개 요청처럼 발달에 맞는 대체행동을 제시하세요. 연령에 안 맞는 기법(어린 영아에게 PECS 상위 단계, 복잡한 자기점검 등)은 쓰지 마세요.
-
-★★출력 형식(반드시 준수) — 아래 JSON 객체 '하나만' 출력하세요. 설명·마크다운·서론·코드펜스(백틱) 절대 금지.
-- 키 이름은 정확히 "antecedent", "replacement", "consequence" 세 개만 사용하세요. 다른 키 이름(예: "영역1", "선행조건관리", "전략", "목표", "측정" 등)으로 바꾸거나 중첩 구조로 만들지 마세요. 절대 금지.
-- 각 키의 값은 문자열들의 배열입니다. 측정·숙달기준 등도 별도 키로 빼지 말고 해당 영역 배열 안의 한 문장 항목으로 넣으세요.
-- 정확한 형식:
-{"antecedent":["문장","문장","문장"],"replacement":["문장","문장","문장"],"consequence":["문장","문장","문장"]}`;
-
-  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  // [3단계] 프롬프트 조립을 서버(bip-ai)로 이관. 여기선 재료(child·bip·isPbs)만 보낸다.
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }), // stream:false → JSON 한번에(스트리밍 멈춤 방지). haiku로 빠름. 측정·숙달기준 추가로 1500→2500
+    body: JSON.stringify({ type: "bip", child: c, bip, isPbs, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }), // stream:false → JSON 한번에(스트리밍 멈춤 방지). haiku로 빠름.
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -3558,59 +3482,12 @@ ${isRisky ? "- 이 표적행동은 안전 위험이 있을 수 있습니다. 후
 
 // ── 부모님용 쉬운 안내를 AI가 이 아이 맞춤으로 재작성 ───
 async function enhanceParentBIP(bip, c) {
-  const records = (c.records || []).slice(0, 12);
-  let abcSummary = "기록 없음";
-  if (records.length) {
-    abcSummary = records.map((r, i) =>
-      `${i + 1}) ${[r.datetime && `[${r.datetime}]`, r.antecedent && `상황:${r.antecedent}`, r.behavior && `행동:${r.behavior}`, r.consequence && `그후:${r.consequence}`].filter(Boolean).join(" ")}`
-    ).join("\n");
-  }
-  const displayNm = (() => {
-    const raw = (c.name || "").trim();
-    if (!raw) return "아이";
-    const allHangul = [...raw].every((ch) => { const x = ch.charCodeAt(0); return x >= 0xac00 && x <= 0xd7a3; });
-    if (!allHangul) return raw;
-    let g = raw.length >= 3 ? raw.slice(1) : raw;
-    const last = g.charCodeAt(g.length - 1);
-    return ((last - 0xac00) % 28 !== 0) ? g + "이" : g;
-  })();
-
-  const prompt = `당신은 신뢰감 있는 ABA 부모교육 전문가입니다. 아래 아이의 정보를 바탕으로, 부모님이 집에서 읽고 바로 실천할 수 있는 가정 지원 안내를 작성하세요.
-
-[아이 정보]
-- 이름(애칭): ${displayNm}
-- 나이: ${c.age || "미기재"}
-- 문제 행동: ${c.target || "미기재"}${c.behaviorDetail ? `\n- 구체적 모습: ${c.behaviorDetail}` : ""}${c.likes ? `\n- 좋아하는 것: ${c.likes}` : ""}${c.comm ? `\n- 의사소통 수준: ${c.comm}` : ""}${c.triggers ? `\n- 심해지는·진정되는 상황: ${c.triggers}` : ""}
-- 행동의 이유(기능): ${bip.funcName} — ${bip.hypothesis}
-
-[집에서의 관찰기록]
-${abcSummary}
-
-[작성 지침]
-- 전문용어(NCR, DRA, 소거, 촉구 등)를 절대 쓰지 마세요. 대신 부모님이 이해할 수 있는 쉬운 말로 풀어 쓰세요.
-- 차분하고 신뢰감 있는 존댓말로 쓰세요. 지나치게 가볍거나 들뜬 말투(과한 물결표, 감탄, 애칭 남발)는 피하되, 부모를 탓하는 느낌도 들지 않게 하세요. 실천 지침은 "~해주세요" 형태로, 설명 문장은 "~입니다 / ~것입니다" 형태로 정돈해 쓰세요.
-- 위 관찰기록이 있으면 그 상황을 예로 들어 구체적으로 쓰세요.
-- 아이를 "${displayNm}"로 부르고 한국어 조사를 올바르게 쓰세요.
-- why: 이 행동을 왜 하는지 2~3문장으로 차분하게 설명(말썽이 아니라 마음의 표현이라는 관점). 관찰기록이 있으면 그 상황을 짧게 예로 들어 "이 아이" 이야기로 느껴지게 쓰세요.
-- prevent(미리 예방): 집에서 미리 할 수 있는 구체적 방법 3~4개.
-- teach(다른 행동 가르치기): 적절한 표현·행동을 가르치는 방법 2~3개. ★이 중 최소 1개에는 부모가 그대로 따라 할 수 있는 실제 대화 예시를 큰따옴표로 넣으세요(예: 아이가 ~할 때 "○○아, 이렇게 말해볼까? '저거 주세요'" 하고 알려주세요). ★가르치는 행동은 '원하는 것을 적절히 요청·표현하는 방법'에 집중하세요. 아이의 행동 이유가 '원하는 것 얻기'라면, 심호흡·차분해지기 같은 감정조절 방법은 이유와 맞지 않으니 teach에 넣지 마세요(요청하는 법을 가르치는 데 집중).
-- respond(반응 방법): 3개로 쓰되, 반드시 아래 세 가지를 각각 명확하게 담으세요.
-  (1) ★문제행동을 할 때는 '원하는 것을 주지 않는다'는 점을 분명하고 쉽게 쓰세요. "관심을 돌린다" 같은 모호한 표현 대신, "머리를 때려도 원하던 물건을 주지 않습니다. 그러면 때리는 방법으로는 얻을 수 없다는 것을 배웁니다"처럼 원리를 명확히 설명하세요. (단 아이를 혼내거나 벌주라는 뜻이 아님을 부드럽게 덧붙이세요.)
-  (2) ★바르게 요청하면(손 내밀기·가리키기·말하기 등) '즉시' 원하는 것을 주고 기뻐해 주라고 쓰세요. 문제행동엔 안 주고 바른 행동엔 바로 주는 이 대비가 핵심임을 느끼게 하세요.
-  (3) ★'소거 폭발' 안내: 새 방법을 시작하면 처음 며칠은 오히려 행동이 더 심해질 수 있는데 이는 정상이고 꾸준히 하면 곧 줄어든다는 점을, 부모가 포기하지 않도록 따뜻하게 설명하세요(전문용어 '소거 폭발'이라는 말은 쓰지 말고 쉬운 말로).
-- prevent/teach/respond의 각 항목은 한 문장으로 구체적이고 실천 가능하게(단, 위에 별표(★)로 지시한 항목은 두 문장까지 허용).
-- 좋아하는 것·상황 정보가 비어 있어도 "좋아하는 것", "적절한 방법" 같은 막연한 표현으로 얼버무리지 마세요. 대신 이 나이·이 행동의 아이에게 흔한 구체적 예를 "예:"로 들어 살아있게 쓰세요(예: "젤리·좋아하는 장난감처럼 아이가 좋아하는 것"). 단 추측한 예는 "예:"로 표시해 부모가 실제 것으로 바꿔 떠올릴 수 있게 하세요.
-
-★★출력 형식(반드시 준수): 아래 JSON 객체 하나만 출력하세요. 설명·마크다운·서론·코드펜스(백틱) 절대 금지.
-키 이름은 정확히 "why", "prevent", "teach", "respond" 네 개만 사용하세요. 다른 키로 바꾸거나 중첩 구조로 만들지 마세요.
-why는 문자열, prevent·teach·respond는 문자열 배열입니다.
-{"why":"문장","prevent":["문장","문장"],"teach":["문장","문장"],"respond":["문장","문장","문장"]}`;
-
-  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  // [3단계] 프롬프트 조립을 서버(bip-ai)로 이관. 재료(child·bip)만 보낸다.
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }),
+    body: JSON.stringify({ type: "parent", child: c, bip, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }),
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -3662,7 +3539,6 @@ why는 문자열, prevent·teach·respond는 문자열 배열입니다.
 async function readAssessmentPhoto(scaleId, file) {
   const scale = SCALES[scaleId];
   const opts = SCALE_OPTIONS[scale.scale];
-  const validValues = opts.map((o) => o.v).join(", ");
 
   // 파일 → base64
   const base64 = await new Promise((resolve, reject) => {
@@ -3673,33 +3549,13 @@ async function readAssessmentPhoto(scaleId, file) {
   });
   const mediaType = file.type || "image/jpeg";
 
-  const itemsText = scale.items.map((it, i) => `${i + 1}. ${it.q}`).join("\n");
-  const scaleGuide =
-    scale.scale === "yn" ? "각 문항 응답은 'yes'(예), 'no'(아니오), 'na'(해당없음) 중 하나."
-    : scale.scale === "q0123" ? "각 문항 응답은 'x'(해당없음), '0','1','2','3' 중 하나."
-    : "각 문항 응답은 '0','1','2','3','4','5','6' 중 하나.";
-
-  const promptText = `이 이미지는 '${scale.name}' 도전행동 간접평가 설문지를 작성한 것입니다.
-아래 ${scale.items.length}개 문항 각각에 대해, 이미지에서 체크/표시된 응답을 읽어주세요.
-
-[문항 목록]
-${itemsText}
-
-[응답 규칙]
-${scaleGuide}
-- 유효한 응답값: ${validValues}
-- 이미지에서 명확히 읽히지 않는 문항은 null.
-
-반드시 아래 형식의 JSON 배열만 출력하세요(설명·마크다운 금지). 길이는 정확히 ${scale.items.length}:
-[{"n":1,"v":"응답값 또는 null"}, ...]`;
-
-  // 배포 환경: 공용 claude-relay Edge Function 사용 (이미지 지원 버전)
+  // [3단계] 판독 프롬프트(문항 목록 등) 조립을 서버(bip-ai)로 이관. scaleId와 이미지만 보낸다.
   let raw;
-  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt: promptText, model: "claude-haiku-4-5-20251001", image: { media_type: mediaType, data: base64 }, max_tokens: 1500, stream: false }),
+    body: JSON.stringify({ type: "ocr-scale", scaleId, image: { media_type: mediaType, data: base64 }, model: "claude-haiku-4-5-20251001", max_tokens: 1500, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
@@ -3746,26 +3602,12 @@ async function readAbcPhoto(file) {
   });
   const mediaType = file.type || "image/jpeg";
 
-  const promptText = `이 이미지는 아동의 도전행동을 관찰 기록한 ABC 기록지(또는 손으로 쓴 메모)입니다.
-이미지에서 다음 항목을 읽어 정리해 주세요.
-
-- when: 언제/어떤 상황(시간·수업·장소 등). 없으면 빈 문자열.
-- antecedent: 선행사건 A (행동 직전에 일어난 일). 없으면 빈 문자열.
-- behavior: 행동 B (관찰된 도전행동). 없으면 빈 문자열.
-- consequence: 후속결과 C (행동 직후 일어난 일/어른의 반응). 없으면 빈 문자열.
-
-[규칙]
-- 이미지에 적힌 내용을 최대한 그대로 옮기되, 문장은 자연스럽게 다듬어도 됩니다.
-- 지어내지 말고, 이미지에서 읽히는 것만 채우세요. 안 보이면 빈 문자열.
-
-반드시 아래 형식의 JSON 객체만 출력하세요(설명·마크다운 금지):
-{"when":"","antecedent":"","behavior":"","consequence":""}`;
-
-  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/claude-relay";
+  // [3단계] ABC 판독 프롬프트 조립을 서버(bip-ai)로 이관. 이미지만 보낸다.
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ prompt: promptText, model: "claude-haiku-4-5-20251001", image: { media_type: mediaType, data: base64 }, max_tokens: 1200, stream: false }),
+    body: JSON.stringify({ type: "ocr-abc", image: { media_type: mediaType, data: base64 }, model: "claude-haiku-4-5-20251001", max_tokens: 1200, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
