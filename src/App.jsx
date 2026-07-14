@@ -1,6 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
+// ============================================
+// 도메인 가드 (무단 배포 방지)
+// ============================================
+(function domainGuard() {
+  try {
+    var host = window.location.hostname;
+    var allowed = (
+      host === "aba-geomdan.github.io" ||
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "" ||
+      /\.local$/.test(host)
+    );
+    if (!allowed) {
+      document.documentElement.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#FFF0F3;color:#D4728A;font-family:sans-serif;text-align:center;line-height:1.8;">' +
+        "<div><h1>접근할 수 없는 페이지</h1><p>검단ABA언어행동연구소의 지적재산입니다.</p></div>" +
+        "</div>";
+      throw new Error("Unauthorized host");
+    }
+  } catch (e) {
+    if (e && e.message === "Unauthorized host") throw e;
+  }
+})();
+
 const SUPABASE_URL = "https://vdubgrxwijydwfabwpnk.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkdWJncnh3aWp5ZHdmYWJ3cG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDk1ODgsImV4cCI6MjA5NzE4NTU4OH0.nqNO3vany3M6fzmG5BG6QVdvi8BW2UbhTDhxNnwvA88";
 const _sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
