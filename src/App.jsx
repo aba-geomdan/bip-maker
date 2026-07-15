@@ -4039,6 +4039,44 @@ const CARD_LIBRARY = [
     { label: "내가 할래요", emoji: "💪" }, { label: "도와주세요", emoji: "🙋" } ] },
   { id: "how_about", category: "의사소통", type: "strip", title: "제안하기", items: [
     { label: "이거 할까요?", emoji: "💡" }, { label: "저기 갈까요?", emoji: "👉" } ] },
+
+  // ── 커스텀 시각카드 (일반/표현언어/발달) ──────────────────
+  // [표현언어 → 의사소통]
+  { id: "vc_pecs", category: "의사소통", type: "pecs", title: "그림으로 부탁해요 (PECS 교환)" },
+  { id: "vc_corevocab", category: "의사소통", type: "corevocab", title: "핵심 어휘 소통판" },
+  { id: "vc_callcard", category: "의사소통", type: "callcard", title: "○○ 오세요 (부르기 카드·빈칸)" },
+  { id: "vc_relay", category: "의사소통", type: "relay", title: "주고받기 대화 (대화 릴레이)" },
+  // [표현언어 → 학습·활동]
+  { id: "vc_syllable", category: "학습·활동", type: "syllable", title: "또박또박 말해요 (음절 도트·빈칸)" },
+  { id: "vc_slidewindow", category: "학습·활동", type: "slidewindow", title: "한 글자씩 창문 (슬라이드·빈칸)" },
+  { id: "vc_mouthshape", category: "학습·활동", type: "mouthshape", title: "입 모양 따라 하기 (아·이·우·오·에)" },
+  { id: "vc_sentence", category: "학습·활동", type: "sentence", title: "문장 늘리기 (한 마디→여러 마디)" },
+  { id: "vc_naming", category: "학습·활동", type: "naming", title: "뭐예요? 이름 말하기 (명명)" },
+  { id: "vc_animalsound", category: "학습·활동", type: "animalsound", title: "동물 소리 따라 하기 (소리 모방)" },
+
+  // [발달 → 학습·활동]
+  { id: "vc_receptive", category: "학습·활동", type: "receptive", title: "이렇게 해요 (지시 따르기)" },
+  { id: "vc_bodyparts", category: "학습·활동", type: "bodyparts", title: "어디 있나요? (신체 부위)" },
+  { id: "vc_opposite", category: "학습·활동", type: "opposite", title: "반대 개념 (크다·많다·같다)" },
+  { id: "vc_sorting", category: "학습·활동", type: "sorting", title: "같은 것끼리 (색깔·모양 분류)" },
+  { id: "vc_counting", category: "학습·활동", type: "counting", title: "숫자 세기 (1~5)" },
+  // [발달 → 놀이·상호작용]
+  { id: "vc_jointattn", category: "놀이·상호작용", type: "jointattn", title: "저기 봐! (함께 보기·공동주의)" },
+  { id: "vc_eyecontact", category: "놀이·상호작용", type: "eyecontact", title: "나 봐! (눈맞춤)" },
+  { id: "vc_imitate", category: "놀이·상호작용", type: "imitate", title: "나처럼 해봐 (동작 모방)" },
+  { id: "vc_bodysignal", category: "신체·통증", type: "bodysignal", title: "내 몸이 말해요 (몸 신호)" },
+
+  // [일반 → 시간·개념]
+  { id: "vc_countdown", category: "시간·개념", type: "countdown", title: "이제 곧 바꿔요 (5-4-3-2-1)" },
+  { id: "vc_progressbar", category: "시간·개념", type: "progressbar", title: "얼마나 남았을까? (진행 막대)" },
+  // [일반 → 감정·진정]
+  { id: "vc_traffic", category: "감정·진정", type: "traffic", title: "멈춰-생각-행동 (신호등)" },
+  { id: "vc_volcano", category: "감정·진정", type: "volcano", title: "내 마음 화산 (지금 몇 층?)" },
+  { id: "vc_pinwheel", category: "감정·진정", type: "pinwheel", title: "후~ 불어요! (호흡 연습)" },
+  { id: "vc_voicemeter", category: "감정·진정", type: "voicemeter", title: "내 목소리 크기 (0~4단계)" },
+  // [일반 → 놀이·상호작용]
+  { id: "vc_distance", category: "놀이·상호작용", type: "distance", title: "딱 좋은 거리 (친구와 간격)" },
+  { id: "vc_turntable", category: "놀이·상호작용", type: "turntable", title: "누구 차례일까? (차례 표시등)" },
 ];
 const CARD_CATEGORIES = ["의사소통", "선택", "순서·구조", "감정·진정", "감각", "강화·보상", "신체·통증", "부모교육", "행동·규칙", "학습·활동", "놀이·상호작용", "시간·개념"];
 
