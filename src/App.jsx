@@ -1819,7 +1819,7 @@ function RecordForm({ onSave }) {
       <div style={{ fontWeight: 700, marginBottom: 14, color: PKD }}>새 도전행동 기록</div>
 
       <div style={{ marginBottom: 14 }}>
-        <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
+        <input ref={fileRef} type="file" accept="image/*,application/pdf" onChange={onPhoto} style={{ display: "none" }} />
         <button onClick={() => fileRef.current && fileRef.current.click()} disabled={photoState === "reading"}
           style={{ ...btnGhost, width: "100%", justifyContent: "center", padding: "10px", fontSize: 13, opacity: photoState === "reading" ? 0.6 : 1 }}>
           {photoState === "reading" ? "사진 읽는 중..." : "📷 사진으로 채우기 (손글씨·메모 인식)"}
@@ -2634,7 +2634,7 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
           </div>
           <label style={{ ...btnPrimary, cursor: ocrState === "loading" ? "wait" : "pointer", opacity: ocrState === "loading" ? 0.6 : 1, display: "inline-block" }}>
             {ocrState === "loading" ? "읽는 중..." : "사진 올리기"}
-            <input type="file" accept="image/*" style={{ display: "none" }} disabled={ocrState === "loading"}
+            <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={ocrState === "loading"}
               onChange={(e) => onPhoto(e.target.files && e.target.files[0])} />
           </label>
         </div>
@@ -2652,7 +2652,7 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
             <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD }}>문제행동 정보</div>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: "#fff", background: ocrState === "loading" ? "#ccc" : PKD, padding: "6px 11px", borderRadius: 8, cursor: ocrState === "loading" ? "default" : "pointer" }}>
               📷 앞부분 사진으로 채우기
-              <input type="file" accept="image/*" style={{ display: "none" }} disabled={ocrState === "loading"}
+              <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={ocrState === "loading"}
                 onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPrePhoto(f); }} />
             </label>
           </div>
@@ -3603,6 +3603,10 @@ async function readAssessmentPhoto(scaleId, file) {
     r.readAsDataURL(file);
   });
   const mediaType = file.type || "image/jpeg";
+  const isPdf = mediaType === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  const payload = isPdf
+    ? { file: { media_type: "application/pdf", data: base64 } }
+    : { image: { media_type: mediaType, data: base64 } };
 
   // [3단계] 판독 프롬프트(문항 목록 등) 조립을 서버(bip-ai)로 이관. scaleId와 이미지만 보낸다.
   let raw;
@@ -3610,7 +3614,7 @@ async function readAssessmentPhoto(scaleId, file) {
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ type: "ocr-scale", scaleId, image: { media_type: mediaType, data: base64 }, model: "claude-haiku-4-5-20251001", max_tokens: 1500, stream: false }),
+    body: JSON.stringify({ type: "ocr-scale", scaleId, ...payload, model: "claude-sonnet-5", max_tokens: 1500, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
@@ -3647,24 +3651,28 @@ async function readAssessmentPhoto(scaleId, file) {
   return answers;
 }
 
-// ── FAST 앞부분(서술형 정보) 사진 인식 → preInfo 객체 자동 채움 ──
+// ── FAST 앞부분(서술형 정보) 사진/PDF 인식 → preInfo 객체 자동 채움 ──
 async function readFastPrePhoto(file) {
   const base64 = await new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result).split(",")[1]);
-    r.onerror = () => reject(new Error("사진을 불러오지 못했어요."));
+    r.onerror = () => reject(new Error("파일을 불러오지 못했어요."));
     r.readAsDataURL(file);
   });
   const mediaType = file.type || "image/jpeg";
+  const isPdf = mediaType === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  const payload = isPdf
+    ? { file: { media_type: "application/pdf", data: base64 } }
+    : { image: { media_type: mediaType, data: base64 } };
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ type: "ocr-fastpre", image: { media_type: mediaType, data: base64 }, model: "claude-haiku-4-5-20251001", max_tokens: 1500, stream: false }),
+    body: JSON.stringify({ type: "ocr-fastpre", ...payload, model: "claude-sonnet-5", max_tokens: 1500, stream: false }),
   });
   if (!res.ok) {
-    let msg = "사진 인식 서버 오류";
+    let msg = "파일 인식 서버 오류";
     try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
     throw new Error(msg);
   }
@@ -3693,7 +3701,7 @@ async function readAbcPhoto(file) {
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ type: "ocr-abc", image: { media_type: mediaType, data: base64 }, model: "claude-haiku-4-5-20251001", max_tokens: 1200, stream: false }),
+    body: JSON.stringify({ type: "ocr-abc", ...((file.type === "application/pdf" || /\.pdf$/i.test(file.name || "")) ? { file: { media_type: "application/pdf", data: base64 } } : { image: { media_type: mediaType, data: base64 } }), model: "claude-sonnet-5", max_tokens: 1200, stream: false }),
   });
   if (!res.ok) {
     let msg = "사진 인식 서버 오류";
