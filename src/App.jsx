@@ -2533,6 +2533,30 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
     }
   };
 
+  // FAST 앞부분(서술형 정보) 사진 → preInfo 자동 채움
+  const onPrePhoto = async (file) => {
+    if (!file) return;
+    setOcrState("loading"); setOcrMsg("앞부분 정보 사진을 읽는 중이에요...");
+    try {
+      const info = await readFastPrePhoto(file);
+      setPre((prev) => {
+        const next = { ...(prev || {}) };
+        let cnt = 0;
+        Object.entries(info).forEach(([k, v]) => {
+          if (v == null) return;
+          if (Array.isArray(v)) { if (v.length) { next[k] = v; cnt++; } }
+          else if (String(v).trim()) { next[k] = v; cnt++; }
+        });
+        setOcrMsg(`✓ 앞부분 정보 ${cnt}개 항목을 자동으로 채웠어요. 틀린 곳은 직접 확인·수정해 주세요.`);
+        return next;
+      });
+      setOcrState("done");
+    } catch (e) {
+      setOcrMsg(e.message || "앞부분 사진 인식에 실패했어요. 직접 입력해 주세요.");
+      setOcrState("error");
+    }
+  };
+
   if (showResult && result) {
     const maxSum = Math.max(...result.results.map((r) => r.sum), 1);
     return (
@@ -2624,7 +2648,14 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
       {/* FAST 앞부분 정보 (해당 척도만) */}
       {scale.preInfo && scale.preInfo.length ? (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "4px 2px 10px" }}>문제행동 정보</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, margin: "4px 2px 10px" }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD }}>문제행동 정보</div>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: "#fff", background: ocrState === "loading" ? "#ccc" : PKD, padding: "6px 11px", borderRadius: 8, cursor: ocrState === "loading" ? "default" : "pointer" }}>
+              📷 앞부분 사진으로 채우기
+              <input type="file" accept="image/*" style={{ display: "none" }} disabled={ocrState === "loading"}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPrePhoto(f); }} />
+            </label>
+          </div>
           <PreInfoFields fields={scale.preInfo} values={preInfo} onChange={setPre} />
           <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "18px 2px 10px" }}>기능 평가 문항</div>
         </div>
@@ -3614,6 +3645,37 @@ async function readAssessmentPhoto(scaleId, file) {
     }
   });
   return answers;
+}
+
+// ── FAST 앞부분(서술형 정보) 사진 인식 → preInfo 객체 자동 채움 ──
+async function readFastPrePhoto(file) {
+  const base64 = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = () => reject(new Error("사진을 불러오지 못했어요."));
+    r.readAsDataURL(file);
+  });
+  const mediaType = file.type || "image/jpeg";
+
+  const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
+  const res = await fetch(SUPABASE_FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ type: "ocr-fastpre", image: { media_type: mediaType, data: base64 }, model: "claude-haiku-4-5-20251001", max_tokens: 1500, stream: false }),
+  });
+  if (!res.ok) {
+    let msg = "사진 인식 서버 오류";
+    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  let text = "";
+  if (Array.isArray(data.content)) text = data.content.map((b) => b.text || "").join("");
+  else if (typeof data.content === "string") text = data.content;
+  text = text.trim().replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+  let obj;
+  try { obj = JSON.parse(text); } catch (_) { throw new Error("사진에서 정보를 읽지 못했어요. 직접 입력해 주세요."); }
+  return obj && typeof obj === "object" ? obj : {};
 }
 
 // ── ABC 관찰기록 사진 인식 → {when, antecedent, behavior, consequence} ──
