@@ -3150,6 +3150,30 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
   };
 
   const runAI = async () => {
+    // 정보가 부실하면 AI가 일반론만 뱉으므로, 실행 전 안내한다.
+    const filled = [
+      (c.behaviorDetail || "").trim(),
+      (c.likes || "").trim(),
+      (c.comm || "").trim(),
+      (c.triggers || "").trim(),
+      (c.records && c.records.length) ? "rec" : "",
+    ].filter(Boolean).length;
+    if (filled <= 1) {
+      const missing = [
+        !(c.behaviorDetail || "").trim() && "행동의 구체적 모습",
+        !(c.likes || "").trim() && "좋아하는 것(강화제)",
+        !(c.comm || "").trim() && "의사소통 수준",
+        !(c.triggers || "").trim() && "심해지는·진정되는 상황",
+        !(c.records && c.records.length) && "ABC 관찰기록",
+      ].filter(Boolean);
+      const ok = window.confirm(
+        "이 아이에 대한 정보가 거의 비어 있어요.\n" +
+        "이대로 AI를 돌리면 어느 아이에게나 해당하는 '일반적인' 중재가 나옵니다.\n\n" +
+        "채우면 훨씬 정확해지는 항목:\n· " + missing.join("\n· ") +
+        "\n\n그래도 지금 바로 진행할까요?\n(취소를 누르고 케이스 정보를 채운 뒤 다시 실행하는 걸 권장해요)"
+      );
+      if (!ok) return;
+    }
     setAiState("loading"); setAiErr("");
     try {
       const result = await enhanceBIPWithAI(bip, c);
@@ -3400,7 +3424,7 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ type: "bip", child: c, bip, isPbs, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }), // stream:false → JSON 한번에(스트리밍 멈춤 방지). haiku로 빠름.
+    body: JSON.stringify({ type: "bip", child: c, bip, isPbs, model: "claude-sonnet-5", max_tokens: 2500, stream: false }), // sonnet-5: 지침 준수·글 품질이 중요한 BIP 생성용(haiku보다 개별화·정확도 높음). stream:false로 JSON 한번에.
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
@@ -3487,7 +3511,7 @@ async function enhanceParentBIP(bip, c) {
   const res = await fetch(SUPABASE_FN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ type: "parent", child: c, bip, model: "claude-haiku-4-5-20251001", max_tokens: 2500, stream: false }),
+    body: JSON.stringify({ type: "parent", child: c, bip, model: "claude-sonnet-5", max_tokens: 2500, stream: false }),
   });
   if (!res.ok) {
     let msg = "AI 서버 응답 오류";
