@@ -3652,18 +3652,86 @@ async function readAssessmentPhoto(scaleId, file) {
 }
 
 // ── FAST 앞부분(서술형 정보) 사진/PDF 인식 → preInfo 객체 자동 채움 ──
-async function readFastPrePhoto(file) {
-  const base64 = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1]);
-    r.onerror = () => reject(new Error("파일을 불러오지 못했어요."));
-    r.readAsDataURL(file);
+// PDF → 첫 페이지 JPEG 변환용 (pdf.js를 CDN에서 1회 로드)
+let _pdfjsPromise = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (_pdfjsPromise) return _pdfjsPromise;
+  _pdfjsPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload = () => {
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; } catch (e) {}
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error("PDF 처리 모듈을 불러오지 못했습니다."));
+    document.head.appendChild(s);
   });
+  return _pdfjsPromise;
+}
+// PDF 파일 → 모든 페이지를 세로로 이어붙인 한 장의 JPEG base64(순수 데이터)로 반환
+async function pdfToStackedJpeg(file) {
+  const pdfjsLib = await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const n = pdf.numPages;
+
+  // 1) 각 페이지를 개별 캔버스로 렌더
+  const pages = [];
+  let maxW = 0;
+  for (let i = 1; i <= n; i++) {
+    const page = await pdf.getPage(i);
+    const baseVp = page.getViewport({ scale: 1 });
+    const scale = Math.min(3, Math.max(1.5, 1600 / baseVp.width));
+    const vp = page.getViewport({ scale });
+    const c = document.createElement("canvas");
+    c.width = Math.floor(vp.width);
+    c.height = Math.floor(vp.height);
+    const cx = c.getContext("2d");
+    cx.fillStyle = "#fff"; cx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: cx, viewport: vp }).promise;
+    pages.push(c);
+    if (c.width > maxW) maxW = c.width;
+  }
+
+  // 2) 세로로 합치기 (Anthropic 이미지 한도 고려해 전체 높이 8000px로 제한)
+  const GAP = 12, MAX_H = 8000;
+  let totalH = pages.reduce((s, c) => s + c.height, 0) + GAP * (pages.length - 1);
+  let ratio = 1;
+  if (totalH > MAX_H) ratio = MAX_H / totalH;
+
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.floor(maxW * ratio));
+  out.height = Math.max(1, Math.floor(totalH * ratio));
+  const octx = out.getContext("2d");
+  octx.fillStyle = "#fff"; octx.fillRect(0, 0, out.width, out.height);
+  let y = 0;
+  for (const c of pages) {
+    const w = c.width * ratio, h = c.height * ratio;
+    octx.drawImage(c, 0, y, w, h);
+    y += h + GAP * ratio;
+  }
+  const dataUrl = out.toDataURL("image/jpeg", 0.85);
+  return dataUrl.split(",")[1];
+}
+
+async function readFastPrePhoto(file) {
   const mediaType = file.type || "image/jpeg";
   const isPdf = mediaType === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  const payload = isPdf
-    ? { file: { media_type: "application/pdf", data: base64 } }
-    : { image: { media_type: mediaType, data: base64 } };
+  // PDF는 native 문서 블록 대신 이미지로 변환해 보낸다(요청 크기·처리속도 안정).
+  let payload;
+  if (isPdf) {
+    const jpegB64 = await pdfToStackedJpeg(file);
+    payload = { image: { media_type: "image/jpeg", data: jpegB64 } };
+  } else {
+    const base64 = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1]);
+      r.onerror = () => reject(new Error("파일을 불러오지 못했어요."));
+      r.readAsDataURL(file);
+    });
+    payload = { image: { media_type: mediaType, data: base64 } };
+  }
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
   const res = await fetch(SUPABASE_FN_URL, {
