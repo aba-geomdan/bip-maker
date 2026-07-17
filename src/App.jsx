@@ -2513,19 +2513,41 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
 
   const result = showResult ? scoreAssessment(scaleId, answers) : null;
 
-  // 종이 설문 사진 → AI가 읽어서 응답 자동 채움
+  // 종이 설문 사진/PDF → AI가 읽어서 16문항 + 앞부분 정보를 한 번에 자동 채움
   const onPhoto = async (file) => {
     if (!file) return;
+    const hasPre = !!(scale.preInfo && scale.preInfo.length);
     setOcrState("loading"); setOcrMsg("사진을 읽는 중이에요...");
     try {
+      // 1) 16문항 응답 채우기
       const filled = await readAssessmentPhoto(scaleId, file);
+      let qCnt = 0;
       setAnswers((prev) => {
         const n = [...prev];
-        let cnt = 0;
-        filled.forEach((v, i) => { if (v != null && i < n.length) { n[i] = v; cnt++; } });
-        setOcrMsg(`✓ ${cnt}개 문항을 자동으로 채웠어요. 빈 문항이나 틀린 곳은 직접 확인·수정해 주세요.`);
+        filled.forEach((v, i) => { if (v != null && i < n.length) { n[i] = v; qCnt++; } });
         return n;
       });
+
+      // 2) 앞부분 서술 정보 채우기 (해당 척도만; 실패해도 문항 결과는 유지)
+      let preCnt = 0;
+      if (hasPre) {
+        setOcrMsg("앞부분 정보도 읽는 중이에요...");
+        try {
+          const info = await readFastPrePhoto(file);
+          setPre((prev) => {
+            const next = { ...(prev || {}) };
+            Object.entries(info).forEach(([k, v]) => {
+              if (v == null) return;
+              if (Array.isArray(v)) { if (v.length) { next[k] = v; preCnt++; } }
+              else if (String(v).trim()) { next[k] = v; preCnt++; }
+            });
+            return next;
+          });
+        } catch (_) { /* 앞부분 실패는 무시하고 문항 결과만 살림 */ }
+      }
+
+      const preMsg = hasPre ? ` · 앞부분 정보 ${preCnt}개` : "";
+      setOcrMsg(`✓ ${qCnt}개 문항${preMsg}을(를) 자동으로 채웠어요. 빈 곳이나 틀린 곳은 직접 확인·수정해 주세요.`);
       setOcrState("done");
     } catch (e) {
       setOcrMsg(e.message || "사진 인식에 실패했어요. 직접 입력해 주세요.");
@@ -2648,13 +2670,8 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
       {/* FAST 앞부분 정보 (해당 척도만) */}
       {scale.preInfo && scale.preInfo.length ? (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, margin: "4px 2px 10px" }}>
+          <div style={{ margin: "4px 2px 10px" }}>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD }}>문제행동 정보</div>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: "#fff", background: ocrState === "loading" ? "#ccc" : PKD, padding: "6px 11px", borderRadius: 8, cursor: ocrState === "loading" ? "default" : "pointer" }}>
-              📷 앞부분 사진으로 채우기
-              <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={ocrState === "loading"}
-                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onPrePhoto(f); }} />
-            </label>
           </div>
           <PreInfoFields fields={scale.preInfo} values={preInfo} onChange={setPre} />
           <div style={{ fontSize: 13.5, fontWeight: 800, color: PKD, margin: "18px 2px 10px" }}>기능 평가 문항</div>
