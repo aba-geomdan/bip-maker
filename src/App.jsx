@@ -2650,11 +2650,11 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 18 }}>📷</span>
           <div style={{ flex: 1, minWidth: 140 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: PKD }}>종이 설문 사진으로 자동입력</div>
-            <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>외부에서 받은 종이 설문을 찍어 올리면 AI가 응답을 채워요.</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: PKD }}>종이 설문 사진·PDF로 자동입력</div>
+            <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>외부에서 받은 종이 설문을 찍거나 PDF로 올리면 AI가 응답을 채워요. (PDF가 더 정확해요)</div>
           </div>
           <label style={{ ...btnPrimary, cursor: ocrState === "loading" ? "wait" : "pointer", opacity: ocrState === "loading" ? 0.6 : 1, display: "inline-block" }}>
-            {ocrState === "loading" ? "읽는 중..." : "사진 올리기"}
+            {ocrState === "loading" ? "읽는 중..." : "사진/PDF 올리기"}
             <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={ocrState === "loading"}
               onChange={(e) => onPhoto(e.target.files && e.target.files[0])} />
           </label>
@@ -3611,18 +3611,11 @@ async function readAssessmentPhoto(scaleId, file) {
   const scale = SCALES[scaleId];
   const opts = SCALE_OPTIONS[scale.scale];
 
-  // 파일 → base64
-  const base64 = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1]);
-    r.onerror = () => reject(new Error("사진을 불러오지 못했어요."));
-    r.readAsDataURL(file);
-  });
+  // 파일 → OCR용 이미지로 정규화. PDF는 전 페이지를 한 장으로 렌더, 사진/캡처는 해상도를 키워 선명하게.
   const mediaType = file.type || "image/jpeg";
   const isPdf = mediaType === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  const payload = isPdf
-    ? { file: { media_type: "application/pdf", data: base64 } }
-    : { image: { media_type: mediaType, data: base64 } };
+  const jpegB64 = isPdf ? await pdfToStackedJpeg(file) : await imageToOcrJpeg(file);
+  const payload = { image: { media_type: "image/jpeg", data: jpegB64 } };
 
   // [3단계] 판독 프롬프트(문항 목록 등) 조립을 서버(bip-ai)로 이관. scaleId와 이미지만 보낸다.
   let raw;
@@ -3668,6 +3661,40 @@ async function readAssessmentPhoto(scaleId, file) {
 }
 
 // ── FAST 앞부분(서술형 정보) 사진/PDF 인식 → preInfo 객체 자동 채움 ──
+// 사진/캡처 이미지 → OCR 판독용으로 해상도 정규화한 JPEG base64(순수 데이터)로 반환.
+// 화면 캡처나 작게 찍은 사진은 글자·동그라미가 작아 AI가 헷갈리므로, 가로를 넉넉히 키운다.
+// (PDF 렌더처럼 선명하게 만들어 판독 정확도를 높이는 목적. 대비/샤프닝은 건드리지 않아 필기 손상 없음.)
+async function imageToOcrJpeg(file) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("파일을 불러오지 못했어요."));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("이미지를 불러오지 못했어요."));
+    im.src = dataUrl;
+  });
+  // 가로 목표 2200px. 원본이 이미 크면 그대로(최대 2200), 작으면 키운다.
+  const TARGET_W = 2200, MAX_H = 8000;
+  let scale = TARGET_W / img.width;
+  // 세로가 너무 길어지면(문항표 등) 높이 상한에 맞춰 축소
+  if (img.height * scale > MAX_H) scale = MAX_H / img.height;
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  const out = canvas.toDataURL("image/jpeg", 0.92);
+  return out.split(",")[1];
+}
+
 // PDF → 첫 페이지 JPEG 변환용 (pdf.js를 CDN에서 1회 로드)
 let _pdfjsPromise = null;
 function loadPdfJs() {
@@ -3740,13 +3767,9 @@ async function readFastPrePhoto(file) {
     const jpegB64 = await pdfToStackedJpeg(file);
     payload = { image: { media_type: "image/jpeg", data: jpegB64 } };
   } else {
-    const base64 = await new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result).split(",")[1]);
-      r.onerror = () => reject(new Error("파일을 불러오지 못했어요."));
-      r.readAsDataURL(file);
-    });
-    payload = { image: { media_type: mediaType, data: base64 } };
+    // 사진/캡처는 OCR용으로 해상도를 키워 선명하게 보낸다(판독 정확도 향상).
+    const jpegB64 = await imageToOcrJpeg(file);
+    payload = { image: { media_type: "image/jpeg", data: jpegB64 } };
   }
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
