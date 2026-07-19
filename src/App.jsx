@@ -3726,7 +3726,7 @@ async function pdfToStackedJpeg(file) {
   for (let i = 1; i <= n; i++) {
     const page = await pdf.getPage(i);
     const baseVp = page.getViewport({ scale: 1 });
-    const scale = Math.min(3, Math.max(1.5, 1600 / baseVp.width));
+    const scale = Math.min(5, Math.max(2.2, 2600 / baseVp.width));
     const vp = page.getViewport({ scale });
     const c = document.createElement("canvas");
     c.width = Math.floor(vp.width);
@@ -3738,8 +3738,8 @@ async function pdfToStackedJpeg(file) {
     if (c.width > maxW) maxW = c.width;
   }
 
-  // 2) 세로로 합치기 (Anthropic 이미지 한도 고려해 전체 높이 8000px로 제한)
-  const GAP = 12, MAX_H = 8000;
+  // 2) 세로로 합치기 (긴 문서는 세로 상한 11000px로 제한 — 가로 해상도를 지키기 위해 여유를 둠)
+  const GAP = 12, MAX_H = 11000;
   let totalH = pages.reduce((s, c) => s + c.height, 0) + GAP * (pages.length - 1);
   let ratio = 1;
   if (totalH > MAX_H) ratio = MAX_H / totalH;
