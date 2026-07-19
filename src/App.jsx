@@ -3612,15 +3612,25 @@ async function readAssessmentPhoto(scaleId, file) {
   const scale = SCALES[scaleId];
   const opts = SCALE_OPTIONS[scale.scale];
   const validSet = new Set(opts.map((o) => o.v));
+  const n = scale.items.length;
 
-  // 파일 → OCR용 이미지로 정규화. PDF는 전 페이지를 한 장으로 렌더, 사진/캡처는 해상도를 키워 선명하게.
   const mediaType = file.type || "image/jpeg";
   const isPdf = mediaType === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  const fullJpeg = isPdf ? await pdfToStackedJpeg(file) : await imageToOcrJpeg(file);
+
+  // PDF는 {stacked, pages} 반환. 사진은 단일 이미지.
+  let stackedJpeg, pageJpegs;
+  if (isPdf) {
+    const r = await pdfToStackedJpeg(file);
+    stackedJpeg = r.stacked;
+    pageJpegs = r.pages; // 페이지별 이미지 배열
+  } else {
+    stackedJpeg = await imageToOcrJpeg(file);
+    pageJpegs = null;
+  }
 
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
 
-  // 한 조각(이미지 + 문항범위)을 판독해 {번호: 값} 부분결과를 돌려주는 내부 함수
+  // 이미지 한 장 판독 → [{n,v},...] 반환. itemRange를 주면 그 범위만.
   const readChunk = async (jpegB64, itemRange) => {
     const res = await fetch(SUPABASE_FN_URL, {
       method: "POST",
@@ -3638,11 +3648,12 @@ async function readAssessmentPhoto(scaleId, file) {
       : (data.text || "");
     const cleaned = String(raw).replace(/```json|```/g, "").trim();
     const start = cleaned.indexOf("["), end = cleaned.lastIndexOf("]");
-    return JSON.parse(cleaned.slice(start, end + 1)); // [{n,v},...]
+    return JSON.parse(cleaned.slice(start, end + 1));
   };
 
   const answers = scale.items.map(() => null);
   const applyRows = (rows) => {
+    if (!Array.isArray(rows)) return;
     rows.forEach((row) => {
       const idx = (Number(row.n) || 0) - 1;
       const v = row.v;
@@ -3652,42 +3663,17 @@ async function readAssessmentPhoto(scaleId, file) {
     });
   };
 
-  // MAS(0~6점, 7칸)는 한 장으로 보내면 문항-점수 줄이 밀려 오독되므로,
-  // 이미지를 위/아래로 나눠 각 절반을 해당 문항 범위만 판독한 뒤 합친다.
-  // 조각 결과를 지정 범위[lo,hi]에 배치. AI가 준 n이 범위 안이면 그 자리에, 아니면 순서대로 채움.
-  const applyRange = (rows, lo, hi) => {
-    if (!Array.isArray(rows)) return;
-    const inRange = rows.filter((r) => {
-      const nn = Number(r && r.n);
-      return nn >= lo && nn <= hi;
-    });
-    if (inRange.length >= (hi - lo + 1) - 1) {
-      // 대부분 올바른 번호로 왔다 → 번호 그대로 반영
-      applyRows(inRange);
-    } else {
-      // 번호가 어긋났다(예: 1부터 다시 셈) → 값만 순서대로 lo..hi에 배치
-      const vals = rows.map((r) => r && r.v).filter((v) => v !== undefined);
-      vals.forEach((v, k) => {
-        const idx = lo - 1 + k;
-        if (idx <= hi - 1 && v != null && validSet.has(String(v))) answers[idx] = String(v);
-      });
-    }
-  };
-
-  const useSplit = scale.scale === "s0to6" && scale.items.length >= 12;
+  // MAS(0~6점, 7칸)는 한 장으로 보내면 문항-점수 줄이 밀려 오독된다.
+  // PDF면 페이지 단위로 나눠 판독(각 페이지의 문항만) → 밀림 최소화. AI는 문항 번호를 이미지에서 직접 읽어 반환.
+  const useSplit = scale.scale === "s0to6" && n >= 12 && isPdf && pageJpegs && pageJpegs.length >= 2;
   try {
     if (useSplit) {
-      const n = scale.items.length;
-      const half = Math.ceil(n / 2);
-      const [topImg, botImg] = await splitJpegVertically(fullJpeg, 2, 0);
-      const [topRows, botRows] = await Promise.all([
-        readChunk(topImg, [1, half]),
-        readChunk(botImg, [half + 1, n]),
-      ]);
-      applyRange(topRows, 1, half);
-      applyRange(botRows, half + 1, n);
+      const results = await Promise.all(
+        pageJpegs.map((img) => readChunk(img, null)) // 각 페이지에 보이는 문항을 번호 그대로
+      );
+      results.forEach((rows) => applyRows(rows));
     } else {
-      applyRows(await readChunk(fullJpeg, null));
+      applyRows(await readChunk(stackedJpeg, null));
     }
   } catch (e) {
     throw new Error("사진에서 응답을 해석하지 못했어요. 더 선명한 사진으로 다시 시도하거나 직접 입력해 주세요.");
@@ -3817,7 +3803,18 @@ async function pdfToStackedJpeg(file) {
     y += h + GAP * ratio;
   }
   const dataUrl = out.toDataURL("image/jpeg", 0.85);
-  return dataUrl.split(",")[1];
+  // 페이지별 개별 JPEG도 만들어 함께 반환 (척도 판독 시 페이지 단위로 나눠 읽기 위함)
+  const perPage = pages.map((c) => {
+    // 각 페이지를 개별 캔버스로 (이미 렌더된 c를 그대로 JPEG로)
+    return c.toDataURL("image/jpeg", 0.9).split(",")[1];
+  });
+  return { stacked: dataUrl.split(",")[1], pages: perPage };
+}
+
+// (하위호환) 합친 이미지 base64만 필요할 때
+async function pdfToStackedJpegFlat(file) {
+  const r = await pdfToStackedJpeg(file);
+  return r.stacked;
 }
 
 async function readFastPrePhoto(file) {
@@ -3826,7 +3823,7 @@ async function readFastPrePhoto(file) {
   // PDF는 native 문서 블록 대신 이미지로 변환해 보낸다(요청 크기·처리속도 안정).
   let payload;
   if (isPdf) {
-    const jpegB64 = await pdfToStackedJpeg(file);
+    const jpegB64 = await pdfToStackedJpegFlat(file);
     payload = { image: { media_type: "image/jpeg", data: jpegB64 } };
   } else {
     // 사진/캡처는 OCR용으로 해상도를 키워 선명하게 보낸다(판독 정확도 향상).
