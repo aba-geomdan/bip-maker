@@ -3611,53 +3611,67 @@ async function enhanceParentBIP(bip, c) {
 async function readAssessmentPhoto(scaleId, file) {
   const scale = SCALES[scaleId];
   const opts = SCALE_OPTIONS[scale.scale];
+  const validSet = new Set(opts.map((o) => o.v));
 
   // 파일 → OCR용 이미지로 정규화. PDF는 전 페이지를 한 장으로 렌더, 사진/캡처는 해상도를 키워 선명하게.
   const mediaType = file.type || "image/jpeg";
   const isPdf = mediaType === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  const jpegB64 = isPdf ? await pdfToStackedJpeg(file) : await imageToOcrJpeg(file);
-  const payload = { image: { media_type: "image/jpeg", data: jpegB64 } };
+  const fullJpeg = isPdf ? await pdfToStackedJpeg(file) : await imageToOcrJpeg(file);
 
-  // [3단계] 판독 프롬프트(문항 목록 등) 조립을 서버(bip-ai)로 이관. scaleId와 이미지만 보낸다.
-  let raw;
   const SUPABASE_FN_URL = "https://vdubgrxwijydwfabwpnk.supabase.co/functions/v1/bip-ai";
-  const res = await fetch(SUPABASE_FN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-    body: JSON.stringify({ type: "ocr-scale", scaleId, ...payload, model: "claude-sonnet-5", max_tokens: 1500, stream: false }),
-  });
-  if (!res.ok) {
-    let msg = "사진 인식 서버 오류";
-    try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
-    throw new Error(msg);
-  }
-  {
+
+  // 한 조각(이미지 + 문항범위)을 판독해 {번호: 값} 부분결과를 돌려주는 내부 함수
+  const readChunk = async (jpegB64, itemRange) => {
+    const res = await fetch(SUPABASE_FN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ type: "ocr-scale", scaleId, itemRange, image: { media_type: "image/jpeg", data: jpegB64 }, model: "claude-sonnet-5", max_tokens: 1500, stream: false }),
+    });
+    if (!res.ok) {
+      let msg = "사진 인식 서버 오류";
+      try { const e = await res.json(); if (e.error) msg = e.error; } catch (_) {}
+      throw new Error(msg);
+    }
     const data = await res.json();
-    raw = Array.isArray(data.content)
+    const raw = Array.isArray(data.content)
       ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
       : (data.text || "");
-  }
+    const cleaned = String(raw).replace(/```json|```/g, "").trim();
+    const start = cleaned.indexOf("["), end = cleaned.lastIndexOf("]");
+    return JSON.parse(cleaned.slice(start, end + 1)); // [{n,v},...]
+  };
 
-  // JSON 파싱 → answers 배열로 변환
-  const cleaned = String(raw).replace(/```json|```/g, "").trim();
-  let parsed;
+  const answers = scale.items.map(() => null);
+  const applyRows = (rows) => {
+    rows.forEach((row) => {
+      const idx = (Number(row.n) || 0) - 1;
+      const v = row.v;
+      if (idx >= 0 && idx < answers.length && v != null && validSet.has(String(v))) {
+        answers[idx] = String(v);
+      }
+    });
+  };
+
+  // MAS(0~6점, 7칸)는 한 장으로 보내면 문항-점수 줄이 밀려 오독되므로,
+  // 이미지를 위/아래로 나눠 각 절반을 해당 문항 범위만 판독한 뒤 합친다.
+  const useSplit = scale.scale === "s0to6" && scale.items.length >= 12;
   try {
-    const start = cleaned.indexOf("[");
-    const end = cleaned.lastIndexOf("]");
-    parsed = JSON.parse(cleaned.slice(start, end + 1));
+    if (useSplit) {
+      const n = scale.items.length;
+      const half = Math.ceil(n / 2);
+      const [topImg, botImg] = await splitJpegVertically(fullJpeg, 2, 0.08);
+      const [topRows, botRows] = await Promise.all([
+        readChunk(topImg, [1, half]),
+        readChunk(botImg, [half + 1, n]),
+      ]);
+      applyRows(topRows);
+      applyRows(botRows);
+    } else {
+      applyRows(await readChunk(fullJpeg, null));
+    }
   } catch (e) {
     throw new Error("사진에서 응답을 해석하지 못했어요. 더 선명한 사진으로 다시 시도하거나 직접 입력해 주세요.");
   }
-
-  const validSet = new Set(opts.map((o) => o.v));
-  const answers = scale.items.map(() => null);
-  parsed.forEach((row) => {
-    const idx = (Number(row.n) || 0) - 1;
-    const v = row.v;
-    if (idx >= 0 && idx < answers.length && v != null && validSet.has(String(v))) {
-      answers[idx] = String(v);
-    }
-  });
   return answers;
 }
 
@@ -3665,6 +3679,33 @@ async function readAssessmentPhoto(scaleId, file) {
 // 사진/캡처 이미지 → OCR 판독용으로 해상도 정규화한 JPEG base64(순수 데이터)로 반환.
 // 화면 캡처나 작게 찍은 사진은 글자·동그라미가 작아 AI가 헷갈리므로, 가로를 넉넉히 키운다.
 // (PDF 렌더처럼 선명하게 만들어 판독 정확도를 높이는 목적. 대비/샤프닝은 건드리지 않아 필기 손상 없음.)
+// base64 JPEG(순수 데이터)를 세로로 n등분해 각 조각의 base64 배열로 반환.
+// 조각 경계에서 문항이 잘리지 않도록 위아래로 overlapRatio만큼 겹쳐서 자른다.
+async function splitJpegVertically(base64, n = 2, overlapRatio = 0.06) {
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("이미지를 나누지 못했어요."));
+    im.src = "data:image/jpeg;base64," + base64;
+  });
+  const W = img.width, H = img.height;
+  const seg = H / n;
+  const overlap = seg * overlapRatio;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const top = Math.max(0, Math.floor(i * seg - (i > 0 ? overlap : 0)));
+    const bottom = Math.min(H, Math.ceil((i + 1) * seg + (i < n - 1 ? overlap : 0)));
+    const h = bottom - top;
+    const canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, h);
+    ctx.drawImage(img, 0, top, W, h, 0, 0, W, h);
+    out.push(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
+  }
+  return out;
+}
+
 async function imageToOcrJpeg(file) {
   const dataUrl = await new Promise((resolve, reject) => {
     const r = new FileReader();
