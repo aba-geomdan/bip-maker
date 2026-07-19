@@ -3654,18 +3654,38 @@ async function readAssessmentPhoto(scaleId, file) {
 
   // MAS(0~6점, 7칸)는 한 장으로 보내면 문항-점수 줄이 밀려 오독되므로,
   // 이미지를 위/아래로 나눠 각 절반을 해당 문항 범위만 판독한 뒤 합친다.
+  // 조각 결과를 지정 범위[lo,hi]에 배치. AI가 준 n이 범위 안이면 그 자리에, 아니면 순서대로 채움.
+  const applyRange = (rows, lo, hi) => {
+    if (!Array.isArray(rows)) return;
+    const inRange = rows.filter((r) => {
+      const nn = Number(r && r.n);
+      return nn >= lo && nn <= hi;
+    });
+    if (inRange.length >= (hi - lo + 1) - 1) {
+      // 대부분 올바른 번호로 왔다 → 번호 그대로 반영
+      applyRows(inRange);
+    } else {
+      // 번호가 어긋났다(예: 1부터 다시 셈) → 값만 순서대로 lo..hi에 배치
+      const vals = rows.map((r) => r && r.v).filter((v) => v !== undefined);
+      vals.forEach((v, k) => {
+        const idx = lo - 1 + k;
+        if (idx <= hi - 1 && v != null && validSet.has(String(v))) answers[idx] = String(v);
+      });
+    }
+  };
+
   const useSplit = scale.scale === "s0to6" && scale.items.length >= 12;
   try {
     if (useSplit) {
       const n = scale.items.length;
       const half = Math.ceil(n / 2);
-      const [topImg, botImg] = await splitJpegVertically(fullJpeg, 2, 0.08);
+      const [topImg, botImg] = await splitJpegVertically(fullJpeg, 2, 0);
       const [topRows, botRows] = await Promise.all([
         readChunk(topImg, [1, half]),
         readChunk(botImg, [half + 1, n]),
       ]);
-      applyRows(topRows);
-      applyRows(botRows);
+      applyRange(topRows, 1, half);
+      applyRange(botRows, half + 1, n);
     } else {
       applyRows(await readChunk(fullJpeg, null));
     }
