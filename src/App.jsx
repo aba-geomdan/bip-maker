@@ -2534,15 +2534,13 @@ function AssessmentRunner({ scaleId, childName, target, onCancel, onComplete }) 
         setOcrMsg("앞부분 정보도 읽는 중이에요...");
         try {
           const info = await readFastPrePhoto(file);
-          setPre((prev) => {
-            const next = { ...(prev || {}) };
-            Object.entries(info).forEach(([k, v]) => {
-              if (v == null) return;
-              if (Array.isArray(v)) { if (v.length) { next[k] = v; preCnt++; } }
-              else if (String(v).trim()) { next[k] = v; preCnt++; }
-            });
-            return next;
+          const merged = {};
+          Object.entries(info).forEach(([k, v]) => {
+            if (v == null) return;
+            if (Array.isArray(v)) { if (v.length) { merged[k] = v; preCnt++; } }
+            else if (String(v).trim()) { merged[k] = v; preCnt++; }
           });
+          if (preCnt > 0) setPreInfo((prev) => ({ ...(prev || {}), ...merged }));
         } catch (_) { /* 앞부분 실패는 무시하고 문항 결과만 살림 */ }
       }
 
