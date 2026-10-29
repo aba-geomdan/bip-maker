@@ -3361,7 +3361,8 @@ function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = 
   const activeFunc = chosenFunc || agg.primary;
   const highlightFunc = chosenFunc || (agg.ambiguous ? null : agg.primary); // 점수가 비슷해 아직 안 골랐으면 아무 버튼도 칠하지 않음
   // 2차 기능: 점수상 1차·2차로 잡힌 기능 중 지금 고른 기능이 아닌 것
-  const secondaryFuncs = agg.tiers.filter((t) => (t.tier === "primary" || t.tier === "secondary") && t.func !== activeFunc).map((t) => t.func);
+  // 중재를 붙이는 것은 점수가 가장 높은 2차 기능 하나만 (여러 개면 문서가 길어지고 초점이 흐려짐 — 나머지는 1번 칸 기능 표시에만 나옴)
+  const secondaryFuncs = agg.tiers.filter((t) => (t.tier === "primary" || t.tier === "secondary") && t.func !== activeFunc).map((t) => t.func).slice(0, 1);
   const bip = generateBIP(activeFunc, c.name, c.target, c.type, secondaryFuncs);
   // 다른 기능으로 저장해 둔 편집본이 있으면 알려 준다 (말없이 사라진 것처럼 보이지 않게)
   const otherEditFuncs = Object.keys(UNIFIED_FUNC_NAME).filter((f) => f !== highlightFunc && (
