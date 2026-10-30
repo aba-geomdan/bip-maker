@@ -482,6 +482,9 @@ function hasJongseong(str) {
   return (code - 0xac00) % 28 !== 0; // 받침 인덱스 0이면 받침 없음
 }
 function K(word, withJong, withoutJong) {
+  const last = String(word || "").trim().slice(-1);
+  // 영문·숫자로 끝나는 이름은 받침을 알 수 없으므로 "Tom은(는)"처럼 둘 다 적는다
+  if (last && !isHangulSyllable(last)) return `${withJong}(${withoutJong})`;
   return hasJongseong(word) ? withJong : withoutJong;
 }
 
@@ -499,7 +502,9 @@ function displayName(fullName) {
   // 전부 한글 음절인 이름만 성 떼기 대상 (영문·숫자 섞이면 원본 유지)
   const allHangul = [...raw].every(isHangulSyllable);
   if (!allHangul) return raw;
-  let given = raw.length === 3 ? raw.slice(1) : raw; // 3글자 이름만 성 제거 (4글자 이상은 복성·외자 구분이 어려워 그대로)
+  // 3글자 이름만 성을 떼고 받침이 있으면 '이'를 붙인다(서연이). 2글자·4글자 이상은 성 구분이 어려워 이름 그대로 쓴다(이준, 황보다인)
+  if (raw.length !== 3) return raw;
+  const given = raw.slice(1);
   return hasJongseong(given) ? given + "이" : given;
 }
 
@@ -549,6 +554,21 @@ async function listExternalSubmissions(caseId) {
         if (s && (s[0] === "{" || s[0] === "[")) { try { v = JSON.parse(s); } catch (e) { break; } } else break;
       }
       return v;
+    }).filter(Boolean);
+  } catch (e) { return []; }
+}
+// 공용 저장칸에서 이름이 prefix로 시작하는 값들을 모두 읽기 (확인 요청 목록용)
+async function listStore(prefix) {
+  try {
+    const r = await _sb.from("shared_store").select("key,value").like("key", `${SKEY(prefix)}%`);
+    if (r.error || !r.data) return [];
+    return r.data.map((row) => {
+      let v = row.value;
+      for (let i = 0; i < 2 && typeof v === "string"; i++) {
+        const t = v.trim();
+        if (t && (t[0] === "{" || t[0] === "[")) { try { v = JSON.parse(t); } catch (e) { break; } } else break;
+      }
+      return v && typeof v === "object" ? { ...v, _key: row.key } : null;
     }).filter(Boolean);
   } catch (e) { return []; }
 }
@@ -994,10 +1014,40 @@ const PARENT_BIP = {
 function toSchoolParentText(t) {
   return String(t || "").replace(/센터에/g, "담임 선생님이나 학교에").replace(/센터와/g, "담임 선생님이나 학교와");
 }
-function parentBipFor(func, setting) {
-  const b = PARENT_BIP[func] || PARENT_BIP.sensory;
+function parentBipFor(func, setting, secondaryFuncs = []) {
+  let b = PARENT_BIP[func] || PARENT_BIP.sensory;
+  // 2차가 신체·통증이면 병원 진료 권유와 '아파 보이는 날' 안내를 덧붙인다 (전문가용의 소거 금지와 맞춤)
+  if (func !== "physical" && (secondaryFuncs || []).includes("physical")) {
+    b = { ...b,
+      prevent: [...b.prevent, PARENT_BIP.physical.prevent[0]],
+      respond: [...b.respond, "다만 아파 보이거나 컨디션이 나쁜 날에는 위 방법보다 먼저 아픈 곳이 없는지 살펴 주시면 됩니다."] };
+  }
   if (setting !== "school" && setting !== "pbs") return b;
   return { why: toSchoolParentText(b.why), prevent: b.prevent.map(toSchoolParentText), teach: b.teach.map(toSchoolParentText), respond: b.respond.map(toSchoolParentText) };
+}
+// 문서에 보이는 기능 표시: 고른 기능 = 1차, 실제로 중재를 붙인 기능 = 2차, 나머지 = 별도 (점수표가 아니라 이 문서 기준)
+function docTiers(agg, bip) {
+  if (!agg || !agg.tiers) return [];
+  const secs = bip.secondaryFuncs || [];
+  const out = agg.tiers.filter((t) => t.tier !== "minor" || t.func === bip.func)
+    .map((t) => ({ func: t.func, tier: t.func === bip.func ? "primary" : secs.includes(t.func) ? "secondary" : "tertiary" }));
+  if (!out.some((t) => t.func === bip.func)) out.unshift({ func: bip.func, tier: "primary" });
+  const rank = { primary: 0, secondary: 1, tertiary: 2 };
+  return out.sort((a, b) => rank[a.tier] - rank[b.tier]);
+}
+function docTierNote(tiers, bip) {
+  if (!tiers.some((t) => t.tier === "tertiary")) return "";
+  return "※ 별도 기능은 이 중재안에 포함하지 않았습니다." + (bip.func === "physical" ? " (신체 기능이 1차이면 의학적 원인을 확인한 뒤 다시 평가합니다)" : "");
+}
+// 주 기능 줄: 직접 고른 경우 "(사회적 부적강화, 직접 선택)"처럼 괄호를 하나로
+function mainFuncLabel(bip, agg) {
+  const direct = agg && agg.primary && (agg.ambiguous || agg.primary !== bip.func);
+  return direct ? bip.funcName.replace(/\)$/, ", 직접 선택)") : bip.funcName;
+}
+// 표적행동 표시: 앞뒤 따옴표를 지우고, 비어 있으면 문서에는 빈칸으로
+function targetLabel(t, emptyText = "________") {
+  const v = String(t || "").trim().replace(/^['"‘’“”]+|['"‘’“”]+$/g, "").trim();
+  return v || emptyText;
 }
 function parentSafetyFor(setting) {
   return (setting === "school" || setting === "pbs") ? CRISIS_SAFETY.parent.map(toSchoolParentText) : CRISIS_SAFETY.parent;
@@ -1377,6 +1427,8 @@ function MainApp() {
   const hadCasesAtLoad = React.useRef(false);
   const [loadError, setLoadError] = useState("");      // 불러오기 실패 안내 (이때는 저장하지 않음)
   const [reloadTick, setReloadTick] = useState(0);
+  const [openSection, setOpenSection] = useState(null); // 확인 대기 목록에서 열면 중재안 탭으로 바로
+  const [openFunc, setOpenFunc] = useState(null);       // …그리고 요청한 기능으로
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
   const casesRef = React.useRef([]);
   const baseRef = React.useRef([]);     // 마지막으로 서버와 맞춘 내 케이스
@@ -1728,7 +1780,9 @@ function MainApp() {
             c={selectedCase}
             isAdmin={isAdmin}
             readOnly={!editable}
-            onBack={() => setSelectedId(null)}
+            initialSection={openSection}
+            initialFunc={openFunc}
+            onBack={() => { setSelectedId(null); setOpenSection(null); setOpenFunc(null); }}
             onAddRecord={(rec) => addRecord(selectedCase.id, rec)}
             onRemoveRecord={(recId) => removeRecord(selectedCase.id, recId)}
             onUpdateRecord={(recId, rec) => updateRecord(selectedCase.id, recId, rec)}
@@ -1750,6 +1804,7 @@ function MainApp() {
 
       <div style={{ flex: 1, maxWidth: 860, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "0 16px 40px" }}>
         {isAdmin && <AdminPanel />}
+        {isAdmin && loaded && <ApprovalQueue cases={cases} onOpen={(c, func) => { setTab(c.type); setOpenSection("bip"); setOpenFunc(func || null); setSelectedId(c.id); }} />}
 
         <div style={{ display: "flex", gap: 8, margin: "18px 0" }}>
           <TabBtn active={tab === "center"} onClick={() => setTab("center")}>
@@ -1862,6 +1917,52 @@ function Header({ current, isAdmin, onLogout, saveStatus, onRetrySave }) {
 }
 
 // ── 관리자 패널: 선생님 계정 추가/삭제 ──────────
+// 원장 첫 화면: 선생님이 확인을 요청했고 아직 확인하지 않은 BIP 목록
+function ApprovalQueue({ cases, onOpen }) {
+  const [items, setItems] = useState(null);
+  const casesRef = React.useRef(cases);
+  casesRef.current = cases;
+  const caseIdsKey = cases.map((x) => `${x._ownerId || ""}:${x.id}`).join(",");
+  const load = React.useCallback(async () => {
+    setItems(null);
+    const reqs = await listStore("request::");
+    const aps = await Promise.all(reqs.map((r) => bipStore.get(String(r._key).replace(SKEY("request::"), "approval::"))));
+    const pending = [];
+    reqs.forEach((r, i) => {
+      const ap = aps[i];
+      // 확인함: 요청 때 내용 그대로 확인했거나, 요청보다 나중에 확인한 경우 (확인 취소는 hash가 비어 있음)
+      if (ap && ap.hash && (ap.hash === r.hash || String(ap.at) >= String(r.at))) return;
+      const c = casesRef.current.find((x) => String(x.id) === String(r.caseId) && (x._ownerId || "") === (r.ownerId || ""));
+      pending.push({ ...r, c: c || null });
+    });
+    pending.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    setItems(pending);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseIdsKey]);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <div style={{ background: "#fff", borderRadius: 14, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 12px rgba(212,114,138,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: items && items.length ? 10 : 0 }}>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>📝 확인 기다리는 BIP {items ? `${items.length}건` : ""}</span>
+        <button onClick={load} style={{ marginLeft: "auto", fontSize: 11.5, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>↻ 새로고침</button>
+      </div>
+      {items === null && <div style={{ fontSize: 12.5, color: MUTE, marginTop: 6 }}>불러오는 중…</div>}
+      {items && items.length === 0 && <div style={{ fontSize: 12.5, color: MUTE, marginTop: 6 }}>지금 확인을 기다리는 BIP가 없습니다.</div>}
+      {items && items.length > 0 && (
+        <div style={{ display: "grid", gap: 6 }}>
+          {items.map((it) => (
+            <button key={it._key} onClick={() => { if (it.c) onOpen(it.c, it.func); else window.alert("원장님 화면을 연 뒤에 새로 만든 케이스입니다. 페이지를 새로고침한 뒤 다시 눌러 주세요."); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", background: "#FFF9FA", border: `1px solid ${PKL}`, borderRadius: 10, padding: "9px 12px", cursor: "pointer", fontSize: 13, color: INK }}>
+              <b>{it.child || it.c.name}</b>
+              <span style={{ color: MUTE, fontSize: 12 }}>{it.setting === "school" ? "학교" : "센터"} · {it.funcName}{!it.c ? " · 새로고침 필요" : ""}</span>
+              <span style={{ marginLeft: "auto", color: MUTE, fontSize: 11.5 }}>{it.teacher ? `${it.teacher} 선생님 · ` : ""}{new Date(it.at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminPanel() {
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState([]);
@@ -2030,11 +2131,11 @@ const SEVERITY = [
   { v: "중도", label: "중도", desc: "보건·안전에 대한 중대한 위협", color: "#D85A5A" },
 ];
 
-function CaseDetail({ c, isAdmin, readOnly = false, onBack, onAddRecord, onRemoveRecord, onUpdateRecord, onAddAssessment, onRemoveAssessment, onUpdateAssessment, onUpdateCase, onRemoveCase }) {
+function CaseDetail({ c, isAdmin, readOnly = false, initialSection = null, initialFunc = null, onBack, onAddRecord, onRemoveRecord, onUpdateRecord, onAddAssessment, onRemoveAssessment, onUpdateAssessment, onUpdateCase, onRemoveCase }) {
   const [showForm, setShowForm] = useState(false);
   const [editAsmt, setEditAsmt] = useState(null);   // 응답을 고치는 중인 평가
   const [editInfo, setEditInfo] = useState(false);  // 케이스 정보 수정 중
-  const [section, setSection] = useState("record"); // record | assess | bip
+  const [section, setSection] = useState(initialSection || "record"); // record | assess | bip
   const [runningScale, setRunningScale] = useState(null); // 진행 중인 척도 id
   const [confirmDel, setConfirmDel] = useState(false);
   const [abcSubs, setAbcSubs] = useState([]);        // 받은 외부 ABC 제출
@@ -2264,7 +2365,7 @@ function CaseDetail({ c, isAdmin, readOnly = false, onBack, onAddRecord, onRemov
       )}
 
       {section === "bip" && (
-        <BIPSection c={c} assessments={assessments} onUpdateCase={onUpdateCase} readOnly={readOnly} isAdmin={isAdmin} />
+        <BIPSection c={c} assessments={assessments} onUpdateCase={onUpdateCase} readOnly={readOnly} isAdmin={isAdmin} initialFunc={initialFunc} />
       )}
     </div>
   );
@@ -3328,11 +3429,11 @@ function AssessmentRunner({ scaleId, caseId, childName, target, initialAnswers, 
 // ══════════════════════════════════════════════
 //  중재안(BIP) 섹션 — 템플릿 기반 생성
 // ══════════════════════════════════════════════
-function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = false }) {
+function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = false, initialFunc = null }) {
   const agg = React.useMemo(() => aggregateFunction(assessments), [assessments]);
   // 고른 기능은 케이스에 저장해 다음에 들어와도 그대로 보이게 한다
   const savedFunc = c.bipFunc && UNIFIED_FUNC_NAME[c.bipFunc] ? c.bipFunc : null;
-  const [chosenFuncState, setChosenFuncState] = useState(savedFunc);
+  const [chosenFuncState, setChosenFuncState] = useState(readOnly && initialFunc && UNIFIED_FUNC_NAME[initialFunc] ? initialFunc : savedFunc); // 원장이 확인 대기 목록에서 열면 요청한 기능으로
   // 내 케이스: 저장된 값을 따름(다른 기기에서 바꾼 것도 반영) / 열람 중인 남의 케이스: 방금 누른 것을 보여 줌(저장 안 됨)
   const chosenFunc = readOnly ? (chosenFuncState || savedFunc) : (savedFunc || chosenFuncState);
   const setChosenFunc = (f) => { setChosenFuncState(f); if (!readOnly && onUpdateCase) onUpdateCase({ bipFunc: f }); };
@@ -3458,7 +3559,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const [parentAiState, setParentAiState] = useState("idle"); // idle | loading | error
   const [parentAiErr, setParentAiErr] = useState("");
   // 부모용 기준값(편집 시작점): AI변환 > 템플릿
-  const parentBase = parentAi || parentBipFor(bip.func, bip.setting);
+  const parentBase = parentAi || parentBipFor(bip.func, bip.setting, bip.secondaryFuncs);
   // 부모용 편집본 (환경별, 기능 불일치 시 무시)
   // 편집본은 기능마다 따로 저장 (예전 방식으로 저장된 것도 기능이 같으면 읽음)
   const pEditKey = `editedParent_${bip.setting}_${bip.func}`;
@@ -3524,7 +3625,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     try {
       const files = Array.from(fileList).slice(0, 6);
       const encoded = [];
-      for (const f of files) encoded.push(await compressImage(f));
+      for (const f of files) encoded.push(await storeBipPhoto(await compressImage(f, 1600, 0.88)));
       setPDraft((d) => {
         const nextPhotos = { ...d.photos, [section]: [...d.photos[section], ...encoded] };
         if (JSON.stringify({ ...d, photos: nextPhotos }).length > 4_000_000) {
@@ -3555,7 +3656,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     try {
       // 선생님이 고친 전문가용(또는 AI 생성본) 내용을 바탕으로 부모님용을 만든다
       // 부모용 AI의 바탕: 선생님이 고친 부모님용 편집본이 있으면 그것, 없으면 원장 기본 문안 (예전 AI 결과는 바탕으로 쓰지 않음)
-      const defP = parentBipFor(bip.func, bip.setting);
+      const defP = parentBipFor(bip.func, bip.setting, bip.secondaryFuncs);
       const pBase = {
         why: savedParent?.why ?? defP.why,
         prevent: savedParent?.prevent?.length ? savedParent.prevent : defP.prevent,
@@ -3630,16 +3731,29 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const [approval, setApproval] = useState(null);
   const [approvalState, setApprovalState] = useState("loading"); // loading | ready | error
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const requestKey = approvalKey.replace(/^approval::/, "request::");
+  const [request, setRequest] = useState(null);
   const loadApproval = React.useCallback(async () => {
     setApprovalState("loading");
-    const v = await bipStore.get(approvalKey);
+    const [v, rq] = await Promise.all([bipStore.get(approvalKey), isAdmin ? Promise.resolve(null) : bipStore.get(requestKey)]);
     setApproval(v && typeof v === "object" ? v : null);
+    setRequest(rq && typeof rq === "object" ? rq : null);
     setApprovalState("ready");
-  }, [approvalKey]);
+  }, [approvalKey, requestKey, isAdmin]);
+  // 선생님: 원장님께 확인 요청 (원장 첫 화면 '확인 기다리는 BIP'에 뜬다)
+  const sendRequest = async () => {
+    setApprovalBusy(true);
+    const val = { hash: approvalSig, at: new Date().toISOString(), caseId: c.id, ownerId: c._ownerId || "", child: c.name || "", teacher: c.owner || "", type: c.type, setting: bip.setting, func: bip.func, funcName: (bip.funcName || "").split(" (")[0] };
+    const r = await bipStore.set(requestKey, val);
+    setApprovalBusy(false);
+    if (!r) { window.alert("확인 요청을 보내지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요."); return; }
+    setRequest(val);
+  };
   useEffect(() => { if (!isAdmin || readOnly) loadApproval(); }, [loadApproval, isAdmin, readOnly]);
   const approved = !!(approval && approval.hash === approvalSig);
   const needsApproval = !isAdmin;              // 원장 본인 문서는 바로 인쇄
   const exportLocked = needsApproval && !approved;
+  const reviewMode = isAdmin && readOnly; // 원장이 선생님 BIP를 확인하는 화면: 기본 문안과 다른 문장만 표시
   const aiOnlyOnScreen = readOnly && (aiKey in aiLocal || aiParentKey in aiLocal); // 원장이 화면에서만 돌린 AI 결과는 승인 대상 아님
   const approveNow = async () => {
     setApprovalBusy(true);
@@ -3740,7 +3854,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     try {
       const files = Array.from(fileList).slice(0, 6);
       const encoded = [];
-      for (const f of files) encoded.push(await compressImage(f));
+      for (const f of files) encoded.push(await storeBipPhoto(await compressImage(f, 1600, 0.88)));
       setDraft((d) => {
         const nextPhotos = { ...d.photos, [section]: [...d.photos[section], ...encoded] };
         // 누적 용량 확인 (사진 base64 합산). 한계 초과면 추가 취소하고 경고
@@ -3778,12 +3892,40 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     setTimeout(() => setCopyMsg(""), ok ? 2200 : 5000);
   };
   // 전문가용 문서를 내보내기 전에 목표행동이 비어 있으면 한 번 묻는다
+  // 내보내기 전 자동 점검: AI 빈칸 "(____)"·"(  )분" 같은 채울 곳, 비어 있는 칸을 위치와 함께 알려 주고 멈춘다
+  const BLANK_RE = /\(\s*_{2,}\s*\)|_{3,}|\(\s{2,}\)/;
+  const exportProblems = (mode = viewMode) => {
+    const out = [];
+    const check = (label, text) => { if (!String(text || "").trim()) out.push(`${label}: 내용이 비어 있음`); else if (BLANK_RE.test(text)) out.push(`${label}: 빈칸이 남아 있음`); };
+    const checkList = (title, items) => { if (!items || !items.length) out.push(`${title}: 항목이 없음`); (items || []).forEach((t, i) => check(`${title} ${i + 1}번째 항목`, t)); };
+    if (mode === "parent") {
+      check("왜 이런 행동을 할까요", parentContent.why);
+      checkList("미리 예방해요", parentContent.prevent);
+      checkList("다른 행동을 가르쳐요", parentContent.teach);
+      checkList("이렇게 반응해주세요", parentContent.respond);
+    } else {
+      check("1. 기능 가설", showHyp);
+      check("1. 행동의 의미", showMean);
+      checkList("2. 선행중재", showAnt);
+      checkList("3. 대체행동중재", showRep);
+      checkList("4. 후속결과중재", showCon);
+    }
+    return out;
+  };
+  const passExportCheck = () => {
+    const probs = exportProblems();
+    if (!probs.length) return true;
+    window.alert("PDF·복사 전에 채워야 할 곳이 있습니다.\n\n- " + probs.slice(0, 8).join("\n- ") + (probs.length > 8 ? `\n… 외 ${probs.length - 8}곳` : "") +
+      "\n\n" + (viewMode === "parent" ? "부모님용 '✏️ 편집'" : "'✏️ 편집'") + "에서 채운 뒤 다시 눌러 주세요.");
+    return false;
+  };
   const confirmTargetFilled = () => {
     if (viewMode === "parent" || (c.target || "").trim()) return true;
-    return window.confirm("목표행동(표적행동)이 비어 있습니다.\n문서의 표적행동 칸이 '미설정'으로 나가고, 가설에는 '도전적 행동'으로 표시됩니다.\n\n그래도 계속할까요?");
+    return window.confirm("목표행동(표적행동)이 비어 있습니다.\n문서의 표적행동 칸이 빈칸(________)으로 나가고, 가설에는 '도전적 행동'으로 표시됩니다.\n\n그래도 계속할까요?");
   };
   const copyText = () => {
     if (exportLocked) return;
+    if (!passExportCheck()) return;
     if (!confirmTargetFilled()) return;
     if (viewMode === "parent") {
       const pc = parentContent;
@@ -3820,10 +3962,11 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const tierName = { primary: "1차 기능", secondary: "2차 기능", tertiary: "별도 기능" };
     const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
-    const tiers = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor") : []);
+    const tiers = docTiers(agg, bip);
+    const tierNote = docTierNote(tiers, bip);
     const li = (arr) => arr.map((t) => `<div class="item">${esc(t)}</div>`).join("");
     const photoHtml = (arr) => (!arr || !arr.length) ? "" :
-      `<div class="photos">${arr.map((src) => `<img class="photo" src="${src}" />`).join("")}</div>`;
+      `<div class="photos">${arr.map(photoSrc).filter(Boolean).map((u) => `<img class="photo" src="${u}" />`).join("")}</div>`;
     const title = bip.setting === "school" ? "개별 행동중재계획서 (PBIP)" : "행동중재계획 (BIP)";
     const aiBadge = "";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(c.name)}_BIP</title>
@@ -3869,9 +4012,9 @@ h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#3A2C30;margin:0 0 
 
 <div class="sec">
 <div class="secH"><span class="n">1</span><span class="t">행동의 기능 및 가설</span></div>
-<div class="meta"><b>표적행동</b> · ${esc((c.target || "").trim() || "미설정")}</div>
-<div class="meta">${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} — ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}</div>
-<div class="hyp"><b>주 기능: ${esc(bip.funcName)}${agg && agg.primary && (agg.ambiguous || agg.primary !== bip.func) ? " (직접 선택)" : ""}</b><br>${esc(showHyp)}</div>
+<div class="meta"><b>표적행동</b> · ${esc(targetLabel(c.target))}</div>
+<div class="meta">${tiers.map((t) => `<span class="tier">${tierName[t.tier]}</span>${fn(t.func)} — ${esc(FUNC_HYPOTHESIS_SHORT[t.func])}`).join("<br>")}${tierNote ? `<br><span style="color:#9A8A8F">${esc(tierNote)}</span>` : ""}</div>
+<div class="hyp"><b>주 기능: ${esc(mainFuncLabel(bip, agg))}</b><br>${esc(showHyp)}</div>
 <div class="meta"><b>행동의 의미</b><br>${esc(showMean)}</div>
 </div>
 
@@ -3916,7 +4059,7 @@ ${""}
     const nm = displayName(c.name);
     const pc = parentContent;
     const pPhotoHtml = (arr) => (!arr || !arr.length) ? "" :
-      `<div class="pphotos">${arr.map((src) => `<img class="pphoto" src="${src}" />`).join("")}</div>`;
+      `<div class="pphotos">${arr.map(photoSrc).filter(Boolean).map((u) => `<img class="pphoto" src="${u}" />`).join("")}</div>`;
     const listBlock = (emoji, title, items, accent, bg, photoArr) => `
 <div class="pblock">
   <div class="ph">${emoji ? `<span class="pe">${emoji}</span>` : ""}<span class="pt" style="color:${accent}">${esc(title)}</span></div>
@@ -3969,14 +4112,24 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
   };
 
   const [printWarn, setPrintWarn] = useState(false);
-  const doPrint = () => {
+  const doPrint = async () => {
     if (exportLocked) return;
+    if (!passExportCheck()) return;
     if (!confirmTargetFilled()) return;
     setPrintWarn(false);
-    const w = window.open("", "_blank");
+    const w = window.open("", "_blank"); // 누른 순간에 창을 열어야 팝업 차단에 걸리지 않는다
     if (!w) { setPrintWarn(true); return; }
-    w.document.write(viewMode === "parent" ? buildParentHtml() : buildHtml());
-    w.document.close();
+    // 보관함 사진은 임시 주소를 먼저 받아 온 뒤 문서를 쓴다
+    const refs = collectPhotoRefs(viewMode === "parent" ? [parentPhotos, showVisualCards] : [showPhotos, showVisualCardsX]);
+    if (refs.length) {
+      try { w.document.write("<p style='font-family:sans-serif;padding:40px;color:#888'>사진을 불러오는 중…</p>"); } catch (e) {}
+      await resolvePhotoRefs(refs);
+      try { if (w.document.open) w.document.open(); } catch (e) {}
+    }
+    try {
+      w.document.write(viewMode === "parent" ? buildParentHtml() : buildHtml());
+      w.document.close();
+    } catch (e) { return; } // 기다리는 동안 창을 닫은 경우
     // 로고·사진이 다 뜬 뒤에 인쇄 (느린 아이패드에서 사진이 빠진 PDF가 되지 않게, 최대 6초 기다림)
     let printed = false;
     const go = () => { if (printed) return; printed = true; setTimeout(() => { try { w.print(); } catch (e) {} }, 250); };
@@ -4076,6 +4229,9 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
               : (approval && approval.hash ? "원장님 확인 뒤 내용이 바뀌어 다시 확인이 필요합니다. 원장님께 확인을 요청해 주세요."
                 : "원장님 확인 전이라 PDF 저장·복사가 잠겨 있습니다. 원장님께 확인을 요청해 주세요.")}
           </span>
+          {!approved && approvalState === "ready" && (request && request.hash === approvalSig
+            ? <span style={{ fontSize: 11, color: "#8A5A1E" }}>확인 요청함 ({new Date(request.at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })})</span>
+            : <button onClick={sendRequest} disabled={approvalBusy || (exportProblems("expert").length + exportProblems("parent").length) > 0} title={(exportProblems("expert").length + exportProblems("parent").length) ? "전문가용·부모님용의 빈칸을 먼저 채워 주세요" : "원장님께 확인 요청"} style={{ ...btnPrimary, padding: "5px 12px", fontSize: 12, opacity: (exportProblems("expert").length + exportProblems("parent").length) ? 0.5 : 1 }}>{approvalBusy ? "보내는 중…" : "원장님께 확인 요청"}</button>)}
           {!approved && approvalState !== "loading" && <button onClick={loadApproval} style={{ fontSize: 11, color: "#8A5A1E", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>↻ 다시 확인</button>}
         </div>
       )}
@@ -4087,6 +4243,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
               : aiOnlyOnScreen ? "원장님 화면에서만 만든 AI 결과가 보이는 중이라 확인할 수 없습니다. 페이지를 새로 열어 선생님이 저장한 내용으로 확인해 주세요."
               : approved ? "✓ 확인 완료 — 선생님이 이 내용으로 PDF 저장·복사를 할 수 있습니다. (전문가용·부모님용 모두)"
               : (approval && approval.hash ? "확인한 뒤 내용이 바뀌었습니다. 지금 내용을 다시 확인해 주세요." : "선생님 BIP — 아직 확인 전입니다. 전문가용·부모님용을 읽어 보신 뒤 확인을 눌러 주세요.")}
+            {approvalState === "ready" && !aiOnlyOnScreen && !approved && <><br /><span style={{ fontSize: 11.5 }}>노란색 <b>[바뀜]</b>은 지금 원장님 기본 문안과 다른 문장(AI 글·선생님 수정·예전 문안), 줄 그은 <b>[빠짐]</b>은 들어 있지 않은 기본 항목입니다. 흐린 문장은 기본 문안 그대로입니다.</span></>}
           </span>
           {approvalState === "ready" && !aiOnlyOnScreen && !approved && (
             <button onClick={approveNow} disabled={approvalBusy} style={{ ...btnPrimary, padding: "5px 12px", fontSize: 12 }}>{approvalBusy ? "저장 중…" : "✓ 이 내용으로 확인"}</button>
@@ -4147,7 +4304,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
         {pEditing && pErr && (
           <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{pErr}</div>
         )}
-        <ParentView school={bip.setting === "school"} content={parentContent} childName={c.name}
+        <ParentView school={bip.setting === "school"} reviewBase={reviewMode ? parentBipFor(bip.func, bip.setting, bip.secondaryFuncs) : null} content={parentContent} childName={c.name}
           visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard} onAddCard={addPVisualCard} onSlotPhoto={setPCardSlotPhoto}
           editing={pEditing} draft={pDraft} photos={parentPhotos}
           onField={setPField} onItem={setPItem} onAddItem={addPItem} onRemoveItem={removePItem}
@@ -4195,14 +4352,14 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 5 }}>표적행동 (도전적 행동)</div>
           <div style={{ padding: "10px 12px", background: "#FFF9FA", borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
-            {c.target || "목표행동 미설정"}
+            {targetLabel(c.target, "(목표행동을 입력해 주세요)")}
           </div>
         </div>
 
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 6 }}>기능 가설</div>
           <div style={{ display: "grid", gap: 8 }}>
-            {agg && agg.tiers.filter((t) => t.tier === "primary" || t.tier === "secondary" || t.tier === "tertiary").map((t) => (
+            {docTiers(agg, bip).map((t) => (
               <div key={t.func} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                 <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: "#fff", background: TIER_COLOR[t.tier], padding: "3px 9px", borderRadius: 10, minWidth: 58, textAlign: "center", marginTop: 1 }}>
                   {TIER_LABEL[t.tier]}
@@ -4214,27 +4371,28 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
               </div>
             ))}
           </div>
+          {docTierNote(docTiers(agg, bip), bip) && <div style={{ fontSize: 11.5, color: MUTE, marginTop: 6 }}>{docTierNote(docTiers(agg, bip), bip)}</div>}
         </div>
 
         <div style={{ padding: "12px 14px", background: PKL, borderRadius: 10, fontSize: 13.5, lineHeight: 1.7, marginBottom: 12 }}>
-          <span style={{ fontWeight: 700, color: PKD }}>주 기능: {bip.funcName}{agg && agg.primary && (agg.ambiguous || agg.primary !== bip.func) ? " (직접 선택)" : ""}</span><br />
+          <span style={{ fontWeight: 700, color: PKD }}>주 기능: {mainFuncLabel(bip, agg)}</span><br />
           {editing
             ? <div style={{ marginTop: 6 }}><EditableText value={draft.hypothesis} onChange={(v) => setDraftField("hypothesis", v)} /></div>
-            : showHyp}
+            : (reviewMode && showHyp !== baseHyp ? <span style={{ background: "#FFF4C2", borderRadius: 4 }}><b style={{ fontSize: 10.5, color: "#8A6D1E", marginRight: 4 }}>[바뀜]</b>{showHyp}</span> : showHyp)}
         </div>
 
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: INK, marginBottom: 5 }}>행동의 의미</div>
           {editing
             ? <EditableText value={draft.meaning} onChange={(v) => setDraftField("meaning", v)} />
-            : <div style={{ fontSize: 13, lineHeight: 1.7, color: INK }}>{showMean}</div>}
+            : <div style={{ fontSize: 13, lineHeight: 1.7, color: INK, ...(reviewMode && showMean !== baseMean ? { background: "#FFF4C2", borderRadius: 6, padding: "4px 6px" } : {}) }}>{reviewMode && showMean !== baseMean && <b style={{ fontSize: 10.5, color: "#8A6D1E", marginRight: 4 }}>[바뀜]</b>}{showMean}</div>}
         </div>
       </BIPBlock>
 
       <BIPBlock num="2" title="선행중재 (예방 전략)">
         {editing
           ? <EditableList items={draft.antecedent} onChange={(i, v) => setDraftItem("antecedent", i, v)} onAdd={() => addDraftItem("antecedent")} onRemove={(i) => removeDraftItem("antecedent", i)} />
-          : <BulletList items={showAnt} />}
+          : <BulletList items={showAnt} base={reviewMode ? bip.antecedent : null} />}
         {editing
           ? <PhotoEditor photos={draft.photos.antecedent} onAdd={(fl) => addDraftPhotos("antecedent", fl)} onRemove={(i) => removeDraftPhoto("antecedent", i)} />
           : <PhotoStrip photos={showPhotos.antecedent} />}
@@ -4243,7 +4401,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
       <BIPBlock num="3" title="대체행동중재 (교수 전략)">
         {editing
           ? <EditableList items={draft.replacement} onChange={(i, v) => setDraftItem("replacement", i, v)} onAdd={() => addDraftItem("replacement")} onRemove={(i) => removeDraftItem("replacement", i)} />
-          : <BulletList items={showRep} />}
+          : <BulletList items={showRep} base={reviewMode ? bip.replacement : null} />}
         {editing
           ? <PhotoEditor photos={draft.photos.replacement} onAdd={(fl) => addDraftPhotos("replacement", fl)} onRemove={(i) => removeDraftPhoto("replacement", i)} />
           : <PhotoStrip photos={showPhotos.replacement} />}
@@ -4252,7 +4410,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
       <BIPBlock num="4" title="후속결과중재 (반응 전략)">
         {editing
           ? <EditableList items={draft.consequence} onChange={(i, v) => setDraftItem("consequence", i, v)} onAdd={() => addDraftItem("consequence")} onRemove={(i) => removeDraftItem("consequence", i)} />
-          : <BulletList items={showCon} />}
+          : <BulletList items={showCon} base={reviewMode ? bip.consequence : null} />}
         {editing
           ? <PhotoEditor photos={draft.photos.consequence} onAdd={(fl) => addDraftPhotos("consequence", fl)} onRemove={(i) => removeDraftPhoto("consequence", i)} />
           : <PhotoStrip photos={showPhotos.consequence} />}
@@ -4503,7 +4661,7 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
 // ── 부모님용 쉬운 안내를 AI가 이 아이 맞춤으로 재작성 ───
 async function enhanceParentBIP(bip, c, parentBase) {
   // [3단계] 프롬프트 조립을 서버(bip-ai)로 이관. 재료(child·bip)만 보낸다.
-  const res = await callBipAI({ type: "parent", child: childForAI(c), bip, parentBase: parentBase || parentBipFor(bip.func, bip.setting), model: "claude-sonnet-5", max_tokens: 4000, stream: false });
+  const res = await callBipAI({ type: "parent", child: childForAI(c), bip, parentBase: parentBase || parentBipFor(bip.func, bip.setting, bip.secondaryFuncs), model: "claude-sonnet-5", max_tokens: 4000, stream: false });
   const data = await res.json();
   const text = Array.isArray(data.content)
     ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
@@ -4540,7 +4698,7 @@ async function enhanceParentBIP(bip, c, parentBase) {
     const r = dropUnsafeAI(out[k]); out[k] = r.keep; safetyDropped += r.dropped;
   });
   // 빈 항목은 기존 템플릿으로 보완하고 표시해 둔다
-  const defBase = parentBipFor(bip.func, bip.setting);
+  const defBase = parentBipFor(bip.func, bip.setting, bip.secondaryFuncs);
   const base = parentBase || defBase; // 빈 칸은 AI에 준 바탕(선생님 편집본 또는 기본 문안)으로 채움
   const filled = [];
   if (!out.why) filled.push("why");
@@ -4874,7 +5032,166 @@ function cardIconSvg(name) {
 }
 
 // 시각카드 1장 → 워드용 HTML 문자열
+// ── 시각카드 그림: 기기마다 다르게 보이는 이모지 대신 고화질 입체 그림(Microsoft Fluent Emoji 3D, MIT 허가)으로 ──
+const FLUENT_BASE = "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/";
+const FLUENT_MAP = {
+"1️⃣": "Keycap%201/3D/keycap_1_3d.png",
+"2️⃣": "Keycap%202/3D/keycap_2_3d.png",
+"⏰": "Alarm%20clock/3D/alarm_clock_3d.png",
+"⏳": "Hourglass%20not%20done/3D/hourglass_not_done_3d.png",
+"☀️": "Sun/3D/sun_3d.png",
+"☁️": "Cloud/3D/cloud_3d.png",
+"✂": "Scissors/3D/scissors_3d.png",
+"✋": "Raised%20hand/Default/3D/raised_hand_3d_default.png",
+"✌️": "Victory%20hand/Default/3D/victory_hand_3d_default.png",
+"✏️": "Pencil/3D/pencil_3d.png",
+"✨": "Sparkles/3D/sparkles_3d.png",
+"❌": "Cross%20mark/3D/cross_mark_3d.png",
+"❤️": "Red%20heart/3D/red_heart_3d.png",
+"➕": "Plus/3D/plus_3d.png",
+"➡️": "Right%20arrow/3D/right_arrow_3d.png",
+"⭐": "Star/3D/star_3d.png",
+"⭕": "Hollow%20red%20circle/3D/hollow_red_circle_3d.png",
+"🌅": "Sunrise/3D/sunrise_3d.png",
+"🌙": "Crescent%20moon/3D/crescent_moon_3d.png",
+"🌟": "Glowing%20star/3D/glowing_star_3d.png",
+"🌧️": "Cloud%20with%20rain/3D/cloud_with_rain_3d.png",
+"🌬️": "Wind%20face/3D/wind_face_3d.png",
+"🍚": "Cooked%20rice/3D/cooked_rice_3d.png",
+"🍪": "Cookie/3D/cookie_3d.png",
+"🍬": "Candy/3D/candy_3d.png",
+"🍽️": "Fork%20and%20knife%20with%20plate/3D/fork_and_knife_with_plate_3d.png",
+"🎁": "Wrapped%20gift/3D/wrapped_gift_3d.png",
+"🎈": "Balloon/3D/balloon_3d.png",
+"🎉": "Party%20popper/3D/party_popper_3d.png",
+"🎒": "Backpack/3D/backpack_3d.png",
+"🎯": "Bullseye/3D/bullseye_3d.png",
+"🏠": "House/3D/house_3d.png",
+"👀": "Eyes/3D/eyes_3d.png",
+"👁️": "Eye/3D/eye_3d.png",
+"👂": "Ear/Default/3D/ear_3d_default.png",
+"👃": "Nose/Default/3D/nose_3d_default.png",
+"👆": "Backhand%20index%20pointing%20up/Default/3D/backhand_index_pointing_up_3d_default.png",
+"👉": "Backhand%20index%20pointing%20right/Default/3D/backhand_index_pointing_right_3d_default.png",
+"👍": "Thumbs%20up/Default/3D/thumbs_up_3d_default.png",
+"👏": "Clapping%20hands/Default/3D/clapping_hands_3d_default.png",
+"👖": "Jeans/3D/jeans_3d.png",
+"👟": "Running%20shoe/3D/running_shoe_3d.png",
+"👦": "Boy/Default/3D/boy_3d_default.png",
+"👧": "Girl/Default/3D/girl_3d_default.png",
+"👩": "Woman/Default/3D/woman_3d_default.png",
+"👩‍🏫": "Woman%20teacher/Default/3D/woman_teacher_3d_default.png",
+"👵": "Old%20woman/Default/3D/old_woman_3d_default.png",
+"💡": "Light%20bulb/3D/light_bulb_3d.png",
+"💧": "Droplet/3D/droplet_3d.png",
+"💪": "Flexed%20biceps/Default/3D/flexed_biceps_3d_default.png",
+"💺": "Seat/3D/seat_3d.png",
+"📅": "Calendar/3D/calendar_3d.png",
+"📖": "Open%20book/3D/open_book_3d.png",
+"📚": "Books/3D/books_3d.png",
+"📱": "Mobile%20phone/3D/mobile_phone_3d.png",
+"📷": "Camera/3D/camera_3d.png",
+"🔔": "Bell/3D/bell_3d.png",
+"🔢": "Input%20numbers/3D/input_numbers_3d.png",
+"🗣️": "Speaking%20head/3D/speaking_head_3d.png",
+"😁": "Beaming%20face%20with%20smiling%20eyes/3D/beaming_face_with_smiling_eyes_3d.png",
+"😄": "Grinning%20face%20with%20smiling%20eyes/3D/grinning_face_with_smiling_eyes_3d.png",
+"😊": "Smiling%20face%20with%20smiling%20eyes/3D/smiling_face_with_smiling_eyes_3d.png",
+"😌": "Relieved%20face/3D/relieved_face_3d.png",
+"😟": "Worried%20face/3D/worried_face_3d.png",
+"😠": "Angry%20face/3D/angry_face_3d.png",
+"😢": "Crying%20face/3D/crying_face_3d.png",
+"😣": "Persevering%20face/3D/persevering_face_3d.png",
+"😨": "Fearful%20face/3D/fearful_face_3d.png",
+"😮": "Face%20with%20open%20mouth/3D/face_with_open_mouth_3d.png",
+"😮‍💨": "Face%20exhaling/3D/face_exhaling_3d.png",
+"😰": "Anxious%20face%20with%20sweat/3D/anxious_face_with_sweat_3d.png",
+"😴": "Sleeping%20face/3D/sleeping_face_3d.png",
+"😷": "Face%20with%20medical%20mask/3D/face_with_medical_mask_3d.png",
+"🙂": "Slightly%20smiling%20face/3D/slightly_smiling_face_3d.png",
+"🙋": "Person%20raising%20hand/Default/3D/person_raising_hand_3d_default.png",
+"🙌": "Raising%20hands/Default/3D/raising_hands_3d_default.png",
+"🙏": "Folded%20hands/Default/3D/folded_hands_3d_default.png",
+"🚧": "Construction/3D/construction_3d.png",
+"🚫": "Prohibited/3D/prohibited_3d.png",
+"🚶": "Person%20walking/Default/3D/person_walking_3d_default.png",
+"🚽": "Toilet/3D/toilet_3d.png",
+"🚿": "Shower/3D/shower_3d.png",
+"🛁": "Bathtub/3D/bathtub_3d.png",
+"🟣": "Purple%20circle/3D/purple_circle_3d.png",
+"🟨": "Yellow%20square/3D/yellow_square_3d.png",
+"🤝": "Handshake/3D/handshake_3d.png",
+"🤢": "Nauseated%20face/3D/nauseated_face_3d.png",
+"🤫": "Shushing%20face/3D/shushing_face_3d.png",
+"🤲": "Palms%20up%20together/Default/3D/palms_up_together_3d_default.png",
+"🤸": "Person%20cartwheeling/Default/3D/person_cartwheeling_3d_default.png",
+"🥤": "Cup%20with%20straw/3D/cup_with_straw_3d.png",
+"🥵": "Hot%20face/3D/hot_face_3d.png",
+"🥶": "Cold%20face/3D/cold_face_3d.png",
+"🦷": "Tooth/3D/tooth_3d.png",
+"🧍": "Person%20standing/Default/3D/person_standing_3d_default.png",
+"🧒": "Child/Default/3D/child_3d_default.png",
+"🧦": "Socks/3D/socks_3d.png",
+"🧩": "Puzzle%20piece/3D/puzzle_piece_3d.png",
+"🧸": "Teddy%20bear/3D/teddy_bear_3d.png",
+"🧹": "Broom/3D/broom_3d.png",
+"🧼": "Soap/3D/soap_3d.png",
+"🪑": "Chair/3D/chair_3d.png",
+"↔": "Left-right%20arrow/3D/left-right_arrow_3d.png",
+"👕": "T-shirt/3D/t-shirt_3d.png",
+"😡": "Pouting%20face/3D/pouting_face_3d.png",
+"🙅": "Person%20gesturing%20no/Default/3D/person_gesturing_no_3d_default.png",
+"🙆": "Person%20gesturing%20ok/Default/3D/person_gesturing_ok_3d_default.png",
+"🤕": "Face%20with%20head-bandage/3D/face_with_head-bandage_3d.png",
+"🤗": "Hugging%20face/3D/hugging_face_3d.png"
+};
+const FLUENT_RE = (() => {
+  const keys = new Set();
+  Object.keys(FLUENT_MAP).forEach((k) => { keys.add(k); keys.add(k.replace(/\uFE0F/g, "")); });
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("(?:" + [...keys].filter(Boolean).sort((a, b) => b.length - a.length).map(esc).join("|") + ")\uFE0F?", "g");
+})();
+function fluentUrl(ch) {
+  const k = FLUENT_MAP[ch] || FLUENT_MAP[ch.replace(/\uFE0F/g, "")] || FLUENT_MAP[ch.replace(/\uFE0F/g, "") + "\uFE0F"];
+  return k ? FLUENT_BASE + k : null;
+}
+const FLUENT_IMG_SCALE = 1.7; // 그림 크기(글자 크기의 몇 배): 아이가 보는 카드 그림을 또렷하게
+const FLUENT_IMG_STYLE = { height: FLUENT_IMG_SCALE + "em", width: FLUENT_IMG_SCALE + "em", verticalAlign: "-0.45em", objectFit: "contain", display: "inline-block" };
+function emojifyText(str) {
+  if (typeof str !== "string" || !FLUENT_RE.test(str)) { FLUENT_RE.lastIndex = 0; return str; }
+  FLUENT_RE.lastIndex = 0;
+  const out = []; let last = 0; let m; let i = 0;
+  while ((m = FLUENT_RE.exec(str))) {
+    const url = fluentUrl(m[0]);
+    if (!url) continue;
+    if (m.index > last) out.push(str.slice(last, m.index));
+    out.push(<img key={"fe" + (i++)} src={url} alt={m[0]} draggable={false} style={FLUENT_IMG_STYLE} />);
+    last = m.index + m[0].length;
+  }
+  if (last < str.length) out.push(str.slice(last));
+  return out;
+}
+// 카드 안의 글자 속 이모지를 그림으로 바꾼다 (화면용)
+function emojify(node) {
+  if (typeof node === "string") return emojifyText(node);
+  if (Array.isArray(node)) return node.map(emojify);
+  if (React.isValidElement(node) && node.props && node.props.children !== undefined && typeof node.props.children !== "function") {
+    return React.cloneElement(node, undefined, React.Children.map(node.props.children, emojify));
+  }
+  return node;
+}
+// PDF용: HTML 글 속 이모지를 그림 태그로
+function emojifyHtml(html) {
+  return String(html || "").replace(FLUENT_RE, (ch) => {
+    const url = fluentUrl(ch);
+    return url ? `<img src="${url}" alt="${ch}" style="height:${FLUENT_IMG_SCALE}em;width:${FLUENT_IMG_SCALE}em;vertical-align:-0.45em;object-fit:contain;display:inline-block;"/>` : ch;
+  });
+}
+
 function visualCardToHtml(card, esc) {
+  return emojifyHtml(visualCardToHtmlRaw(card, esc));
+}
+function visualCardToHtmlRaw(card, esc) {
   // 헤더 바 있는 프레임 (화면 CardFrame과 통일)
   const frame = (inner, accent = "#D4728A", bodyBg = "#FFF0F3") =>
     `<div style="border:2px solid ${accent}33;border-radius:16px;overflow:hidden;margin:10px 0;break-inside:avoid;">
@@ -5034,7 +5351,7 @@ function visualCardToHtml(card, esc) {
     const photos = card.photos || [];
     const cells = card.slots.map((s, i) => {
       const [bg, bd] = palette[i % palette.length];
-      const photo = photos[i];
+      const photo = photoSrc(photos[i]); // 주소를 받지 못한 사진은 빈 칸으로
       const slot = photo
         ? `<div style="width:110px;height:110px;margin:0 auto;border-radius:14px;border:2px solid ${bd};overflow:hidden;background:#fff;"><img src="${photo}" style="width:100%;height:100%;object-fit:contain;"/></div>`
         : `<div style="width:110px;height:110px;margin:0 auto;border-radius:14px;background:${bg};border:2px dashed ${bd};text-align:center;line-height:110px;font-size:26px;color:#B0A0A8;">&#128247;</div>`;
@@ -5418,7 +5735,10 @@ function CardFrame({ title, children, accent = "#D4728A", accentBg = "#FFF0F3" }
 }
 
 // ── 시각카드용 컬러 픽토그램 아이콘 (화면용, 워드 대신 PDF에서 렌더) ──
-function CardIcon({ name, size = 34 }) {
+function CardIcon(props) {
+  return emojify(CardIconRaw(props));
+}
+function CardIconRaw({ name, size = 34 }) {
   // 이모지로 표현하는 아이콘 (표정·사람 동작·명확한 사물)
   const emojiMap = {
     help: "🙋", rest: "😌", look: "👀", together: "🤝", me: "🙋",
@@ -5440,7 +5760,10 @@ function CardIcon({ name, size = 34 }) {
   return <svg {...svg}>{icons[name] || icons.yes}</svg>;
 }
 
-function VisualCard({ card, slotEditable, onSlotPhoto }) {
+function VisualCard(props) {
+  return emojify(VisualCardRaw(props));
+}
+function VisualCardRaw({ card, slotEditable, onSlotPhoto }) {
   if (card.type === "sequence") {
     const stepColors = ["#5B8BB5", "#7BB07B", "#C99A4B", "#9B7BB5"];
     const vertical = card.steps.length >= 4; // 4단계 이상은 세로 배치
@@ -5869,7 +6192,7 @@ function VisualCard({ card, slotEditable, onSlotPhoto }) {
                 <div style={{ flex: "0 0 auto", width: 110, textAlign: "center" }}>
                   <div style={{ position: "relative", width: 110, height: 110, borderRadius: 14, background: photo ? "#fff" : bg, border: `2px ${photo ? "solid" : "dashed"} ${bd}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#B0A0A8", fontSize: 26, overflow: "hidden" }}>
                     {photo
-                      ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      ? <PhotoImg src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                       : "📷"}
                     {slotEditable && (
                       <button onClick={() => onSlotPhoto(i)} title="사진 넣기"
@@ -5936,8 +6259,9 @@ function EditableVisualCard({ card, cardIndex, onRemove, onSlotPhoto }) {
     e.target.value = "";
     if (!file) return;
     try {
-      const dataUrl = await compressImage(file, 600, 0.7);
-      onSlotPhoto(cardIndex, pendingSlot.current, dataUrl);
+      const slot = pendingSlot.current;
+      const ref = await storeBipPhoto(await compressImage(file, 1200, 0.88));
+      onSlotPhoto(cardIndex, slot, ref);
     } catch (er) { setErr("사진을 넣지 못했습니다: " + er.message); }
   };
   return (
@@ -6004,13 +6328,24 @@ function BIPBlock({ num, title, children, accent }) {
   );
 }
 
-function BulletList({ items }) {
+// base(배열)를 주면, 그 안에 없는 문장(AI가 쓰거나 고친 문장)을 노란색으로 표시한다 — 원장 확인용
+function BulletList({ items, base }) {
+  const baseSet = base ? new Set(base) : null;
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      {items.map((t, i) => (
-        <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6 }}>
-          <span style={{ color: PK, flexShrink: 0, fontWeight: 800 }}>·</span>
-          <span>{t}</span>
+      {items.map((t, i) => {
+        const changed = baseSet && !baseSet.has(t);
+        return (
+          <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6, opacity: baseSet && !changed ? 0.55 : 1, ...(changed ? { background: "#FFF4C2", borderRadius: 6, padding: "4px 6px", margin: "0 -6px" } : {}) }}>
+            <span style={{ color: PK, flexShrink: 0, fontWeight: 800 }}>·</span>
+            <span>{changed && <b style={{ fontSize: 10.5, color: "#8A6D1E", marginRight: 4 }}>[바뀜]</b>}{t}</span>
+          </div>
+        );
+      })}
+      {baseSet && base.filter((b) => !items.includes(b)).map((b, i) => (
+        <div key={"m" + i} style={{ display: "flex", gap: 8, fontSize: 12.5, lineHeight: 1.6, color: "#A0602E", background: "#FBEFE6", borderRadius: 6, padding: "4px 6px", margin: "0 -6px" }}>
+          <span style={{ flexShrink: 0, fontWeight: 800 }}>·</span>
+          <span><b style={{ fontSize: 10.5, marginRight: 4 }}>[빠짐]</b><span style={{ textDecoration: "line-through" }}>{b}</span></span>
         </div>
       ))}
     </div>
@@ -6050,7 +6385,7 @@ function PhotoStrip({ photos }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
       {photos.map((src, i) => (
-        <img key={i} src={src} alt={`설명 사진 ${i + 1}`}
+        <PhotoImg key={i} src={src} alt={`설명 사진 ${i + 1}`}
           style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: `1px solid ${PKL}` }} />
       ))}
     </div>
@@ -6065,7 +6400,7 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: photos.length ? 8 : 0 }}>
         {photos.map((src, i) => (
           <div key={i} style={{ position: "relative" }}>
-            <img src={src} alt={`사진 ${i + 1}`} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, border: `1px solid ${PKL}` }} />
+            <PhotoImg src={src} alt={`사진 ${i + 1}`} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, border: `1px solid ${PKL}` }} />
             <button onClick={() => onRemove(i)} title="삭제"
               style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
           </div>
@@ -6080,7 +6415,7 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
 }
 
 // 부모님용 쉬운 뷰
-function ParentView({ school = false, content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, onSlotPhoto, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
+function ParentView({ school = false, reviewBase = null, content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, onSlotPhoto, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
   const nm = displayName(childName);
   const ph = photos || { prevent: [], teach: [], respond: [] };
   const Block = ({ title, desc, items, bg, accent, secKey }) => (
@@ -6093,7 +6428,7 @@ function ParentView({ school = false, content, childName, visualCards, draftVisu
         editing
           ? <textarea value={draft.why} onChange={(e) => onField("why", e.target.value)} rows={Math.max(2, Math.ceil((draft.why.length || 1) / 34))}
               style={{ width: "100%", fontSize: 13.5, lineHeight: 1.8, padding: "12px 14px", border: `1px solid ${accent}55`, borderRadius: 12, fontFamily: "inherit", color: INK, resize: "vertical", boxSizing: "border-box", background: bg }} />
-          : <div style={{ fontSize: 13.5, lineHeight: 1.8, color: INK, background: bg, borderRadius: 12, padding: "14px 16px" }}>{desc}</div>
+          : <div style={{ fontSize: 13.5, lineHeight: 1.8, color: INK, background: reviewBase && desc !== reviewBase.why ? "#FFF4C2" : bg, borderRadius: 12, padding: "14px 16px" }}>{reviewBase && desc !== reviewBase.why && <b style={{ fontSize: 10.5, color: "#8A6D1E", marginRight: 4 }}>[바뀜]</b>}{desc}</div>
       ) : null}
       {/* 목록형(prevent/teach/respond) */}
       {items !== undefined ? (
@@ -6113,10 +6448,19 @@ function ParentView({ school = false, content, childName, visualCards, draftVisu
           </div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
-            {items.map((t, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, fontSize: 13.5, lineHeight: 1.7, background: bg, borderRadius: 12, padding: "12px 14px" }}>
-                <span style={{ flexShrink: 0, color: accent, fontWeight: 800 }}>{i + 1}</span>
-                <span>{t}</span>
+            {items.map((t, i) => {
+              const changed = reviewBase && secKey && !(reviewBase[secKey] || []).includes(t);
+              return (
+                <div key={i} style={{ display: "flex", gap: 10, fontSize: 13.5, lineHeight: 1.7, background: changed ? "#FFF4C2" : bg, borderRadius: 12, padding: "12px 14px", opacity: reviewBase && !changed ? 0.6 : 1 }}>
+                  <span style={{ flexShrink: 0, color: accent, fontWeight: 800 }}>{i + 1}</span>
+                  <span>{changed && <b style={{ fontSize: 10.5, color: "#8A6D1E", marginRight: 4 }}>[바뀜]</b>}{t}</span>
+                </div>
+              );
+            })}
+            {reviewBase && secKey && (reviewBase[secKey] || []).filter((b) => !items.includes(b)).map((b, i) => (
+              <div key={"m" + i} style={{ display: "flex", gap: 10, fontSize: 12.5, lineHeight: 1.6, color: "#A0602E", background: "#FBEFE6", borderRadius: 12, padding: "10px 14px" }}>
+                <span style={{ flexShrink: 0, fontWeight: 800 }}>·</span>
+                <span><b style={{ fontSize: 10.5, marginRight: 4 }}>[빠짐]</b><span style={{ textDecoration: "line-through" }}>{b}</span></span>
               </div>
             ))}
           </div>
@@ -6129,7 +6473,7 @@ function ParentView({ school = false, content, childName, visualCards, draftVisu
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: draft.photos[secKey].length ? 8 : 0 }}>
               {draft.photos[secKey].map((src, i) => (
                 <div key={i} style={{ position: "relative" }}>
-                  <img src={src} alt={`사진 ${i + 1}`} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, border: `1px solid ${accent}55` }} />
+                  <PhotoImg src={src} alt={`사진 ${i + 1}`} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 10, border: `1px solid ${accent}55` }} />
                   <button onClick={() => onRemovePhoto(secKey, i)} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#C56", color: "#fff", cursor: "pointer", fontSize: 13 }}>×</button>
                 </div>
               ))}
@@ -6139,7 +6483,7 @@ function ParentView({ school = false, content, childName, visualCards, draftVisu
         ) : (
           (ph[secKey] && ph[secKey].length) ? (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-              {ph[secKey].map((src, i) => <img key={i} src={src} alt={`사진 ${i + 1}`} style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: `1px solid ${accent}44` }} />)}
+              {ph[secKey].map((src, i) => <PhotoImg key={i} src={src} alt={`사진 ${i + 1}`} style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: `1px solid ${accent}44` }} />)}
             </div>
           ) : null
         )
@@ -6212,15 +6556,16 @@ function bipToText(bip, c, agg) {
   const line = "-".repeat(30);
   const tierName = { primary: "1차 기능", secondary: "2차 기능", tertiary: "별도 기능" };
   const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
-  const tierLines = (agg && agg.tiers ? agg.tiers.filter((t) => t.tier !== "minor").map((t) => "  [" + tierName[t.tier] + "] " + fn(t.func)) : []);
+  const dts = docTiers(agg, bip);
+  const tierLines = [...dts.map((t) => "  [" + tierName[t.tier] + "] " + fn(t.func)), ...(docTierNote(dts, bip) ? ["  " + docTierNote(dts, bip)] : [])];
   return [
     bip.setting === "school" ? "[ 개별 행동중재계획서 (PBIP) ]" : "[ 행동중재계획 (BIP) ]",
     "대상: " + c.name,
     line,
     "1. 행동의 기능 및 가설",
-    "표적행동: " + ((c.target || "").trim() || "미설정"),
+    "표적행동: " + targetLabel(c.target),
     ...tierLines,
-    "주 기능: " + bip.funcName + (agg && agg.primary && (agg.ambiguous || agg.primary !== bip.func) ? " (직접 선택)" : ""),
+    "주 기능: " + mainFuncLabel(bip, agg),
     bip.hypothesis,
     bip._meaning != null ? bip._meaning : FUNC_MEANING(bip.func, c.name, c.target, bip.setting),
     "",
@@ -6393,6 +6738,111 @@ const btnGhost = { padding: "10px 16px", borderRadius: 10, border: `1.5px solid 
 function today() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ── 사진 따로 보관 (Supabase Storage, 비공개 보관함 bip-photos) ──────────
+// 사진은 자료 덩어리(cases)에 넣지 않고 보관함에 올린 뒤 "sb:경로"만 저장한다 → 저장할 때 글만 올라가 가볍다.
+// 보관함이 아직 없거나 올리기에 실패하면 예전처럼 사진을 자료 안에 넣는다(사진이 사라지지 않게).
+const PHOTO_BUCKET = "bip-photos";
+const photoUrlCache = new Map(); // 경로 → { url, exp }
+const photoListeners = new Set();
+function isPhotoRef(s) { return typeof s === "string" && s.startsWith("sb:"); }
+function sessionUserId() {
+  try { const s = JSON.parse(sessionStorage.getItem(AUTH_SESSION_KEY) || "null"); return s?.user?.id || null; } catch (e) { return null; }
+}
+// 보관함에 올릴 때는 고화질 그대로, 올리기에 실패해 자료 안에 넣어야 할 때만 작게 줄인다
+async function shrinkForFallback(dataUrl) {
+  try { return await compressImage(await (await fetch(dataUrl)).blob(), 800, 0.72); } catch (e) { return dataUrl; }
+}
+async function storeBipPhoto(dataUrl) {
+  const fallback = () => shrinkForFallback(dataUrl);
+  try {
+    const token = await getValidAccessToken();
+    let uid = sessionUserId();
+    if (!uid) { const u = await getCurrentUser(); uid = u?.id || null; }
+    if (!token || !uid) return await fallback();
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `${uid}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/${PHOTO_BUCKET}/${path}`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "image/jpeg", "x-upsert": "false" },
+      body: blob,
+    }, 30000);
+    if (!r.ok) return await fallback();
+    photoUrlCache.set(path, { url: dataUrl, exp: Date.now() + 50 * 60 * 1000 }); // 방금 올린 사진은 바로 보이게
+    return "sb:" + path;
+  } catch (e) { return await fallback(); }
+}
+// 화면·인쇄 전에 "sb:" 사진들의 임시 주소(1시간)를 한 번에 받아 둔다
+const photoInFlight = new Set();
+async function resolvePhotoRefs(refs) {
+  const now = Date.now();
+  const paths = [...new Set((refs || []).filter(isPhotoRef).map((r) => r.slice(3)))].filter((p) => {
+    const c = photoUrlCache.get(p); return (!c || c.exp < now + 60 * 1000) && !photoInFlight.has(p);
+  });
+  if (!paths.length) return;
+  paths.forEach((p) => photoInFlight.add(p));
+  try {
+    const token = await getValidAccessToken();
+    if (!token) return;
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/sign/${PHOTO_BUCKET}`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 3600, paths }),
+    }, 20000);
+    if (!r.ok) return;
+    const rows = await r.json();
+    (rows || []).forEach((row) => {
+      if (row && row.path && row.signedURL) photoUrlCache.set(row.path, { url: `${SUPABASE_URL}/storage/v1${row.signedURL}`, exp: now + 55 * 60 * 1000 });
+    });
+    photoListeners.forEach((fn) => { try { fn(); } catch (e) {} });
+  } catch (e) { /* 인터넷 문제: 사진 자리만 비어 보임 */ }
+  finally { paths.forEach((p) => photoInFlight.delete(p)); }
+}
+// 화면의 사진 칸들이 요청한 것을 잠깐 모았다가 한 번에 받는다
+const photoPending = new Set();
+let photoFlushTimer = null;
+function requestPhotoUrl(ref) {
+  photoPending.add(ref);
+  if (photoFlushTimer) return;
+  photoFlushTimer = setTimeout(() => {
+    const refs = [...photoPending]; photoPending.clear(); photoFlushTimer = null;
+    resolvePhotoRefs(refs);
+  }, 40);
+}
+function photoSrc(ref) {
+  if (!isPhotoRef(ref)) return ref || "";
+  const c = photoUrlCache.get(ref.slice(3));
+  if (!c) return "";
+  if (c.exp < Date.now()) { photoUrlCache.delete(ref.slice(3)); return ""; } // 끝난 주소는 버리고 새로 받게
+  return c.url;
+}
+// 화면용 사진: "sb:" 경로면 임시 주소를 받아 와 보여 준다
+function PhotoImg({ src, alt = "", style }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!isPhotoRef(src)) return;
+    const fn = () => force((x) => x + 1);
+    photoListeners.add(fn);
+    if (!photoSrc(src)) requestPhotoUrl(src);
+    // 화면을 오래 켜 두어 주소가 끝나면 다시 받는다
+    const t = setInterval(() => { if (!photoSrc(src)) { requestPhotoUrl(src); fn(); } }, 60 * 1000);
+    return () => { photoListeners.delete(fn); clearInterval(t); };
+  }, [src]);
+  const url = photoSrc(src);
+  return url ? <img src={url} alt={alt} style={style} /> : <div style={{ ...style, background: "#F3EEF0" }} />;
+}
+// 문서에 들어간 사진 경로를 모두 모은다 (인쇄 전 미리 받기용)
+function collectPhotoRefs(...groups) {
+  const out = [];
+  const walk = (v) => {
+    if (!v) return;
+    if (typeof v === "string") { if (isPhotoRef(v)) out.push(v); return; }
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    if (typeof v === "object") Object.values(v).forEach(walk);
+  };
+  groups.forEach(walk);
+  return out;
 }
 
 // 이미지 파일 → 리사이즈(가로 최대 maxW) + JPEG 압축 → base64 dataURL
