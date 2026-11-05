@@ -434,13 +434,24 @@ async function dataList(prefix) {
 // ── 외부 제출용 저장소 (shared_store 유지: 부모는 로그인 없이 접근) ──
 const SKEY = (k) => `bipmaker::${k}`;
 
+// 2026-11 보안: 공용 보관함은 로그인한 원장·선생님만 보고 쓰고 지움 (로그인 열쇠로 접근)
+//   부모님은 '보내기'만 — submit_external 전용 통로 (saveExternalSubmission)
+async function sharedFetch(query, init = {}) {
+  const headers = { ...(await authHeaders()), ...(init.headers || {}) };
+  return await fetch(`${SUPABASE_URL}/rest/v1/shared_store${query}`, { ...init, headers });
+}
+async function sharedRows(query) {
+  const r = await sharedFetch(query);
+  if (!r.ok) return null;
+  return await r.json();
+}
+
 const bipStore = {
   async get(key) {
     try {
-      const r = await _sb.from("shared_store").select("value").eq("key", SKEY(key)).maybeSingle();
-      if (r.error) { return null; }
-      if (!r.data) return null;
-      let v = r.data.value;
+      const rows = await sharedRows(`?key=eq.${encodeURIComponent(SKEY(key))}&select=value`);
+      if (!rows || !rows.length) return null;
+      let v = rows[0].value;
       // 컬럼이 text든 jsonb든, 이중 직렬화된 레거시 값이든 안전하게 역직렬화
       for (let i = 0; i < 2 && typeof v === "string"; i++) {
         const s = v.trim();
@@ -456,8 +467,12 @@ const bipStore = {
     try {
       // 항상 JSON 문자열로 저장 → 컬럼 타입과 무관하게 get에서 복원 가능
       const payload = typeof value === "string" ? value : JSON.stringify(value);
-      const r = await _sb.from("shared_store").upsert({ key: SKEY(key), value: payload, updated_at: new Date().toISOString() }, { onConflict: "key" });
-      if (r.error) { return null; }
+      const r = await sharedFetch(`?on_conflict=key`, {
+        method: "POST",
+        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ key: SKEY(key), value: payload, updated_at: new Date().toISOString() }),
+      });
+      if (!r.ok) { return null; }
       return { value };
     } catch (e) { return null; }
   },
@@ -540,14 +555,24 @@ function decodeFillToken(token) {
 async function saveExternalSubmission(caseId, submission) {
   const sid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const key = `submit::${caseId}::${sid}`;
-  return await bipStore.set(key, { ...submission, sid, submittedAt: new Date().toISOString() });
+  const value = { ...submission, sid, submittedAt: new Date().toISOString() };
+  // 부모님은 로그인 없이 보내므로 '보내기만 되는' 전용 통로로
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_external`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ p_key: SKEY(key), p_value: JSON.stringify(value) }),
+    });
+    if (!r.ok) return null;
+    return { value };
+  } catch (e) { return null; }
 }
 async function listExternalSubmissions(caseId) {
   try {
     const prefix = SKEY(`submit::${caseId}::`);
-    const r = await _sb.from("shared_store").select("key,value").like("key", `${prefix}%`);
-    if (r.error || !r.data) return [];
-    return r.data.map((row) => {
+    const rows = await sharedRows(`?key=like.${encodeURIComponent(prefix + "%")}&select=key,value`);
+    if (!rows) return [];
+    return rows.map((row) => {
       let v = row.value;
       for (let i = 0; i < 2 && typeof v === "string"; i++) {
         const s = v.trim();
@@ -560,9 +585,9 @@ async function listExternalSubmissions(caseId) {
 // 공용 저장칸에서 이름이 prefix로 시작하는 값들을 모두 읽기 (확인 요청 목록용)
 async function listStore(prefix) {
   try {
-    const r = await _sb.from("shared_store").select("key,value").like("key", `${SKEY(prefix)}%`);
-    if (r.error || !r.data) return [];
-    return r.data.map((row) => {
+    const rows = await sharedRows(`?key=like.${encodeURIComponent(SKEY(prefix) + "%")}&select=key,value`);
+    if (!rows) return [];
+    return rows.map((row) => {
       let v = row.value;
       for (let i = 0; i < 2 && typeof v === "string"; i++) {
         const t = v.trim();
@@ -575,7 +600,7 @@ async function listStore(prefix) {
 async function deleteExternalSubmission(caseId, sid) {
   try {
     const key = SKEY(`submit::${caseId}::${sid}`);
-    await _sb.from("shared_store").delete().eq("key", key);
+    await sharedFetch(`?key=eq.${encodeURIComponent(key)}`, { method: "DELETE" });
   } catch (e) { /* ignore */ }
 }
 
