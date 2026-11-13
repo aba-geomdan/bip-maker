@@ -515,6 +515,7 @@ function isHangulSyllable(ch) {
   const code = ch.charCodeAt(0);
   return code >= 0xac00 && code <= 0xd7a3;
 }
+const COMPOUND_SURNAMES = ["황보", "남궁", "제갈", "선우", "독고", "사공", "서문", "동방"];
 function displayName(fullName) {
   const raw = (fullName || "").trim();
   if (!raw) return "아동";
@@ -522,6 +523,11 @@ function displayName(fullName) {
   const allHangul = [...raw].every(isHangulSyllable);
   if (!allHangul) return raw;
   // 3글자 이름만 성을 떼고 받침이 있으면 '이'를 붙인다(서연이). 2글자·4글자 이상은 성 구분이 어려워 이름 그대로 쓴다(이준, 황보다인)
+  // 4글자이고 앞 두 글자가 두 글자 성(황보·남궁·제갈·선우·독고·사공·서문·동방)이면 성을 뗀다 (황보다인 → 다인이)
+  if (raw.length === 4 && COMPOUND_SURNAMES.includes(raw.slice(0, 2))) {
+    const g = raw.slice(2);
+    return hasJongseong(g) ? g + "이" : g;
+  }
   if (raw.length !== 3) return raw;
   const given = raw.slice(1);
   return hasJongseong(given) ? given + "이" : given;
@@ -947,7 +953,9 @@ function crisisSafetyFor(setting, flags) {
   const school = setting === "school" || setting === "pbs";
   const base = school ? CRISIS_SAFETY.school : CRISIS_SAFETY.center;
   if (!(flags && flags.elope)) return base;
-  return { ...base, safety: [...base.safety, school ? ELOPE_SAFETY.school : ELOPE_SAFETY.center] };
+  // 이탈 아이에게는 '거리 확보'가 놓치는 쪽으로 읽히지 않게 덧붙인다
+  const crisis = base.crisis.map((t) => t.replace(/거리를 확보한다\./, "거리를 확보하되, 뛰쳐나갈 수 있는 경우에는 시야에서 놓치지 않는다."));
+  return { ...base, crisis, safety: [...base.safety, school ? ELOPE_SAFETY.school : ELOPE_SAFETY.center] };
 }
 
 // 부모님용 쉬운 버전 — 전문용어 없이, 예시 풍부. 문장 끝은 "~해 주세요"만 반복하지 않고 변주
@@ -1077,6 +1085,10 @@ function parentBipFor(func, setting, secondaryFuncs = [], flags = null) {
   if (flags && flags.harmful && func !== "physical") {
     b = { ...b, respond: [...b.respond, "다치게 하는 행동이 나오면 반응을 줄이기보다 먼저 아이와 주변 사람의 안전을 지켜 주시고, 어떻게 대응할지는 센터와 정한 방법을 따르시면 됩니다."] };
   }
+  // 뛰쳐나가기: 반응 칸에도 '먼저 따라가 데려오기'
+  if (flags && flags.elope) {
+    b = { ...b, respond: [...b.respond, "밖으로 뛰어나가면 먼저 바로 따라가 안전하게 데려오시는 것이 우선이며, 데려온 뒤에는 길게 이야기하기보다 짧고 담담하게 하던 일로 이끄시면 됩니다."] };
+  }
   // 통증 점수도 비슷하게 높으면(2차로 고르지 않았어도): 몸 상태 먼저
   if (flags && flags.painCheck) {
     b = { ...b, respond: [...b.respond, "아파서 하는 행동일 수도 있으니, 행동이 늘면 먼저 피곤하거나 아픈 곳이 없는지 살펴 주시고 필요하면 병원 진료를 받아 보시는 편이 좋습니다."] };
@@ -1099,7 +1111,8 @@ function docTiers(agg, bip) {
 function docTierNote(tiers, bip) {
   const parts = [];
   if (bip.secManual && (bip.secondaryFuncs || []).length) parts.push("※ 2차 기능은 평가 점수가 아니라 관찰을 바탕으로 직접 선택했습니다.");
-  if (tiers.some((t) => t.tier === "tertiary")) parts.push("※ 별도 기능은 이 중재안에 포함하지 않았습니다." + (bip.func === "physical" ? " (신체 기능이 1차이면 의학적 원인을 확인한 뒤 다시 평가합니다)" : ""));
+  if (tiers.some((t) => t.tier === "tertiary")) parts.push("※ 별도 기능은 이 중재안에 포함하지 않았습니다." + (bip.func === "physical" ? " (신체 기능이 1차이면 의학적 원인을 확인한 뒤 다시 평가합니다)" : "")
+    + (bip.flags && bip.flags.painCheck ? " 다만 통증·신체 불편 점수가 높게 나와 4번에 몸 상태를 먼저 확인하는 문장을 넣었습니다." : ""));
   return parts.join(" ");
 }
 // 주 기능 줄: 직접 고른 경우 "(사회적 부적강화, 직접 선택)"처럼 괄호를 하나로
@@ -1425,7 +1438,7 @@ function stripHarmClause(t) {
     .trim();
 }
 const HARM_RE = /(때리|때림|꼬집|깨물|물기|물어|물음|박기|박음|박아|긁|던지|던짐|발로 차|차기|밀치|할퀴|자해|공격|머리카락|뜯|부수|부숨|부서|부러뜨|깨뜨|깨부|찢|파괴|엎)/; // 물건 부수기·엎기도 공격으로 봄
-const ELOPE_RE = /(뛰쳐|뛰어나|도망|도주|가출|무단 ?이탈|밖으로 (뛰|나가))/;
+const ELOPE_RE = /(뛰쳐|뛰어나|도망|도주|가출|무단 ?이탈|밖으로 (뛰|나가|나감)|교실(을|에서)? ?(밖으로 )?(나감|나가|이탈)|복도로 (나감|나가|뛰))/;
 function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], flags = {}) {
   const libs = setting === "pbs" ? INTERVENTION_LIB_SCHOOL : INTERVENTION_LIB;
   const lib = libs[func];
@@ -1466,8 +1479,8 @@ function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], f
   const pre = [], post = [];
   // 표적행동이 자해·공격이면 소거·무관심 항목 앞에 확정 문장을 둔다
   if (flags.harmful && func !== "physical") pre.push(isSchool
-    ? "※ 이 학생의 표적행동은 자해·공격에 해당하므로, 아래의 무관심·과제 지속·선호물 미제공 항목은 PBS 자문위원과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보하고 또래를 보호한다."
-    : "※ 이 아동의 표적행동은 자해·공격에 해당하므로, 아래의 소거·무관심·과제 지속 항목은 원장과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보한다.");
+    ? "※ 이 학생의 표적행동은 자해·공격에 해당하므로, 이 칸의 소거 관련 항목(무관심·과제 지속·선호물 미제공 중 해당하는 것)은 PBS 자문위원과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보하고 또래를 보호한다."
+    : "※ 이 아동의 표적행동은 자해·공격에 해당하므로, 이 칸의 소거 관련 항목(무관심·과제 지속·선호물 미제공 중 해당하는 것)은 원장과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보한다.");
   // 통증 점수도 1차와 비슷하면(2차로 고르지 않았어도) 몸 상태 확인을 늘 넣는다
   if (flags.painCheck && func !== "physical" && !secs.includes("physical")) post.push(
     "※ 통증·신체 불편 점수도 1차와 비슷하게 높게 나왔으므로, 행동이 늘면 먼저 몸 상태(피곤·통증·가려움 등)를 확인하고 필요하면 보호자에게 의료 확인을 권한다.");
@@ -4737,7 +4750,7 @@ async function callBipAI(payload) {
 }
 
 // 원장 목록 중 안전 단서가 든 항목은 AI가 빼거나 바꿨으면 원문으로 다시 넣는다
-const SAFETY_MARKERS = ["※", "원장과 적용 여부", "소거 절차를 적용하지", "병원 진료", "안전 범위", "위험하지 않은", "다치게 하는", "원장 확인 후"];
+const SAFETY_MARKERS = ["※", "원장과 적용 여부", "소거 절차를 적용하지", "병원 진료", "안전 범위", "위험하지 않은", "다치게 하는", "원장 확인 후", "바로 따라가 안전하게"];
 function keepSafetyItems(aiItems, baseItems) {
   const out = [...(aiItems || [])];
   let restored = 0;
@@ -4752,6 +4765,26 @@ function keepSafetyItems(aiItems, baseItems) {
 
 // AI가 [2차·○○] 항목을 다 빼 버리면 1번 칸의 2차 기능과 중재가 어긋나므로, 기본 문장에서 다시 붙인다
 // (선행·대체는 그 기능의 첫 항목 하나, 후속은 그 기능 항목 전부)
+// AI 결과 정리: '[2차·○○]' 같은 자리표시를 지우고, 여러 항목에 되풀이된 같은 문장과 거의 같은 항목을 하나만 남긴다
+function tidyItems(items) {
+  const norm = (t) => String(t).replace(/^\s*(※|\[2차·[^\]]+\])\s*/, "").replace(/[\s"'“”‘’.,·]/g, "");
+  const seenSent = new Set(), out = [];
+  (items || []).forEach((raw) => {
+    let t = String(raw).replace(/^\[2차·○○\]\s*/, "").trim();
+    // 같은 문장(15자 이상)이 앞 항목에 이미 있으면 이 항목에서는 뺀다
+    const sents = t.split(/(?<=[.다요])\s+/);
+    const kept = sents.filter((x) => { const k = norm(x); if (k.length < 15) return true; if (seenSent.has(k)) return false; seenSent.add(k); return true; });
+    t = kept.join(" ").trim();
+    if (!t) return;
+    // 앞 25자가 같은 항목이 이미 있으면(같은 문장을 조금 바꿔 쓴 것) ※·안전 표시가 많은 쪽을 남긴다
+    const key = norm(t).slice(0, 25);
+    const i = out.findIndex((o) => key.length >= 20 && norm(o).slice(0, 25) === key);
+    if (i === -1) { out.push(t); return; }
+    const score = (x) => SAFETY_MARKERS.filter((m) => x.includes(m)).length;
+    if (score(t) > score(out[i])) out[i] = t;
+  });
+  return out;
+}
 function keepSecondaryItems(aiItems, baseItems, key) {
   const out = [...(aiItems || [])];
   const tagOf = (t) => (String(t).match(/^\[2차·[^\]]+\]/) || [])[0];
@@ -4776,7 +4809,10 @@ function keepCoreConsequence(items, bip) {
   if (own.some((t) => core.re.test(t))) return items;
   const base = (bip.consequence || []).filter((t) => !/^\[2차·/.test(t) && !/^※/.test(t));
   const pick = base.find((t) => core.re.test(t));
-  return pick ? [pick, ...items] : items;
+  if (!pick) return items;
+  const lead = items.findIndex((t) => !/^※/.test(t)); // ※ 문장들 바로 뒤에 넣는다
+  const at = lead === -1 ? items.length : lead;
+  return [...items.slice(0, at), pick, ...items.slice(at)];
 }
 
 // AI 결과에서 몸으로 제지·격리하는 내용이나 AI가 스스로 만든 위기 절차는 뺀다.
@@ -4884,9 +4920,11 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
     if (!result[k].length) return;
     result[k] = keepSafetyItems(result[k], bip[k]).items;
     result[k] = keepSecondaryItems(result[k], bip[k], k);
+    result[k] = tidyItems(result[k]);
   });
   // 1차 기능의 핵심 후속결과(소거)가 빠지면 기본 문장을 다시 넣는다
   if (result.consequence.length) result.consequence = keepCoreConsequence(result.consequence, bip);
+  if (result.consequence.length) result.consequence = tidyItems(result.consequence); // 다시 넣은 문장과 겹치는 단서 정리
   ["antecedent", "replacement", "consequence"].forEach((k) => {
     if (!result[k].length) { result[k] = [...(bip[k] || [])]; filled.push(k); }
   });
@@ -4942,9 +4980,9 @@ async function enhanceParentBIP(bip, c, parentBase) {
   ["prevent", "teach", "respond"].forEach((k) => { if (!out[k].length) filled.push(k); });
   const r = {
     why: out.why || base.why,
-    prevent: out.prevent.length ? keepSafetyItems(out.prevent, defBase.prevent).items : base.prevent,
-    teach: out.teach.length ? keepSafetyItems(out.teach, defBase.teach).items : base.teach,
-    respond: out.respond.length ? keepSafetyItems(out.respond, defBase.respond).items : base.respond,
+    prevent: out.prevent.length ? tidyItems(keepSafetyItems(out.prevent, defBase.prevent).items) : base.prevent,
+    teach: out.teach.length ? tidyItems(keepSafetyItems(out.teach, defBase.teach).items) : base.teach,
+    respond: out.respond.length ? tidyItems(keepSafetyItems(out.respond, defBase.respond).items) : base.respond,
   };
   if (filled.length) r._filled = filled;
   if (safetyDropped) r._safetyDropped = safetyDropped;
@@ -5641,7 +5679,7 @@ const CARD_LIBRARY = [
   { id: "seq_selfreg", category: "순서·구조", type: "sequence", title: "자기조절 순서", steps: [
     { emoji: "✋", label: "멈추기" }, { emoji: "🌬️", label: "숨쉬기" }, { emoji: "🧸", label: "도구 쓰기" } ] },
   { id: "seq_nowlater", category: "순서·구조", type: "sequence", title: "지금 - 이따가", steps: [
-    { emoji: "🚫", label: "지금은 안돼요" }, { emoji: "⏰", label: "이따가 할 수 있어요" } ] },
+    { emoji: "🚫", label: "지금은 안 돼요" }, { emoji: "⏰", label: "이따가 할 수 있어요" } ] },
   { id: "daily", category: "순서·구조", type: "strip", title: "오늘의 일과 (순서)", items: [
     { label: "아침 준비", emoji: "☀️" }, { label: "공부·활동", emoji: "📚" },
     { label: "밥·간식", emoji: "🍽️" }, { label: "놀이·휴식", emoji: "🤸" }, { label: "집에 가기", emoji: "🏠" } ] },
@@ -5911,7 +5949,7 @@ function getVisualCards(func) {
       { type: "turntable", title: "누구 차례일까? (차례 표시등)" },
       { type: "pecs", title: "그림으로 부탁해요 (PECS 교환)" },
       { type: "corevocab", title: "핵심 어휘 소통판" },
-      { type: "sequence", title: "지금-다음 카드", steps: ["지금은 안돼요", "이따가"] },
+      { type: "sequence", title: "지금-다음 카드", steps: ["지금은 안 돼요", "이따가"] },
       { type: "strip", title: "요청 카드", items: [
         { label: "주세요", icon: "give" },
         { label: "하고 싶어요", icon: "want" },
