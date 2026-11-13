@@ -498,8 +498,12 @@ function hasJongseong(str) {
 }
 function K(word, withJong, withoutJong) {
   const last = String(word || "").trim().slice(-1);
-  // 영문·숫자로 끝나는 이름은 받침을 알 수 없으므로 "Tom은(는)"처럼 둘 다 적는다
-  if (last && !isHangulSyllable(last)) return `${withJong}(${withoutJong})`;
+  // 영문 이름은 끝 글자의 소리로 받침을 정한다 (Tom→톰: 은, Leo→레오: 는). 숫자 등 알 수 없으면 둘 다 적는다
+  if (last && !isHangulSyllable(last)) {
+    const w = String(word || "").trim().toLowerCase();
+    if (/[a-z]$/.test(w)) return /(ng|[bklmnpt])$/.test(w) && !/[aeiouy]$/.test(w) ? withJong : withoutJong;
+    return `${withJong}(${withoutJong})`;
+  }
   return hasJongseong(word) ? withJong : withoutJong;
 }
 
@@ -933,8 +937,17 @@ const CRISIS_SAFETY = {
     "때리거나 던지는 행동이 있을 때는 형제나 다른 가족이 다치지 않게 거리를 두고, 위험한 물건은 미리 치워 두시는 편이 좋습니다.",
   ],
 };
-function crisisSafetyFor(setting) {
-  return setting === "school" || setting === "pbs" ? CRISIS_SAFETY.school : CRISIS_SAFETY.center;
+// 뛰쳐나가기(이탈)가 표적행동이면 안전 수칙에 이탈 항목을 더한다 (flags.elope)
+const ELOPE_SAFETY = {
+  center: "뛰쳐나가기(이탈)가 있을 때: 거리를 두기보다 시야에서 놓치지 않게 따라가며, 출입문 관리와 하원·이동 때의 동선과 인솔을 미리 정한다.",
+  school: "뛰쳐나가기(이탈)가 있을 때: 거리를 두기보다 시야에서 놓치지 않게 따라가며, 출입문 관리와 이동 시간의 동선·인솔을 미리 정하고, 학교 밖으로 나가면 학교 위기 대응 절차를 따른다.",
+  parent: "밖으로 뛰어나가는 일이 있으면 현관문 잠금장치를 쓰시고, 외출할 때는 손을 잡고 이동하시는 편이 좋습니다.",
+};
+function crisisSafetyFor(setting, flags) {
+  const school = setting === "school" || setting === "pbs";
+  const base = school ? CRISIS_SAFETY.school : CRISIS_SAFETY.center;
+  if (!(flags && flags.elope)) return base;
+  return { ...base, safety: [...base.safety, school ? ELOPE_SAFETY.school : ELOPE_SAFETY.center] };
 }
 
 // 부모님용 쉬운 버전 — 전문용어 없이, 예시 풍부. 문장 끝은 "~해 주세요"만 반복하지 않고 변주
@@ -972,7 +985,7 @@ const PARENT_BIP = {
       "조금씩 참는 것도 함께 가르치는 것이 적절합니다. \"이거 하나만 더 하고 쉬자\"처럼 아주 조금씩 늘려 가시면 됩니다.",
     ],
     respond: [
-      "문제행동을 했다고 해서 과제를 아예 없애지는 않는 편이 좋습니다. 그러면 \"이렇게 하면 안 해도 되는구나\"를 배우게 되므로, 도와주거나 양을 줄여서라도 마무리하게 하시면 됩니다.",
+      "문제행동을 했다고 해서 과제를 아예 없애지는 않는 편이 좋습니다. 그러면 \"이렇게 하면 안 해도 되는구나\"를 배우게 되므로, 행동이 나온 직후에는 양을 줄여 주기보다 도와주면서라도 마무리하게 하시면 됩니다. 양을 줄이는 것은 시작하기 전에 미리 정해 두시는 편이 좋습니다.",
       "바르게 요청하거나 과제에 참여하면 바로 쉬게 해 주고 칭찬해 주세요.",
       "정해진 만큼 하면 좋아하는 활동을 하게 하는 것이 적절한데, \"이거 끝나면 좋아하는 놀이를 하자\"처럼 미리 안내하시면 됩니다.",
     ],
@@ -1039,13 +1052,34 @@ const PARENT_BIP = {
 function toSchoolParentText(t) {
   return String(t || "").replace(/센터에/g, "담임 선생님이나 학교에").replace(/센터와/g, "담임 선생님이나 학교와");
 }
-function parentBipFor(func, setting, secondaryFuncs = []) {
+function parentBipFor(func, setting, secondaryFuncs = [], flags = null) {
   let b = PARENT_BIP[func] || PARENT_BIP.sensory;
+  const secs = (secondaryFuncs || []).filter((f) => f !== func);
+  // 2차 기능(신체 제외): 그 기능의 '가르치기' 첫 문장과 '반응' 첫 문장을 붙여 전문가용 2차 중재와 방향을 맞춘다
+  secs.filter((f) => f !== "physical" && PARENT_BIP[f]).forEach((f) => {
+    const combo = (func === "attention" && f === "escape") || (func === "escape" && f === "attention"); // 아래에서 맞춤 문장을 넣음
+    b = { ...b, teach: [...b.teach, PARENT_BIP[f].teach[0]], respond: combo ? b.respond : [...b.respond, PARENT_BIP[f].respond[0]] };
+  });
   // 2차가 신체·통증이면 병원 진료 권유와 '아파 보이는 날' 안내를 덧붙인다 (전문가용의 소거 금지와 맞춤)
   if (func !== "physical" && (secondaryFuncs || []).includes("physical")) {
     b = { ...b,
       prevent: [...b.prevent, PARENT_BIP.physical.prevent[0]],
       respond: [...b.respond, "다만 아파 보이거나 컨디션이 나쁜 날에는 위 방법보다 먼저 아픈 곳이 없는지 살펴 주시면 됩니다."] };
+  }
+  // 관심+회피가 겹칠 때: 전문가용 4번에 덧붙는 문장과 같은 뜻을 부모님용에도 넣는다
+  if (func === "attention" && (secondaryFuncs || []).includes("escape")) {
+    b = { ...b, respond: [...b.respond, "해야 할 일을 하던 중에 이런 행동이 나오면 반응은 줄이되 하던 일은 짧게라도 마치고 끝내도록 이끄시는 편이 좋습니다. 그래야 이 행동을 하면 할 일이 없어진다고 배우지 않습니다."] };
+  }
+  if (func === "escape" && (secondaryFuncs || []).includes("attention")) {
+    b = { ...b, respond: [...b.respond, "하던 일로 다시 이끌 때는 말과 눈맞춤을 줄이고 짧고 담담하게 안내하시면 됩니다. 다시 하게 하는 과정이 관심을 받는 시간이 되지 않게 하기 위함입니다."] };
+  }
+  // 자해·공격이 표적행동이면: 반응을 줄이기보다 안전이 먼저
+  if (flags && flags.harmful && func !== "physical") {
+    b = { ...b, respond: [...b.respond, "다치게 하는 행동이 나오면 반응을 줄이기보다 먼저 아이와 주변 사람의 안전을 지켜 주시고, 어떻게 대응할지는 센터와 정한 방법을 따르시면 됩니다."] };
+  }
+  // 통증 점수도 비슷하게 높으면(2차로 고르지 않았어도): 몸 상태 먼저
+  if (flags && flags.painCheck) {
+    b = { ...b, respond: [...b.respond, "아파서 하는 행동일 수도 있으니, 행동이 늘면 먼저 피곤하거나 아픈 곳이 없는지 살펴 주시고 필요하면 병원 진료를 받아 보시는 편이 좋습니다."] };
   }
   if (setting !== "school" && setting !== "pbs") return b;
   return { why: toSchoolParentText(b.why), prevent: b.prevent.map(toSchoolParentText), teach: b.teach.map(toSchoolParentText), respond: b.respond.map(toSchoolParentText) };
@@ -1057,12 +1091,16 @@ function docTiers(agg, bip) {
   const out = agg.tiers.filter((t) => t.tier !== "minor" || t.func === bip.func)
     .map((t) => ({ func: t.func, tier: t.func === bip.func ? "primary" : secs.includes(t.func) ? "secondary" : "tertiary" }));
   if (!out.some((t) => t.func === bip.func)) out.unshift({ func: bip.func, tier: "primary" });
+  // 점수가 낮아도 직접 2차로 고른 기능은 2차로 보인다
+  secs.forEach((f) => { if (!out.some((t) => t.func === f)) out.push({ func: f, tier: "secondary" }); });
   const rank = { primary: 0, secondary: 1, tertiary: 2 };
   return out.sort((a, b) => rank[a.tier] - rank[b.tier]);
 }
 function docTierNote(tiers, bip) {
-  if (!tiers.some((t) => t.tier === "tertiary")) return "";
-  return "※ 별도 기능은 이 중재안에 포함하지 않았습니다." + (bip.func === "physical" ? " (신체 기능이 1차이면 의학적 원인을 확인한 뒤 다시 평가합니다)" : "");
+  const parts = [];
+  if (bip.secManual && (bip.secondaryFuncs || []).length) parts.push("※ 2차 기능은 평가 점수가 아니라 관찰을 바탕으로 직접 선택했습니다.");
+  if (tiers.some((t) => t.tier === "tertiary")) parts.push("※ 별도 기능은 이 중재안에 포함하지 않았습니다." + (bip.func === "physical" ? " (신체 기능이 1차이면 의학적 원인을 확인한 뒤 다시 평가합니다)" : ""));
+  return parts.join(" ");
 }
 // 주 기능 줄: 직접 고른 경우 "(사회적 부적강화, 직접 선택)"처럼 괄호를 하나로
 function mainFuncLabel(bip, agg) {
@@ -1074,8 +1112,9 @@ function targetLabel(t, emptyText = "________") {
   const v = String(t || "").trim().replace(/^['"‘’“”]+|['"‘’“”]+$/g, "").trim();
   return v || emptyText;
 }
-function parentSafetyFor(setting) {
-  return (setting === "school" || setting === "pbs") ? CRISIS_SAFETY.parent.map(toSchoolParentText) : CRISIS_SAFETY.parent;
+function parentSafetyFor(setting, flags) {
+  const list = flags && flags.elope ? [...CRISIS_SAFETY.parent, ELOPE_SAFETY.parent] : CRISIS_SAFETY.parent;
+  return (setting === "school" || setting === "pbs") ? list.map(toSchoolParentText) : list;
 }
 
 
@@ -1225,7 +1264,7 @@ const INTERVENTION_LIB_SCHOOL = {
       "또래 짝(버디)을 지정해, 교사가 즉시 반응하지 못할 때 또래의 긍정적 관심으로 보완한다 (또래 매개 지원).",
     ],
     consequence: [
-      "도전적 행동에는 계획된 무관심으로 대응하며, 안전이나 수업 진행 때문에 개입이 꼭 필요할 때만 말 없이 짧은 비언어적 신호를 쓴다.",
+      "도전적 행동에는 계획된 무관심으로 대응하며, 안전이나 수업 진행 때문에 개입이 꼭 필요할 때만 말 없이 짧은 비언어적 신호를 쓴다. (단, 자신이나 친구를 다치게 하는 행동이면 먼저 안전을 확보하고 친구를 보호하며, 적용 여부는 PBS 자문위원과 먼저 정한다)",
       "바르게 참여하는 순간을 놓치지 않고 즉시 구체적으로 칭찬한다 (행동 특정적 칭찬 — 학급 전체에도 모델이 됨).",
       "개별 즉각강화가 어려우므로, 토큰·스티커판 같은 시각적 누적강화로 지연강화를 운영한다.",
     ],
@@ -1244,10 +1283,10 @@ const INTERVENTION_LIB_SCHOOL = {
       "요청 시 짧은 휴식이나 대안 과제를 허용해, 도전적 행동보다 요청이 더 쉽게 통하도록 만든다.",
     ],
     consequence: [
-      "가능한 범위에서 도전적 행동으로 과제를 완전히 회피하지는 못하게 한다 (예: 양을 줄여서라도 최소한 참여 후 종료).",
+      "가능한 범위에서 도전적 행동으로 과제를 완전히 회피하지는 못하게 한다 (예: 도움을 주어서라도 최소한 참여한 뒤 종료하며, 분량 조정은 행동이 나온 직후가 아니라 미리 정해 둔다).",
       "적절한 요청·참여에는 즉시 휴식·강화를 준다 (DRA).",
-      "정해진 분량을 마치면 선호 활동을 하게 한다 (프리맥 — 학급 공통 규칙으로 운영하면 관리 쉬움).",
-      "일관된 소거가 어려운 환경이므로, 교사·특수교사·보조인력이 대응 방식을 미리 통일해 둔다.",
+      "정해진 분량을 마치면 선호 활동을 하게 하며, 학급 공통 규칙으로 운영하면 일관되게 관리하기 쉽다 (프리맥 원리).",
+      "일관된 소거가 어려운 환경이므로, 담임·교과교사 등 이 학생을 맡는 어른들이 대응 방식을 미리 통일해 둔다.",
     ],
   },
   sensory: {
@@ -1371,7 +1410,9 @@ function aggregateFunction(assessments) {
 // BIP 생성 (템플릿 조합) — setting: 'center' | 'pbs'
 // secondaryFuncs: 함께 작용하는 2차 기능들 → 그 기능의 선행 앞 3개와 대체 2개(가르치기 + 요청하면 들어주기)를 "[2차·○○]" 표시로 덧붙인다.
 // 후속결과는 1차 기능 것만 쓴다(소거 절차끼리 부딪치지 않게). 단 2차가 신체·통증이거나 관심↔회피 조합이면 부딪힘을 막는 한 줄을 덧붙인다.
-function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = []) {
+const HARM_RE = /(때리|때림|꼬집|깨물|물기|물어|물음|박기|박음|박아|긁|던지|던짐|발로 차|차기|밀치|할퀴|자해|공격|머리카락|뜯)/;
+const ELOPE_RE = /(뛰쳐|뛰어나|도망|도주|가출|무단 ?이탈|밖으로 (뛰|나가))/;
+function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], flags = {}) {
   const libs = setting === "pbs" ? INTERVENTION_LIB_SCHOOL : INTERVENTION_LIB;
   const lib = libs[func];
   if (!lib) return null;
@@ -1404,7 +1445,18 @@ function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = []) {
       : "통증·신체 불편이 의심되는 동안에는 이 계획의 소거 관련 항목(해당되는 경우 계획된 무관심·회피 소거·선호물 미제공·감각 소거)을 적용하지 않고, 안전 확보와 원인 확인을 우선한다 (실제 통증을 방치할 위험)."));
     if (f === "escape" && func === "attention") secCon.push(tag + "과제 중 도전적 행동에는 반응을 최소화하되 과제 요구는 거두지 않고 이어 가게 하여, 무관심이 과제 회피로 이어지지 않게 한다.");
     if (f === "attention" && func === "escape") secCon.push(tag + "과제를 이어 가게 할 때는 말·눈맞춤을 최소화하고 촉구를 짧고 중립적으로 하여, 과제 지속 과정이 관심 강화가 되지 않게 한다.");
+    // 그 밖의 2차 기능은 그 기능의 첫 후속결과 문장(소거·강화)을 붙인다
+    const comboCon = f === "physical" || (f === "escape" && func === "attention") || (f === "attention" && func === "escape");
+    if (!comboCon && L.consequence[0]) secCon.push(tag + L.consequence[0]);
   });
+  const pre = [], post = [];
+  // 표적행동이 자해·공격이면 소거·무관심 항목 앞에 확정 문장을 둔다
+  if (flags.harmful && func !== "physical") pre.push(isSchool
+    ? "※ 이 학생의 표적행동은 자해·공격에 해당하므로, 아래의 무관심·과제 지속·선호물 미제공 항목은 PBS 자문위원과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보하고 또래를 보호한다."
+    : "※ 이 아동의 표적행동은 자해·공격에 해당하므로, 아래의 소거·무관심·과제 지속 항목은 원장과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보한다.");
+  // 통증 점수도 1차와 비슷하면(2차로 고르지 않았어도) 몸 상태 확인을 늘 넣는다
+  if (flags.painCheck && func !== "physical" && !secs.includes("physical")) post.push(
+    "※ 통증·신체 불편 점수도 1차와 비슷하게 높게 나왔으므로, 행동이 늘면 먼저 몸 상태(피곤·통증·가려움 등)를 확인하고 필요하면 보호자에게 의료 확인을 권한다.");
   return {
     func,
     funcName: UNIFIED_FUNC_NAME[func],
@@ -1412,8 +1464,9 @@ function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = []) {
     hypothesis: lib.hypothesis(name, beh),
     antecedent: [...lib.antecedent, ...secAnt],
     replacement: [...lib.replacement, ...secRep],
-    consequence: [...lib.consequence, ...secCon],
+    consequence: [...pre, ...lib.consequence, ...secCon, ...post],
     secondaryFuncs: secs,
+    flags: { harmful: !!flags.harmful, elope: !!flags.elope, painCheck: !!(flags.painCheck && func !== "physical" && !secs.includes("physical")) },
   };
 }
 
@@ -3461,6 +3514,7 @@ function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = 
   const [chosenFuncState, setChosenFuncState] = useState(readOnly && initialFunc && UNIFIED_FUNC_NAME[initialFunc] ? initialFunc : savedFunc); // 원장이 확인 대기 목록에서 열면 요청한 기능으로
   // 내 케이스: 저장된 값을 따름(다른 기기에서 바꾼 것도 반영) / 열람 중인 남의 케이스: 방금 누른 것을 보여 줌(저장 안 됨)
   const chosenFunc = readOnly ? (chosenFuncState || savedFunc) : (savedFunc || chosenFuncState);
+  const [secLocal, setSecLocal] = useState(null); // 2차 기능 직접 선택: 열람 전용에서는 화면에만
   const setChosenFunc = (f) => { setChosenFuncState(f); if (!readOnly && onUpdateCase) onUpdateCase({ bipFunc: f }); };
 
   // 평가가 없으면 안내 (평가는 있는데 모두 0점이면 그렇게 안내)
@@ -3488,8 +3542,34 @@ function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = 
   const highlightFunc = chosenFunc || (agg.ambiguous ? null : agg.primary); // 점수가 비슷해 아직 안 골랐으면 아무 버튼도 칠하지 않음
   // 2차 기능: 점수상 1차·2차로 잡힌 기능 중 지금 고른 기능이 아닌 것
   // 중재를 붙이는 것은 점수가 가장 높은 2차 기능 하나만 (여러 개면 문서가 길어지고 초점이 흐려짐 — 나머지는 1번 칸 기능 표시에만 나옴)
-  const secondaryFuncs = agg.tiers.filter((t) => (t.tier === "primary" || t.tier === "secondary") && t.func !== activeFunc).map((t) => t.func).slice(0, 1);
-  const bip = generateBIP(activeFunc, c.name, c.target, c.type, secondaryFuncs);
+  // 2차 기능은 저절로 넣지 않는다. 점수가 1차와 비슷한 기능이 있으면 추천만 하고, 원장·선생님이 고른 것만 넣는다.
+  const secCandidateTier = agg.tiers.filter((t) => (t.tier === "primary" || t.tier === "secondary") && t.func !== activeFunc)[0] || null;
+  const secCandidate = activeFunc === "physical" ? null : secCandidateTier ? secCandidateTier.func : null;
+  const candPct = secCandidateTier && agg.topScore ? Math.round(secCandidateTier.score / agg.topScore * 100) : 0;
+  // 저장값: 기능 이름 = 그 기능을 2차로, "none" = 넣지 않음, 없음 = 아직 안 정함
+  const savedSec = c.bipSecFunc === "none" || (c.bipSecFunc && UNIFIED_FUNC_NAME[c.bipSecFunc]) ? c.bipSecFunc : null;
+  const chosenSec = readOnly ? (secLocal ?? savedSec) : savedSec;
+  const setChosenSec = (f) => { if (readOnly) setSecLocal(f); else if (onUpdateCase) onUpdateCase({ bipSecFunc: f || null }); };
+  const secValid = !!chosenSec && chosenSec !== activeFunc;
+  const secondaryFuncs = secValid && chosenSec !== "none" ? [chosenSec] : [];
+  const secUndecided = !secValid && !!secCandidate; // 추천할 2차가 있는데 아직 안 정함
+  // 표적행동 글(표적행동·FAST 앞부분)로 자해·공격, 뛰쳐나가기(이탈)를 알아본다
+  const behText = [c.target, c.behaviorDetail, ...(c.records || []).map((r) => r && r.behavior),
+    ...(c.assessments || []).map((a) => a.preInfo ? [a.preInfo.behaviorDetail, a.preInfo.behaviorOther, ...(Array.isArray(a.preInfo.behaviors) ? a.preInfo.behaviors : [a.preInfo.behaviors])].filter(Boolean).join(" ") : "")].filter(Boolean).join(" ");
+  // 통증: 합친 점수에서 1차와 비슷하거나, 통증 문항이 있는 검사지(FAST·QABF) 하나에서라도 그 검사 1위의 60% 이상이면
+  const painInScale = (c.assessments || []).some((a) => {
+    const rs = a.results || []; const top = Math.max(0, ...rs.map((x) => x.sum || 0));
+    const ph = rs.find((x) => x.f === "auto_neg" || x.f === "physical");
+    return ph && top > 0 && (ph.sum || 0) > 0 && (ph.sum || 0) >= top * 0.6;
+  });
+  const bipFlags = {
+    harmful: HARM_RE.test(behText),
+    elope: ELOPE_RE.test(behText),
+    painCheck: painInScale || agg.tiers.some((t) => t.func === "physical" && (t.tier === "primary" || t.tier === "secondary")),
+  };
+  const bip = generateBIP(activeFunc, c.name, c.target, c.type, secondaryFuncs, bipFlags);
+  // 점수 추천과 다른 기능을 2차로 고른 경우에만 문서에 '직접 선택'으로 적는다
+  if (bip && secondaryFuncs.length && !agg.tiers.some((t) => t.func === secondaryFuncs[0] && (t.tier === "primary" || t.tier === "secondary"))) bip.secManual = true;
   // 다른 기능으로 저장해 둔 편집본이 있으면 알려 준다 (말없이 사라진 것처럼 보이지 않게)
   const otherEditFuncs = Object.keys(UNIFIED_FUNC_NAME).filter((f) => f !== highlightFunc && (
     c[`editedBip_${bip.setting}_${f}`] || c[`editedParent_${bip.setting}_${f}`] ||
@@ -3532,10 +3612,43 @@ function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = 
                 color: highlightFunc === f ? "#fff" : MUTE,
                 position: "relative" }}>
               {UNIFIED_FUNC_NAME[f].split(" (")[0]}
-              {(() => { const t = agg.tiers.find((x) => x.func === f && x.tier !== "minor"); return t ? <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.85 }}>({TIER_LABEL[t.tier]})</span> : null; })()}
+              {(() => { const t = agg.tiers.find((x) => x.func === f && x.tier !== "minor"); return t ? <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.85 }}>(점수상 {TIER_LABEL[t.tier].replace(" 기능", "")})</span> : null; })()}
             </button>
           ))}
         </div>
+        {activeFunc !== "physical" && !(agg.ambiguous && !chosenFunc) && ( /* 점수가 비슷해 1차를 아직 안 골랐으면 2차는 1차를 고른 뒤에 */
+          <>
+            <div style={{ fontSize: 12, color: MUTE, margin: "12px 0 6px", fontWeight: 600 }}>2차 기능 (함께 넣을 중재)</div>
+            {secUndecided && (
+              <div data-testid="sec-suggest" style={{ marginBottom: 8, padding: "9px 12px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 8, fontSize: 12.5, color: "#5A4A78", lineHeight: 1.6 }}>
+                💡 <b>{UNIFIED_FUNC_NAME[secCandidate].split(" (")[0]}</b> 점수도 1차와 비슷하게 높습니다 (1차의 {candPct}%).
+                ABC 기록·관찰에서도 함께 보이면 2차로 넣고, 아니면 넣지 않음을 누르거나 관찰에 맞는 기능을 고르세요.
+                <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                  <button onClick={() => setChosenSec(secCandidate)} style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: "#8A6FB0", border: "none", borderRadius: 7, padding: "5px 10px", cursor: "pointer" }}>{UNIFIED_FUNC_NAME[secCandidate].split(" (")[0]} 2차로 넣기</button>
+                  <button onClick={() => setChosenSec("none")} style={{ fontSize: 12, fontWeight: 700, color: MUTE, background: "#fff", border: `1px solid ${PKL}`, borderRadius: 7, padding: "5px 10px", cursor: "pointer" }}>넣지 않음</button>
+                </div>
+              </div>
+            )}
+            <div data-testid="sec-picker" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[...Object.keys(UNIFIED_FUNC_NAME).filter((f) => f !== activeFunc).map((f) => ({ k: f, label: UNIFIED_FUNC_NAME[f].split(" (")[0] + (f === secCandidate ? " (점수상 추천)" : "") })),
+                { k: "none", label: "넣지 않음" }].map((o) => {
+                const on = secValid && chosenSec === o.k;
+                return (
+                  <button key={String(o.k)} onClick={() => setChosenSec(o.k)}
+                    style={{ padding: "7px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                      border: `1.5px solid ${on ? "#8A6FB0" : PKL}`, background: on ? "#8A6FB0" : "#fff", color: on ? "#fff" : MUTE }}>{o.label}</button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, color: MUTE, lineHeight: 1.6 }}>
+              {!secValid
+                ? (secCandidate ? "아직 정하지 않아 1차 중재만 들어가 있습니다." : "점수가 1차와 비슷한 기능이 없어 1차 중재만 들어가 있습니다. 관찰상 함께 작용하는 기능이 있으면 고르세요.")
+                : chosenSec === "none" ? "2차 중재를 넣지 않았습니다."
+                : bip && bip.secManual ? "점수 추천과 다르게 고른 2차 기능입니다. 문서 1번 칸에 '직접 선택'으로 표시됩니다."
+                : "고른 2차 기능의 중재가 2~4번에 [2차] 표시로 들어갑니다."}
+            </div>
+          </>
+        )}
         {otherEditFuncs.length > 0 && (
           <div style={{ marginTop: 8, fontSize: 11.5, color: "#8A6D3B", background: "#FFF9EE", borderRadius: 8, padding: "7px 10px", lineHeight: 1.6 }}>
             ✎ <b>{otherEditFuncs.map((f) => UNIFIED_FUNC_NAME[f].split(" (")[0]).join(", ")}</b> 기능으로 고쳐 둔 편집본이 따로 저장되어 있습니다. 그 기능을 누르면 보입니다.
@@ -3550,14 +3663,14 @@ function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = 
           ABC 기록과 관찰을 바탕으로 위 <b>중재 대상 기능 선택</b>에서 기능을 골라 주시면 중재안이 만들어집니다.
         </div>
       ) : (
-        <BIPDocument bip={bip} c={c} agg={agg} onUpdateCase={onUpdateCase} readOnly={readOnly} isAdmin={isAdmin} />
+        <BIPDocument bip={bip} c={c} agg={agg} onUpdateCase={onUpdateCase} readOnly={readOnly} isAdmin={isAdmin} secPending={secUndecided ? secCandidate : null} secOnlyOnScreen={readOnly && secLocal != null && secLocal !== savedSec} />
       )}
     </div>
   );
 }
 
 // ── BIP 문서 렌더 ───────────────────────────────
-function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = false }) {
+function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = false, secPending = null, secOnlyOnScreen = false }) {
   // 중재안 제공일: 환경(학교/센터)별로 따로 저장
   const provideKey = bip.setting === "school" ? "provideDateSchool" : "provideDateCenter";
   const [provideDate, setProvideDate] = useState(c[provideKey] || today());
@@ -3577,14 +3690,19 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const aiParentKey = `aiParent_${bip.setting}_${bip.func}`;
   const [aiLocal, setAiLocal] = useState({});         // 저장이 막힌 경우(남의 케이스)에도 화면에는 보이게
   // 내 케이스는 케이스에 저장된 값만 씀(다른 기기 변경도 따라감), 열람 중인 남의 케이스는 화면에만 기억
-  const aiBip = (readOnly && aiKey in aiLocal ? aiLocal[aiKey] : c[aiKey]) || null;
+  const aiBipRaw = (readOnly && aiKey in aiLocal ? aiLocal[aiKey] : c[aiKey]) || null;
+  // 2차 기능을 바꾸기 전에 만든 AI 글은 쓰지 않는다 (1번 칸 기능과 2~4번 내용이 어긋나지 않게)
+  const aiStale = !!aiBipRaw && secsDiffer(aiBipRaw, bip.secondaryFuncs);
+  const aiBip = aiStale ? null : aiBipRaw;
   const setAiBip = (v) => { if (readOnly) setAiLocal((m) => ({ ...m, [aiKey]: v })); else if (onUpdateCase) onUpdateCase({ [aiKey]: v }); };
-  const parentAi = (readOnly && aiParentKey in aiLocal ? aiLocal[aiParentKey] : c[aiParentKey]) || null; // AI가 변환한 부모님용 { why, prevent, teach, respond }
+  const parentAiRaw = (readOnly && aiParentKey in aiLocal ? aiLocal[aiParentKey] : c[aiParentKey]) || null;
+  const parentAiStale = !!parentAiRaw && Array.isArray(parentAiRaw._secs) && !sameSecs(parentAiRaw._secs, bip.secondaryFuncs);
+  const parentAi = parentAiStale ? null : parentAiRaw; // AI가 변환한 부모님용 { why, prevent, teach, respond }
   const setParentAi = (v) => { if (readOnly) setAiLocal((m) => ({ ...m, [aiParentKey]: v })); else if (onUpdateCase) onUpdateCase({ [aiParentKey]: v }); };
   const [parentAiState, setParentAiState] = useState("idle"); // idle | loading | error
   const [parentAiErr, setParentAiErr] = useState("");
   // 부모용 기준값(편집 시작점): AI변환 > 템플릿
-  const parentBase = parentAi || parentBipFor(bip.func, bip.setting, bip.secondaryFuncs);
+  const parentBase = parentAi || parentBipFor(bip.func, bip.setting, bip.secondaryFuncs, bip.flags);
   // 부모용 편집본 (환경별, 기능 불일치 시 무시)
   // 편집본은 기능마다 따로 저장 (예전 방식으로 저장된 것도 기능이 같으면 읽음)
   const pEditKey = `editedParent_${bip.setting}_${bip.func}`;
@@ -3605,6 +3723,21 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   // 시각카드: 편집본에 저장된 목록 우선, 없으면 기능별 기본
   const baseVisualCards = getVisualCards(bip.func);
   const showVisualCards = savedParent?.visualCards ?? baseVisualCards;
+  // 지금 부모님용 화면에 어떤 글이 보이는지: 직접 고친 글 / AI 글 / 기본 문안
+  const pTextEdited = !!savedParent && !(parentContent.why === parentBase.why && sameList(parentContent.prevent, parentBase.prevent)
+    && sameList(parentContent.teach, parentBase.teach) && sameList(parentContent.respond, parentBase.respond));
+  const pSource = pTextEdited ? "edit" : parentAi ? "ai" : "base";
+  const pEditSecOff = pTextEdited && Array.isArray(savedParent._secs) && !sameSecs(savedParent._secs, bip.secondaryFuncs);
+  const photoCount = (ph) => Object.values(ph || {}).reduce((n, a) => n + (Array.isArray(a) ? a.length : 0), 0);
+  // 글 말고도 직접 넣은 것(사진·고른 카드)이 있는지
+  const hasExtraP = !!savedParent && (photoCount(savedParent.photos) > 0 || !!savedParent.visualCards);
+  const [undoPar, setUndoPar] = useState(null);
+  const applyParentAi = () => {
+    if (!parentAi || !savedParent || !onUpdateCase) return;
+    setUndoPar(savedParent);
+    onUpdateCase({ [pEditKey]: { ...savedParent, func: bip.func, why: undefined, prevent: [], teach: [], respond: [], _secs: bip.secondaryFuncs || [] } }); // 빈 칸 → AI 글을 따라감
+  };
+  const undoParentAi = () => { if (undoPar && onUpdateCase) onUpdateCase({ [pEditKey]: undoPar }); setUndoPar(null); };
 
   const startPEdit = () => {
     setPDraft({
@@ -3623,23 +3756,24 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const savePEdit = () => {
     const cleaned = {
       func: bip.func,
-      why: pDraft.why.trim() || undefined,
-      prevent: pDraft.prevent.map((s) => s.trim()).filter(Boolean),
-      teach: pDraft.teach.map((s) => s.trim()).filter(Boolean),
-      respond: pDraft.respond.map((s) => s.trim()).filter(Boolean),
+      why: (pDraft.why.trim() && pDraft.why.trim() !== parentBase.why) ? pDraft.why.trim() : undefined,
+      prevent: changedList(pDraft.prevent, parentBase.prevent),
+      teach: changedList(pDraft.teach, parentBase.teach),
+      respond: changedList(pDraft.respond, parentBase.respond),
       photos: pDraft.photos,
       visualCards: pDraft.visualCards,
+      _secs: bip.secondaryFuncs || [],
     };
     const approx = JSON.stringify(cleaned).length;
     if (approx > 4_000_000) { setPErr("사진 용량이 너무 큽니다. 사진 수를 줄인 뒤 저장해 주세요."); return; }
     onUpdateCase && onUpdateCase({ [pEditKey]: cleaned });
-    setPEditing(false); setPDraft(null);
+    setPEditing(false); setPDraft(null); setUndoPar(null);
   };
   const resetPEdit = () => {
     if (!window.confirm("부모님용 편집본을 지우고 원래 문안으로 돌릴까요?\n고친 글과 넣은 사진, 고른 시각카드가 모두 지워지며 되돌릴 수 없습니다.")) return;
     const patch = { [pEditKey]: null };
     if (c[pLegacyKey] && c[pLegacyKey].func === bip.func) patch[pLegacyKey] = null;
-    onUpdateCase && onUpdateCase(patch); setPEditing(false); setPDraft(null);
+    onUpdateCase && onUpdateCase(patch); setPEditing(false); setPDraft(null); setUndoPar(null);
   };
   const setPField = (k, v) => setPDraft((d) => ({ ...d, [k]: v }));
   const setPItem = (k, i, v) => setPDraft((d) => ({ ...d, [k]: d[k].map((x, j) => j === i ? v : x) }));
@@ -3677,32 +3811,24 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   useEffect(() => { setPEditing(false); setPDraft(null); }, [pEditKey, bip.func]);
 
   const runParentAI = async () => {
-    setParentAiState("loading"); setParentAiErr("");
+    setParentAiState("loading"); setParentAiErr(""); setUndoPar(null);
     try {
       // 선생님이 고친 전문가용(또는 AI 생성본) 내용을 바탕으로 부모님용을 만든다
       // 부모용 AI의 바탕: 선생님이 고친 부모님용 편집본이 있으면 그것, 없으면 원장 기본 문안 (예전 AI 결과는 바탕으로 쓰지 않음)
-      const defP = parentBipFor(bip.func, bip.setting, bip.secondaryFuncs);
+      const defP = parentBipFor(bip.func, bip.setting, bip.secondaryFuncs, bip.flags);
+      // 2차 기능이 맞지 않는 옛 편집본은 바탕으로 쓰지 않는다
+      const sp = pEditSecOff ? null : savedParent;
       const pBase = {
-        why: savedParent?.why ?? defP.why,
-        prevent: savedParent?.prevent?.length ? savedParent.prevent : defP.prevent,
-        teach: savedParent?.teach?.length ? savedParent.teach : defP.teach,
-        respond: savedParent?.respond?.length ? savedParent.respond : defP.respond,
+        why: sp?.why ?? defP.why,
+        prevent: sp?.prevent?.length ? sp.prevent : defP.prevent,
+        teach: sp?.teach?.length ? sp.teach : defP.teach,
+        respond: sp?.respond?.length ? sp.respond : defP.respond,
       };
-      const r = await enhanceParentBIP({ ...bip, hypothesis: showHyp, antecedent: showAnt, replacement: showRep, consequence: showCon }, c, pBase);
+      const r = await enhanceParentBIP({ ...bip, hypothesis: showHyp,
+        antecedent: expEditSecOff ? baseAnt : showAnt, replacement: expEditSecOff ? baseRep : showRep, consequence: expEditSecOff ? baseCon : showCon }, c, pBase);
+      r._secs = bip.secondaryFuncs || [];
       setParentAi(r);
       setParentAiState("idle");
-      // 직접 고친 부모님용 편집본이 있으면 화면에는 편집본이 보이므로, AI 결과로 바꿀지 묻는다
-      if (savedParent && !readOnly && onUpdateCase) {
-        const swap = window.confirm(
-          "직접 고쳐 둔 부모님용 편집본이 있어서, 지금은 AI 결과 대신 편집본이 보이고 있습니다.\n\n" +
-          "편집본의 글(왜·예방·가르치기·반응)을 방금 만든 AI 결과로 바꿀까요?\n(사진·시각카드는 그대로 둡니다)" +
-          (r._safetyDropped ? `\n\n※ AI가 쓴 문장 중 몸으로 막거나 위기 대처를 정한 ${r._safetyDropped}개는 뺐습니다.` : "") +
-          (r._filled && r._filled.length ? "\n※ AI 응답이 일부 끊겨 빈 칸은 바탕 문안으로 채웠습니다." : "")
-        );
-        if (swap) {
-          onUpdateCase({ [pEditKey]: { ...savedParent, func: bip.func, why: r.why, prevent: r.prevent, teach: r.teach, respond: r.respond } });
-        }
-      }
     } catch (e) {
       setParentAiErr(e.message || "AI 변환 중 문제가 발생했어요.");
       setParentAiState("error");
@@ -3721,7 +3847,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const baseAnt = usingAi ? aiBip.antecedent : bip.antecedent;
   const baseRep = usingAi ? aiBip.replacement : bip.replacement;
   const baseCon = usingAi ? aiBip.consequence : bip.consequence;
-  const baseHyp = bip.hypothesis;
+  const baseHyp = (usingAi && aiBip.hypothesis) || bip.hypothesis;
   const baseMean = FUNC_MEANING(bip.func, c.name, c.target, bip.setting);
 
   const savedEdit = c[editKey] || (c[legacyEditKey] && c[legacyEditKey].func === bip.func ? c[legacyEditKey] : null); // 기능별 편집본
@@ -3734,6 +3860,22 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const showAnt = savedEdit?.antecedent?.length ? savedEdit.antecedent : baseAnt; // 항목을 다 지웠으면 기본 문안
   const showRep = savedEdit?.replacement?.length ? savedEdit.replacement : baseRep;
   const showCon = savedEdit?.consequence?.length ? savedEdit.consequence : baseCon;
+  // 지금 전문가용 2~4번에 어떤 글이 보이는지: 직접 고친 글 / AI 글 / 기본 문안
+  const expTextEdited = !!savedEdit && !(sameList(showAnt, baseAnt) && sameList(showRep, baseRep) && sameList(showCon, baseCon));
+  const expSource = expTextEdited ? "edit" : usingAi ? "ai" : "base";
+  const expEditSecOff = expTextEdited && secsDiffer(savedEdit, bip.secondaryFuncs);
+  const hasExtraE = !!savedEdit && (photoCount(savedEdit.photos) > 0 || !!savedEdit.visualCards || (savedEdit.hypothesis != null && savedEdit.hypothesis !== baseHyp) || (savedEdit.meaning != null && savedEdit.meaning !== baseMean));
+  const [undoExp, setUndoExp] = useState(null);
+  const applyExpertAi = () => {
+    if (!aiBip || !savedEdit || !onUpdateCase) return;
+    const filled = aiBip._filled || [];
+    // AI가 쓰지 못한 칸은 고친 글을 그대로 둔다
+    // 빈 칸으로 두면 화면은 AI 글을 따라간다. AI가 쓰지 못한 칸은 고친 글을 두되, 2차 기능이 맞지 않는 옛 글이면 두지 않는다
+    const keep = (k) => !expEditSecOff && filled.includes(k) && savedEdit[k] && savedEdit[k].length ? savedEdit[k] : [];
+    setUndoExp(savedEdit);
+    onUpdateCase({ [editKey]: { ...savedEdit, func: bip.func, antecedent: keep("antecedent"), replacement: keep("replacement"), consequence: keep("consequence"), _secs: bip.secondaryFuncs || [] } });
+  };
+  const undoExpertAi = () => { if (undoExp && onUpdateCase) onUpdateCase({ [editKey]: undoExp }); setUndoExp(null); };
   // 사진(섹션별 배열). 편집본에만 존재
   const emptyPhotos = { antecedent: [], replacement: [], consequence: [] };
   const showPhotos = savedEdit?.photos ?? emptyPhotos;
@@ -3752,7 +3894,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     "\n" + hashText(JSON.stringify([showVisualCardsX, showVisualCards]))
   // 화면이 다시 그려질 때마다가 아니라, 케이스 내용·기능·화면 전용 AI가 바뀔 때만 다시 계산
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [c, bip.func, bip.setting, aiLocal, agg]);
+  ), [c, bip.func, bip.setting, aiLocal, agg, (bip.secondaryFuncs || []).join(","), bip.secManual]);
   const [approval, setApproval] = useState(null);
   const [approvalState, setApprovalState] = useState("loading"); // loading | ready | error
   const [approvalBusy, setApprovalBusy] = useState(false);
@@ -3779,7 +3921,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const needsApproval = !isAdmin;              // 원장 본인 문서는 바로 인쇄
   const exportLocked = needsApproval && !approved;
   const reviewMode = isAdmin && readOnly; // 원장이 선생님 BIP를 확인하는 화면: 기본 문안과 다른 문장만 표시
-  const aiOnlyOnScreen = readOnly && (aiKey in aiLocal || aiParentKey in aiLocal); // 원장이 화면에서만 돌린 AI 결과는 승인 대상 아님
+  const aiOnlyOnScreen = readOnly && (aiKey in aiLocal || aiParentKey in aiLocal || secOnlyOnScreen); // 원장이 화면에서만 돌린 AI 결과·바꾼 2차 기능은 승인 대상 아님
   const approveNow = async () => {
     setApprovalBusy(true);
     // 원장 화면의 선생님 자료가 오래됐을 수 있으니, 확인 직전에 최신 내용과 같은지 본다
@@ -3789,7 +3931,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
         const row = (rows || []).find((r) => r.key === "cases");
         const latest = row?.value ? (JSON.parse(row.value) || []).find((x) => x.id === c.id) : null;
         // 문서 내용에 쓰이는 칸만 비교 (ABC 기록 추가·제공일 같은 다른 변경으로 거절되지 않게)
-        const docPart = (o) => Object.keys(o || {}).filter((k) => /^(editedBip_|editedParent_|aiBip_|aiParent_)/.test(k) || ["name", "target", "type", "assessments", "bipFunc"].includes(k)).sort().reduce((m, k) => { m[k] = o[k]; return m; }, {});
+        const docPart = (o) => Object.keys(o || {}).filter((k) => /^(editedBip_|editedParent_|aiBip_|aiParent_)/.test(k) || ["name", "target", "type", "assessments", "bipFunc", "bipSecFunc"].includes(k)).sort().reduce((m, k) => { m[k] = o[k]; return m; }, {});
         const stable = (o) => JSON.stringify(docPart(o), (k, v) => (v && typeof v === "object" && !Array.isArray(v)) ? Object.keys(v).sort().reduce((m, kk) => { m[kk] = v[kk]; return m; }, {}) : v);
         if (!latest) {
           setApprovalBusy(false);
@@ -3839,14 +3981,16 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     const cleaned = {
       func: bip.func,
       // 칸을 다 지우고 저장하면 빈 문단이 인쇄되지 않도록 기본 문장으로 돌린다
-      hypothesis: draft.hypothesis.trim() || undefined,
-      meaning: draft.meaning.trim() || undefined,
+      // 고치지 않은 칸은 저장하지 않는다 → 그 칸은 계속 기본 문안·AI 글을 따라간다 (사진만 넣어도 '직접 고친 글'로 굳지 않게)
+      hypothesis: (draft.hypothesis.trim() && draft.hypothesis.trim() !== baseHyp) ? draft.hypothesis.trim() : undefined,
+      meaning: (draft.meaning.trim() && draft.meaning.trim() !== baseMean) ? draft.meaning.trim() : undefined,
       // 한 섹션의 항목을 모두 지우고 저장하면 빈칸이 인쇄되지 않도록 기본 문안으로 돌린다
-      antecedent: draft.antecedent.map((s) => s.trim()).filter(Boolean),
-      replacement: draft.replacement.map((s) => s.trim()).filter(Boolean),
-      consequence: draft.consequence.map((s) => s.trim()).filter(Boolean),
+      antecedent: changedList(draft.antecedent, baseAnt),
+      replacement: changedList(draft.replacement, baseRep),
+      consequence: changedList(draft.consequence, baseCon),
       photos: draft.photos,
       visualCards: draft.visualCards,
+      _secs: bip.secondaryFuncs || [],
     };
     // 용량 방어: 저장될 편집본 대략 크기 확인 (사진 base64가 대부분)
     const approxBytes = JSON.stringify(cleaned).length; // UTF-16이지만 base64는 ASCII라 근사치로 충분
@@ -3855,18 +3999,18 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
       return;
     }
     onUpdateCase && onUpdateCase({ [editKey]: cleaned });
-    setEditing(false); setDraft(null);
+    setEditing(false); setDraft(null); setUndoExp(null);
   };
   const resetEdit = () => {
     if (!window.confirm("전문가용 편집본을 지우고 원래 문안으로 돌릴까요?\n고친 글과 넣은 사진, 고른 시각카드가 모두 지워지며 되돌릴 수 없습니다.")) return;
     const patch = { [editKey]: null };
     if (c[legacyEditKey] && c[legacyEditKey].func === bip.func) patch[legacyEditKey] = null;
     onUpdateCase && onUpdateCase(patch);
-    setEditing(false); setDraft(null);
+    setEditing(false); setDraft(null); setUndoExp(null);
   };
   // 환경(센터↔학교) 또는 기능이 바뀌면 편집 중이던 draft를 폐기 (다른 환경에 잘못 저장 방지)
   useEffect(() => {
-    setEditing(false); setDraft(null);
+    setEditing(false); setDraft(null); setUndoExp(null); setUndoPar(null);
   }, [editKey, bip.func]);
   const setDraftField = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
   const setDraftItem = (k, i, v) => setDraft((d) => ({ ...d, [k]: d[k].map((x, j) => j === i ? v : x) }));
@@ -3927,7 +4071,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
       check("왜 이런 행동을 할까요", parentContent.why);
       checkList("미리 예방해요", parentContent.prevent);
       checkList("다른 행동을 가르쳐요", parentContent.teach);
-      checkList("이렇게 반응해주세요", parentContent.respond);
+      checkList("이렇게 반응해 주세요", parentContent.respond);
     } else {
       check("1. 기능 가설", showHyp);
       check("1. 행동의 의미", showMean);
@@ -3944,6 +4088,13 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
       "\n\n" + (viewMode === "parent" ? "부모님용 '✏️ 편집'" : "'✏️ 편집'") + "에서 채운 뒤 다시 눌러 주세요.");
     return false;
   };
+  // 점수가 비슷한 2차 기능을 아직 정하지 않았으면 내보내기 전에 한 번 묻는다
+  const confirmSecDecided = () => {
+    if (!secPending) return true;
+    const nm = UNIFIED_FUNC_NAME[secPending].split(" (")[0];
+    return window.confirm("2차 기능을 아직 정하지 않았습니다.\n" + nm + " 점수도 1차와 비슷하게 높게 나왔는데, 지금은 1차 중재만 들어가 있습니다.\n\n" +
+      "확인을 누르면 1차 중재만으로 계속하고, 취소를 누르면 위 '2차 기능' 칸에서 먼저 정할 수 있습니다.");
+  };
   const confirmTargetFilled = () => {
     if (viewMode === "parent" || (c.target || "").trim()) return true;
     return window.confirm("목표행동(표적행동)이 비어 있습니다.\n문서의 표적행동 칸이 빈칸(________)으로 나가고, 가설에는 '도전적 행동'으로 표시됩니다.\n\n그래도 계속할까요?");
@@ -3952,6 +4103,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     if (exportLocked) return;
     if (!passExportCheck()) return;
     if (!confirmTargetFilled()) return;
+    if (!confirmSecDecided()) return;
     if (viewMode === "parent") {
       const pc = parentContent;
       const nm = displayName(c.name);
@@ -3967,11 +4119,11 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
         "💬 다른 행동을 가르쳐요",
         ...pc.teach.map((t, i) => `${i + 1}. ${t}`),
         "",
-        "🤗 이렇게 반응해주세요",
+        "🤗 이렇게 반응해 주세요",
         ...pc.respond.map((t, i) => `${i + 1}. ${t}`),
         "",
         "⚠ 안전을 위해 꼭 지켜 주세요",
-        ...parentSafetyFor(bip.setting).map((t, i) => `${i + 1}. ${t}`),
+        ...parentSafetyFor(bip.setting, bip.flags).map((t, i) => `${i + 1}. ${t}`),
         "",
         "검단ABA언어행동연구소",
       ];
@@ -4064,9 +4216,9 @@ ${photoHtml(showPhotos.consequence)}
 <div class="sec">
 <div class="secH"><span class="n">5</span><span class="t">위기 대처 및 안전</span></div>
 <div style="font-weight:700;font-size:13px;margin:4px 0 6px;">위기 상황일 때</div>
-${li(crisisSafetyFor(bip.setting).crisis)}
+${li(crisisSafetyFor(bip.setting, bip.flags).crisis)}
 <div style="font-weight:700;font-size:13px;margin:12px 0 6px;">안전 수칙</div>
-${li(crisisSafetyFor(bip.setting).safety)}
+${li(crisisSafetyFor(bip.setting, bip.flags).safety)}
 </div>
 
 ${showVisualCardsX.length ? `<div class="sec sec-break">
@@ -4125,8 +4277,8 @@ h1{font-size:21px;font-weight:800;color:#3A2C30;margin:0 0 4px;}
 </div>
 ${listBlock("", "미리 예방해요 (이렇게 해보세요)", pc.prevent, "#5C9A72", "#F0F7F1", parentPhotos.prevent)}
 ${listBlock("", "다른 행동을 가르쳐요", pc.teach, "#5B7BB5", "#EEF3FB", parentPhotos.teach)}
-${listBlock("", "이렇게 반응해주세요", pc.respond, "#C99A4B", "#FFF6EC", parentPhotos.respond)}
-${listBlock("", "안전을 위해 꼭 지켜 주세요", parentSafetyFor(bip.setting), "#C4557A", "#FFF0F3", null)}
+${listBlock("", "이렇게 반응해 주세요", pc.respond, "#C99A4B", "#FFF6EC", parentPhotos.respond)}
+${listBlock("", "안전을 위해 꼭 지켜 주세요", parentSafetyFor(bip.setting, bip.flags), "#C4557A", "#FFF0F3", null)}
 ${showVisualCards.length ? `<div class="sec-break"></div>
 <div class="pblock"><div class="ph"><span class="pt" style="color:#D4728A">집에서 함께 쓰는 자료</span></div>
 <div style="font-size:12px;color:#9A7A82;margin:-4px 0 12px;">아래 카드를 출력해서 아이와 함께 사용해 보세요.</div>
@@ -4141,6 +4293,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
     if (exportLocked) return;
     if (!passExportCheck()) return;
     if (!confirmTargetFilled()) return;
+    if (!confirmSecDecided()) return;
     setPrintWarn(false);
     const w = window.open("", "_blank"); // 누른 순간에 창을 열어야 팝업 차단에 걸리지 않는다
     if (!w) { setPrintWarn(true); return; }
@@ -4195,24 +4348,12 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
       );
       if (!ok) return;
     }
-    setAiState("loading"); setAiErr("");
+    setAiState("loading"); setAiErr(""); setUndoExp(null);
     try {
       const result = await enhanceBIPWithAI(bip, c);
+      result._secs = bip.secondaryFuncs || [];
       setAiBip(result);
       setAiState("done");
-      if (savedEdit) {
-        const filled = result._filled || [];
-        const secName = { antecedent: "2번", replacement: "3번", consequence: "4번" };
-        const swap = window.confirm(
-          "직접 고쳐 둔 편집본이 있어서, 지금은 AI 결과 대신 편집본이 보이고 있습니다.\n\n" +
-          "편집본의 2~4번 중재 내용을 방금 만든 AI 결과로 바꿀까요?\n(가설·행동의 의미·사진·시각카드는 그대로 둡니다)" +
-          (filled.length ? "\n\n※ AI 응답이 끊겨 " + filled.map((k) => secName[k]).join("·") + "은 AI가 쓰지 못했습니다. 그 부분은 고쳐 둔 편집본 내용을 그대로 둡니다." : "")
-        );
-        if (swap) {
-          const keep = (k) => filled.includes(k) && savedEdit[k] && savedEdit[k].length ? savedEdit[k] : result[k];
-          onUpdateCase && onUpdateCase({ [editKey]: { ...savedEdit, func: bip.func, antecedent: keep("antecedent"), replacement: keep("replacement"), consequence: keep("consequence") } });
-        }
-      }
     } catch (e) {
       setAiErr(e.message || "AI 생성 중 문제가 발생했어요. 다시 시도해 주세요.");
       setAiState("error");
@@ -4265,7 +4406,9 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", background: "#F4F0FA", border: "1px solid #D8CCEB", borderRadius: 8, padding: "8px 12px", marginBottom: 8, fontSize: 12, color: "#5B4A80", lineHeight: 1.6 }}>
           <span style={{ flex: 1, minWidth: 180 }}>
             {approvalState === "loading" ? "확인 상태를 불러오는 중…"
-              : aiOnlyOnScreen ? "원장님 화면에서만 만든 AI 결과가 보이는 중이라 확인할 수 없습니다. 페이지를 새로 열어 선생님이 저장한 내용으로 확인해 주세요."
+              : aiOnlyOnScreen ? (secOnlyOnScreen
+                ? "원장님 화면에서만 2차 기능을 바꾼 상태라 확인할 수 없습니다. 페이지를 새로 열어 선생님이 저장한 내용으로 확인해 주세요. (2차 기능은 선생님께 바꾸도록 알려 주세요)"
+                : "원장님 화면에서만 만든 AI 결과가 보이는 중이라 확인할 수 없습니다. 페이지를 새로 열어 선생님이 저장한 내용으로 확인해 주세요.")
               : approved ? "✓ 확인 완료 — 선생님이 이 내용으로 PDF 저장·복사를 할 수 있습니다. (전문가용·부모님용 모두)"
               : (approval && approval.hash ? "확인한 뒤 내용이 바뀌었습니다. 지금 내용을 다시 확인해 주세요." : "선생님 BIP — 아직 확인 전입니다. 전문가용·부모님용을 읽어 보신 뒤 확인을 눌러 주세요.")}
             {approvalState === "ready" && !aiOnlyOnScreen && !approved && <><br /><span style={{ fontSize: 11.5 }}>노란색 <b>[바뀜]</b>은 지금 원장님 기본 문안과 다른 문장(AI 글·선생님 수정·예전 문안), 줄 그은 <b>[빠짐]</b>은 들어 있지 않은 기본 항목입니다. 흐린 문장은 기본 문안 그대로입니다.</span></>}
@@ -4279,11 +4422,9 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
         </div>
       )}
       {copyMsg && <div style={{ textAlign: "right", fontSize: 11.5, color: copyMsg.startsWith("✓") ? "#5E9E5D" : "#D85A5A", marginBottom: 6 }}>{copyMsg}</div>}
-      {viewMode === "expert" && savedEdit && !editing && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFF9E9", border: "1px solid #F0DDA8", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#8A6D3B" }}>
-          ✏️ 직접 수정한 내용이 반영되어 있습니다.
-          {!readOnly && <button onClick={resetEdit} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>원래대로</button>}
-        </div>
+      {viewMode === "expert" && !editing && (
+        <TextSourceBar source={expSource} parts="2~4번 중재" hasEdit={hasExtraE} readOnly={readOnly}
+          onApplyAi={usingAi && expTextEdited ? applyExpertAi : null} onUndo={undoExp ? undoExpertAi : null} onReset={savedEdit ? resetEdit : null} secOff={expEditSecOff} />
       )}
       {editing && photoErr && (
         <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{photoErr}</div>
@@ -4320,22 +4461,25 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
           {pEditing && <button onClick={cancelPEdit} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>취소</button>}
           {pEditing && <button onClick={savePEdit} style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}>✓ 저장</button>}
         </div>
-        {savedParent && !pEditing && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFF9E9", border: "1px solid #F0DDA8", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#8A6D3B" }}>
-            ✏️ 직접 수정한 내용이 반영되어 있습니다.
-            {!readOnly && <button onClick={resetPEdit} style={{ marginLeft: "auto", fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>원래대로</button>}
-          </div>
+        {!pEditing && (
+          <TextSourceBar source={pSource} parts="부모님 안내" hasEdit={hasExtraP} readOnly={readOnly}
+            onApplyAi={parentAi && pTextEdited ? applyParentAi : null} onUndo={undoPar ? undoParentAi : null} onReset={savedParent ? resetPEdit : null} secOff={pEditSecOff} />
         )}
         {pEditing && pErr && (
           <div style={{ background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: "#C04040" }}>{pErr}</div>
         )}
-        <ParentView school={bip.setting === "school"} reviewBase={reviewMode ? parentBipFor(bip.func, bip.setting, bip.secondaryFuncs) : null} content={parentContent} childName={c.name}
+        <ParentView school={bip.setting === "school"} flags={bip.flags} reviewBase={reviewMode ? parentBipFor(bip.func, bip.setting, bip.secondaryFuncs, bip.flags) : null} content={parentContent} childName={c.name}
           visualCards={showVisualCards} draftVisualCards={pDraft?.visualCards} onRemoveCard={removePVisualCard} onAddCard={addPVisualCard} onSlotPhoto={setPCardSlotPhoto}
           editing={pEditing} draft={pDraft} photos={parentPhotos}
           onField={setPField} onItem={setPItem} onAddItem={addPItem} onRemoveItem={removePItem}
           onAddPhotos={addPPhotos} onRemovePhoto={removePPhoto} />
         {/* 열람 전용(남의 케이스)에서는 AI 생성을 숨김: 저장도 안 되고 비용만 듦 */}
         <div style={{ marginTop: 16, borderTop: `1px dashed ${PKL}`, paddingTop: 16, display: readOnly ? "none" : undefined }}>
+          {parentAiStale && parentAiState !== "loading" && (
+            <div style={{ marginBottom: 8, padding: "8px 12px", background: "#FFF6E9", border: "1px solid #F0D9A8", borderRadius: 8, fontSize: 12, color: "#8A6D3B", lineHeight: 1.6 }}>
+              예전 AI 안내는 지금 2차 기능과 맞지 않아 쓰지 않고 있습니다. 다시 만들어 주세요.
+            </div>
+          )}
           {!parentAi && (
             <>
               <button onClick={runParentAI} disabled={parentAiState === "loading" || pEditing} style={{ ...btnPrimary, width: "100%", opacity: (parentAiState === "loading" || pEditing) ? 0.6 : 1 }}>
@@ -4346,6 +4490,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
               </div>
             </>
           )}
+          {parentAiState === "loading" && <AiProgress typical={30} />}
           {parentAiState === "error" && (
             <div style={{ marginTop: 10, padding: "10px 14px", background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, fontSize: 12.5, color: "#C04040" }}>{parentAiErr}</div>
           )}
@@ -4353,18 +4498,23 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
             <div style={{ padding: "12px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 15 }}>✨</span>
-                <span style={{ fontWeight: 700, fontSize: 14, color: "#6B5B8A" }}>AI 맞춤 안내 표시 중</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: "#6B5B8A" }}>AI 맞춤 안내가 만들어져 있어요</span>
                 <button onClick={runParentAI} disabled={parentAiState === "loading" || pEditing} style={{ marginLeft: "auto", fontSize: 11, color: "#8A6FB0", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>{parentAiState === "loading" ? "쓰는 중..." : "↻ 다시"}</button>
                 <button onClick={clearParentAI} style={{ fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>기본으로</button>
               </div>
-              {!savedParent && parentAi._safetyDropped > 0 && (
+              {pTextEdited && (
+                <div style={{ fontSize: 11, color: "#8A6FB0", marginTop: 8, lineHeight: 1.6 }}>
+                  지금 화면·PDF·복사에는 <b>직접 고친 글</b>이 쓰이고 있습니다. AI 글을 쓰려면 위쪽 노란 줄의 <b>"✨ AI 글로 바꾸기"</b>를 누르세요.
+                </div>
+              )}
+              {!pTextEdited && parentAi._safetyDropped > 0 && (
                 <div style={{ fontSize: 11, color: "#A0602E", marginTop: 8, lineHeight: 1.6 }}>
                   ⚠ AI가 쓴 문장 중 몸으로 막거나 위기 대처를 정한 {parentAi._safetyDropped}개는 뺐습니다. 안전 안내는 고정 문구를 따릅니다.
                 </div>
               )}
-              {!savedParent && parentAi._filled && parentAi._filled.length > 0 && (
+              {!pTextEdited && parentAi._filled && parentAi._filled.length > 0 && (
                 <div style={{ fontSize: 11, color: "#A0602E", marginTop: 8, lineHeight: 1.6 }}>
-                  ⚠ AI 응답이 끊기거나 쓸 수 없는 내용이라 <b>{parentAi._filled.map((k) => ({ why: "왜 이런 행동을 할까요", prevent: "미리 예방해요", teach: "다른 행동을 가르쳐요", respond: "이렇게 반응해주세요" }[k])).join(", ")}</b> 부분은 기본 문안으로 채웠습니다. "↻ 다시"를 누르면 새로 만듭니다.
+                  ⚠ AI 응답이 끊기거나 쓸 수 없는 내용이라 <b>{parentAi._filled.map((k) => ({ why: "왜 이런 행동을 할까요", prevent: "미리 예방해요", teach: "다른 행동을 가르쳐요", respond: "이렇게 반응해 주세요" }[k])).join(", ")}</b> 부분은 기본 문안으로 채웠습니다. "↻ 다시"를 누르면 새로 만듭니다.
                 </div>
               )}
             </div>
@@ -4444,9 +4594,9 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
       <BIPBlock num="5" title="위기 대처 및 안전">
         <div style={{ fontSize: 12, color: MUTE, marginBottom: 8, lineHeight: 1.6 }}>고정 문구입니다. AI가 바꾸지 않고 모든 BIP에 그대로 들어갑니다.</div>
         <div style={{ fontWeight: 700, fontSize: 13, margin: "2px 0 6px" }}>위기 상황일 때</div>
-        <BulletList items={crisisSafetyFor(bip.setting).crisis} />
+        <BulletList items={crisisSafetyFor(bip.setting, bip.flags).crisis} />
         <div style={{ fontWeight: 700, fontSize: 13, margin: "12px 0 6px" }}>안전 수칙</div>
-        <BulletList items={crisisSafetyFor(bip.setting).safety} />
+        <BulletList items={crisisSafetyFor(bip.setting, bip.flags).safety} />
       </BIPBlock>
 
       <BIPBlock num="6" title="시각지원 자료 (인쇄용)">
@@ -4467,6 +4617,11 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
 
       {/* AI 맞춤 생성 */}
       <div style={{ marginTop: 18, borderTop: `1px dashed ${PKL}`, paddingTop: 16, display: readOnly ? "none" : undefined }}>
+        {aiStale && aiState !== "loading" && (
+          <div data-testid="ai-stale" style={{ marginBottom: 8, padding: "8px 12px", background: "#FFF6E9", border: "1px solid #F0D9A8", borderRadius: 8, fontSize: 12, color: "#8A6D3B", lineHeight: 1.6 }}>
+            예전 AI 글은 지금 2차 기능과 맞지 않아 쓰지 않고 있습니다. 다시 만들어 주세요.
+          </div>
+        )}
         {!usingAi && (
           <>
             <button onClick={runAI} disabled={aiState === "loading" || editing} title={editing ? "편집을 저장하거나 취소한 뒤 사용할 수 있습니다" : ""} style={{ ...btnPrimary, width: "100%", opacity: (aiState === "loading" || editing) ? 0.6 : 1 }}>
@@ -4478,6 +4633,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
           </>
         )}
 
+        {aiState === "loading" && <AiProgress />}
         {aiState === "error" && (
           <div style={{ marginTop: 10, padding: "10px 14px", background: "#FFF0F0", border: "1px solid #F0B0B0", borderRadius: 10, fontSize: 12.5, color: "#C04040" }}>
             {aiErr}
@@ -4488,23 +4644,23 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
           <div style={{ padding: "12px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 15 }}>✨</span>
-              <span style={{ fontWeight: 700, fontSize: 14, color: "#6B5B8A" }}>AI 맞춤 생성본 표시 중</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: "#6B5B8A" }}>AI 맞춤 중재안이 만들어져 있어요</span>
               <button onClick={runAI} disabled={aiState === "loading" || editing} style={{ marginLeft: "auto", fontSize: 11, color: "#8A6FB0", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
                 {aiState === "loading" ? "생성 중..." : "↻ 다시 생성"}
               </button>
               <button onClick={clearAI} style={{ fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer" }}>기본으로</button>
             </div>
             <div style={{ fontSize: 11, color: "#8A6FB0", marginTop: 8, lineHeight: 1.6 }}>
-              {savedEdit
-                ? <>AI 생성본은 저장되어 있으나, 지금 화면·PDF·복사에는 <b>직접 고친 편집본</b>이 쓰이고 있습니다. 편집에서 "원래대로"를 누르면 AI 생성본이 보입니다.</>
-                : <>2~4번 중재안이 이 아동 정보(ABC 기록·평가)를 반영한 AI 생성본으로 바뀌었습니다. <b>전문가 검토 후 사용</b>하시는 편이 좋습니다. PDF·복사에도 이 내용이 반영됩니다.</>}
+              {expTextEdited
+                ? <>지금 화면·PDF·복사에는 <b>직접 고친 글</b>이 쓰이고 있습니다. AI 글을 쓰려면 위쪽 노란 줄의 <b>"✨ AI 글로 바꾸기"</b>를 누르세요.</>
+                : <>2~4번 중재안에 이 아동 정보(ABC 기록·평가)를 반영한 AI 글이 쓰이고 있습니다. <b>전문가 검토 후 사용</b>하시는 편이 좋습니다. PDF·복사에도 이 내용이 반영됩니다.</>}
             </div>
-            {!savedEdit && aiBip._safetyDropped > 0 && (
+            {!expTextEdited && aiBip._safetyDropped > 0 && (
               <div style={{ fontSize: 11, color: "#A0602E", marginTop: 6, lineHeight: 1.6 }}>
                 ⚠ AI가 쓴 문장 중 몸으로 제지하거나 위기 절차를 정한 {aiBip._safetyDropped}개는 뺐습니다. 위기·안전은 5번 고정 칸을 따릅니다.
               </div>
             )}
-            {!savedEdit && aiBip._filled && aiBip._filled.length > 0 && (
+            {!expTextEdited && aiBip._filled && aiBip._filled.length > 0 && (
               <div style={{ fontSize: 11, color: "#A0602E", marginTop: 6, lineHeight: 1.6 }}>
                 ⚠ AI 응답이 끊기거나 쓸 수 없는 내용이라 <b>{aiBip._filled.map((k) => ({ antecedent: "2. 선행중재", replacement: "3. 대체행동중재", consequence: "4. 후속결과중재" }[k])).join(", ")}</b> 부분은 기본 문안으로 채웠습니다. "↻ 다시 생성"을 누르면 새로 만듭니다.
               </div>
@@ -4588,6 +4744,13 @@ function dropUnsafeAI(items) {
 }
 
 // ── Claude API 호출: 이 아동 맞춤 BIP 전체 재작성 ───
+// AI가 다듬은 기능 가설은 기능을 바꾸지 않았을 때만 쓴다 (기능 핵심 말이 있어야 하고, 위험 문장·빈 내용이면 버림)
+const HYP_KEY = { attention: /관심/, escape: /벗어나|회피|피하/, tangible: /얻|갖|원하는/, sensory: /감각|자동강화/, physical: /통증|불편|아픔|아파/ };
+function hypothesisOk(t, func) {
+  if (!t || t.length < 20 || t.length > 500) return false;
+  if (AI_UNSAFE_RE.test(t)) return false;
+  return !!(HYP_KEY[func] && HYP_KEY[func].test(t));
+}
 async function enhanceBIPWithAI(bip, c, onDelta) {
   const isPbs = c.type === "pbs";
 
@@ -4646,6 +4809,7 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
     if (start !== -1 && end !== -1 && end > start) {
       const parsed = JSON.parse(cleaned.slice(start, end + 1));
       result = { antecedent: arr(parsed.antecedent), replacement: arr(parsed.replacement), consequence: arr(parsed.consequence) };
+      if (typeof parsed.hypothesis === "string" && hypothesisOk(parsed.hypothesis.trim(), bip.func)) result.hypothesis = parsed.hypothesis.trim();
     }
   } catch (_) { result = null; }
 
@@ -4686,7 +4850,7 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
 // ── 부모님용 쉬운 안내를 AI가 이 아이 맞춤으로 재작성 ───
 async function enhanceParentBIP(bip, c, parentBase) {
   // [3단계] 프롬프트 조립을 서버(bip-ai)로 이관. 재료(child·bip)만 보낸다.
-  const res = await callBipAI({ type: "parent", child: childForAI(c), bip, parentBase: parentBase || parentBipFor(bip.func, bip.setting, bip.secondaryFuncs), model: "claude-sonnet-5", max_tokens: 4000, stream: false });
+  const res = await callBipAI({ type: "parent", child: childForAI(c), bip, parentBase: parentBase || parentBipFor(bip.func, bip.setting, bip.secondaryFuncs, bip.flags), model: "claude-sonnet-5", max_tokens: 4000, stream: false });
   const data = await res.json();
   const text = Array.isArray(data.content)
     ? data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n")
@@ -4723,7 +4887,7 @@ async function enhanceParentBIP(bip, c, parentBase) {
     const r = dropUnsafeAI(out[k]); out[k] = r.keep; safetyDropped += r.dropped;
   });
   // 빈 항목은 기존 템플릿으로 보완하고 표시해 둔다
-  const defBase = parentBipFor(bip.func, bip.setting, bip.secondaryFuncs);
+  const defBase = parentBipFor(bip.func, bip.setting, bip.secondaryFuncs, bip.flags);
   const base = parentBase || defBase; // 빈 칸은 AI에 준 바탕(선생님 편집본 또는 기본 문안)으로 채움
   const filled = [];
   if (!out.why) filled.push("why");
@@ -5213,8 +5377,10 @@ function emojifyHtml(html) {
   });
 }
 
+// 한 줄에 놓인 칸들의 높이를 맞춘다 (그림 크기가 달라도 칸이 들쭉날쭉하지 않게)
+const VC_STYLE = "<style>.vc td{height:1px}.vc td>div:only-child{height:100%;box-sizing:border-box}</style>";
 function visualCardToHtml(card, esc) {
-  return emojifyHtml(visualCardToHtmlRaw(card, esc));
+  return `<div class="vc">${VC_STYLE}${emojifyHtml(visualCardToHtmlRaw(card, esc))}</div>`;
 }
 function visualCardToHtmlRaw(card, esc) {
   // 헤더 바 있는 프레임 (화면 CardFrame과 통일)
@@ -5248,7 +5414,7 @@ function visualCardToHtmlRaw(card, esc) {
       const iconHtml = emoji ? `<span style="font-size:${big ? 60 : 36}px;line-height:1;">${emoji}</span>` : (icon || `<span style="color:#D4728A;font-weight:800;font-size:22px;">${i + 1}</span>`);
       return `<td style="width:${Math.floor(100 / cols)}%;padding:5px;vertical-align:top;">
         <div style="background:#fff;border:2px solid #F5A0B1;border-radius:14px;padding:${big ? "34px 6px" : "14px 6px"};text-align:center;">
-          <div style="min-height:${big ? 66 : 40}px;margin-bottom:${big ? 12 : 6}px;">${iconHtml}</div>
+          <div style="height:${big ? 104 : 64}px;margin-bottom:${big ? 12 : 6}px;display:flex;align-items:center;justify-content:center;">${iconHtml}</div>
           <div style="font-size:${big ? 19 : 14}px;font-weight:800;color:#3A2C30;line-height:1.35;">${esc(label)}</div>
         </div></td>`;
     });
@@ -5300,7 +5466,7 @@ function visualCardToHtmlRaw(card, esc) {
     return frame(`<div style="padding:6px 2px;"><div style="display:flex;align-items:center;background:#fff;border:2.5px solid #FF5A6E;border-radius:14px;padding:8px 14px;margin-bottom:7px;"><div style="flex:1;font-size:28px;line-height:1;letter-spacing:-6px;">🧒👦</div><div style="text-align:right;"><div style="font-size:15px;font-weight:800;color:#3A2C30;">너무 가까워요</div><div style="font-size:11px;color:#888;">뒤로 한 걸음</div></div></div><div style="display:flex;align-items:center;background:#fff;border:2.5px solid #3FC66B;border-radius:14px;padding:8px 14px;margin-bottom:7px;"><div style="flex:1;font-size:28px;line-height:1;letter-spacing:10px;">🧒👦</div><div style="text-align:right;"><div style="font-size:15px;font-weight:800;color:#3A2C30;">딱 좋아요</div><div style="font-size:11px;color:#888;">이 정도!</div></div></div><div style="display:flex;align-items:center;background:#fff;border:2.5px solid #3FA0FF;border-radius:14px;padding:8px 14px;margin-bottom:7px;"><div style="flex:1;font-size:28px;line-height:1;letter-spacing:46px;">🧒👦</div><div style="text-align:right;"><div style="font-size:15px;font-weight:800;color:#3A2C30;">너무 멀어요</div><div style="font-size:11px;color:#888;">조금 가까이</div></div></div><div style="text-align:center;font-size:12.5px;color:#888;margin-top:6px;">친구와 알맞은 거리를 지켜요</div></div>`);
   }
   if (card.type === "turntable") {
-    return frame(`<div style="padding:8px 2px;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr><td style="text-align:center;vertical-align:top;width:25%;"><div style="font-size:20px;color:#9B6BFF;line-height:1;margin-bottom:2px;">▼</div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;box-shadow:0 0 0 3px #9B6BFF;">🧒</div><div style="font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;">민준</div><div style="font-size:11px;font-weight:800;color:#9B6BFF;margin-top:2px;">지금 차례!</div></td><td style="text-align:center;vertical-align:top;width:25%;"><div style="height:22px;"></div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;">👧</div><div style="font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;">서연</div><div style="height:15px;"></div></td><td style="text-align:center;vertical-align:top;width:25%;"><div style="height:22px;"></div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;">👦</div><div style="font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;">지호</div><div style="height:15px;"></div></td><td style="text-align:center;vertical-align:top;width:25%;"><div style="height:22px;"></div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;">🧒</div><div style="font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;">하은</div><div style="height:15px;"></div></td></tr></table><div style="text-align:center;font-size:13px;font-weight:800;color:#D4728A;margin-top:8px;">화살표가 가리키는 사람이 차례예요</div></div>`);
+    return frame(`<div style="padding:8px 2px;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr><td style="text-align:center;vertical-align:top;width:25%;"><div style="font-size:20px;color:#9B6BFF;line-height:1;margin-bottom:2px;">▼</div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;box-shadow:0 0 0 3px #9B6BFF;">🧒</div><div style="width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;"></div><div style="font-size:11px;font-weight:800;color:#9B6BFF;margin-top:2px;">지금 차례!</div></td><td style="text-align:center;vertical-align:top;width:25%;"><div style="height:22px;"></div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;">👧</div><div style="width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;"></div><div style="height:15px;"></div></td><td style="text-align:center;vertical-align:top;width:25%;"><div style="height:22px;"></div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;">👦</div><div style="width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;"></div><div style="height:15px;"></div></td><td style="text-align:center;vertical-align:top;width:25%;"><div style="height:22px;"></div><div style="display:inline-block;font-size:40px;line-height:1;border-radius:50%;">🧒</div><div style="width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;"></div><div style="height:15px;"></div></td></tr></table><div style="text-align:center;font-size:13px;font-weight:800;color:#D4728A;margin-top:8px;">화살표가 가리키는 사람이 차례예요</div><div style="text-align:center;font-size:11px;color:#8A7A80;margin-top:2px;">빈칸에 아이·친구 이름을 써 넣으세요</div></div>`);
   }
   if (card.type === "syllable") {
     return frame(`<div style="text-align:center;"><svg width="100%" viewBox="0 0 440 116" xmlns="http://www.w3.org/2000/svg"><defs><filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#D4728A" flood-opacity="0.18"/></filter></defs><circle cx="56" cy="34" r="24" fill="#FF9DBB" filter="url(#sh)"/><ellipse cx="48" cy="27" rx="8" ry="5" fill="#fff" opacity="0.4"/><circle cx="56" cy="34" r="14" fill="#fff" opacity="0.55"/><circle cx="97" cy="34" r="3.5" fill="#F5A0B1"/><circle cx="138" cy="34" r="24" fill="#8AC7FF" filter="url(#sh)"/><ellipse cx="130" cy="27" rx="8" ry="5" fill="#fff" opacity="0.4"/><circle cx="138" cy="34" r="14" fill="#fff" opacity="0.55"/><circle cx="179" cy="34" r="3.5" fill="#F5A0B1"/><circle cx="220" cy="34" r="24" fill="#FFD966" filter="url(#sh)"/><ellipse cx="212" cy="27" rx="8" ry="5" fill="#fff" opacity="0.4"/><circle cx="220" cy="34" r="14" fill="#fff" opacity="0.55"/><circle cx="261" cy="34" r="3.5" fill="#F5A0B1"/><circle cx="302" cy="34" r="24" fill="#7BE89B" filter="url(#sh)"/><ellipse cx="294" cy="27" rx="8" ry="5" fill="#fff" opacity="0.4"/><circle cx="302" cy="34" r="14" fill="#fff" opacity="0.55"/><circle cx="343" cy="34" r="3.5" fill="#F5A0B1"/><circle cx="384" cy="34" r="24" fill="#C9AEFF" filter="url(#sh)"/><ellipse cx="376" cy="27" rx="8" ry="5" fill="#fff" opacity="0.4"/><circle cx="384" cy="34" r="14" fill="#fff" opacity="0.55"/><text x="220" y="80" font-family="Noto Sans CJK KR" font-weight="800" font-size="14" fill="#D4728A" text-anchor="middle">빈 동그라미에 목표 단어를 한 글자씩 써넣으세요</text><text x="220" y="104" font-family="Noto Sans CJK KR" font-size="13" fill="#888" text-anchor="middle">하나씩 짚으며 또박또박 · 음절 추가 방지</text></svg></div>`);
@@ -5457,7 +5623,7 @@ const CARD_LIBRARY = [
 
   // [신체·통증]
   { id: "pain_where", category: "신체·통증", type: "strip", title: "어디가 아파요? (짚어보기)", items: [
-    { label: "머리", emoji: "😵" }, { label: "귀", emoji: "👂" }, { label: "이(치아)", emoji: "🦷" },
+    { label: "머리", emoji: "🤕" }, { label: "귀", emoji: "👂" }, { label: "이(치아)", emoji: "🦷" },
     { label: "코", emoji: "👃" }, { label: "목", emoji: "😷" }, { label: "눈", emoji: "👁️" } ] },
   { id: "pain_level", category: "신체·통증", type: "strip", title: "얼마나 아파요? (통증 정도)", items: [
     { label: "괜찮아요", emoji: "🙂" }, { label: "조금 아파요", emoji: "😟" }, { label: "많이 아파요", emoji: "😣" } ] },
@@ -5730,7 +5896,7 @@ function getVisualCards(func) {
         { label: "도와주세요", icon: "help" },
       ] },
       { type: "strip", title: "어디가 아파요? (짚어보기)", items: [
-        { label: "머리", emoji: "😵" },
+        { label: "머리", emoji: "🤕" },
         { label: "배", emoji: "🤢" },
         { label: "귀", emoji: "👂" },
         { label: "이(치아)", emoji: "🦷" },
@@ -6034,7 +6200,7 @@ function VisualCardRaw({ card, slotEditable, onSlotPhoto }) {
   if (card.type === "turntable") {
     return (
       <CardFrame title={card.title}>
-        <div dangerouslySetInnerHTML={{ __html: "<div style=\"padding:8px 2px;\"><table style=\"width:100%;border-collapse:collapse;table-layout:fixed;\"><tr><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"font-size:20px;color:#9B6BFF;line-height:1;margin-bottom:2px;\">▼</div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;box-shadow:0 0 0 3px #9B6BFF;\">🧒</div><div style=\"font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;\">민준</div><div style=\"font-size:11px;font-weight:800;color:#9B6BFF;margin-top:2px;\">지금 차례!</div></td><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"height:22px;\"></div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;\">👧</div><div style=\"font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;\">서연</div><div style=\"height:15px;\"></div></td><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"height:22px;\"></div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;\">👦</div><div style=\"font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;\">지호</div><div style=\"height:15px;\"></div></td><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"height:22px;\"></div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;\">🧒</div><div style=\"font-size:13px;font-weight:800;color:#3A2C30;margin-top:4px;\">하은</div><div style=\"height:15px;\"></div></td></tr></table><div style=\"text-align:center;font-size:13px;font-weight:800;color:#D4728A;margin-top:8px;\">화살표가 가리키는 사람이 차례예요</div></div>" }} />
+        <div dangerouslySetInnerHTML={{ __html: "<div style=\"padding:8px 2px;\"><table style=\"width:100%;border-collapse:collapse;table-layout:fixed;\"><tr><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"font-size:20px;color:#9B6BFF;line-height:1;margin-bottom:2px;\">▼</div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;box-shadow:0 0 0 3px #9B6BFF;\">🧒</div><div style=\"width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;\"></div><div style=\"font-size:11px;font-weight:800;color:#9B6BFF;margin-top:2px;\">지금 차례!</div></td><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"height:22px;\"></div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;\">👧</div><div style=\"width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;\"></div><div style=\"height:15px;\"></div></td><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"height:22px;\"></div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;\">👦</div><div style=\"width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;\"></div><div style=\"height:15px;\"></div></td><td style=\"text-align:center;vertical-align:top;width:25%;\"><div style=\"height:22px;\"></div><div style=\"display:inline-block;font-size:40px;line-height:1;border-radius:50%;\">🧒</div><div style=\"width:72%;height:20px;margin:4px auto 0;border-bottom:1.5px solid #8A7A80;\"></div><div style=\"height:15px;\"></div></td></tr></table><div style=\"text-align:center;font-size:13px;font-weight:800;color:#D4728A;margin-top:8px;\">화살표가 가리키는 사람이 차례예요</div><div style=\"text-align:center;font-size:11px;color:#8A7A80;margin-top:2px;\">빈칸에 아이·친구 이름을 써 넣으세요</div></div>" }} />
       </CardFrame>
     );
   }
@@ -6341,6 +6507,83 @@ function CardPicker({ onAdd }) {
   );
 }
 
+// AI가 쓰는 동안: 몇 초 지났는지와 대략 얼마나 남았는지 보여 준다 (멈춘 건지 쓰는 중인지 알 수 있게)
+const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+// 편집 저장용: 다듬은 목록이 기준 글과 같으면 빈 목록(= 기준 글을 따라감)
+const changedList = (arr, base) => { const v = (arr || []).map((s) => String(s).trim()).filter(Boolean); return sameList(v, base) ? [] : v; };
+const sameSecs = (a, b) => JSON.stringify([...(a || [])].sort()) === JSON.stringify([...(b || [])].sort());
+// AI 글·편집본이 지금 2차 기능으로 만든 것인지: 기록해 둔 것이 있으면 그것으로, 없으면(예전 것) 글 안의 [2차·○○] 표시로 판단
+function secsDiffer(o, secs) {
+  if (!o) return false;
+  if (Array.isArray(o._secs)) return !sameSecs(o._secs, secs);
+  const items = [o.antecedent, o.replacement, o.consequence].filter(Array.isArray).flat();
+  if (!items.length) return false;
+  const have = new Set(items.map((t) => (String(t).match(/^\[2차·([^\]]+)\]/) || [])[1]).filter(Boolean));
+  const want = new Set((secs || []).map((f) => UNIFIED_FUNC_NAME[f].split(" (")[0]));
+  return [...want].some((x) => !have.has(x)) || [...have].some((x) => !want.has(x));
+}
+
+// 지금 화면에 어떤 글이 보이는지 한 줄로 알려 준다 (전문가용·부모님용 공통)
+function TextSourceBar({ source, parts, hasEdit, readOnly, onApplyAi, onUndo, onReset, secOff }) {
+  const look = {
+    base: { icon: "📄", text: "기본 문안", bg: "#F6F6F8", bd: "#E2E2E8", fg: "#5A5A66" },
+    ai: { icon: "✨", text: "AI 글", bg: "#F5F0FA", bd: "#D9C9F0", fg: "#6B5B8A" },
+    edit: { icon: "✏️", text: "직접 고친 글", bg: "#FFF9E9", bd: "#F0DDA8", fg: "#8A6D3B" },
+  }[source];
+  const link = { fontSize: 11, color: MUTE, background: "none", border: "none", cursor: "pointer", fontWeight: 700, padding: 0 };
+  return (
+    <div data-testid="text-source" data-source={source} style={{ background: look.bg, border: `1px solid ${look.bd}`, borderRadius: 8, padding: "7px 12px", marginBottom: 8, fontSize: 12, color: look.fg, lineHeight: 1.6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span>{look.icon} 지금 {parts}: <b>{look.text}</b>
+          {hasEdit && source !== "edit" && <span style={{ color: MUTE }}> · 직접 넣은 사진·카드·가설 등은 그대로</span>}</span>
+        {!readOnly && (onUndo || onReset) && (
+          <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            {onUndo && <button onClick={onUndo} style={{ ...link, color: "#8A6FB0" }}>↶ 방금 바꾼 것 되돌리기</button>}
+            {onReset && <button onClick={onReset} style={link}>원래대로</button>}
+          </span>
+        )}
+      </div>
+      {secOff && (
+        <div data-testid="sec-off" style={{ marginTop: 6, fontSize: 11.5, color: "#B5533C", fontWeight: 700 }}>
+          ⚠ 고친 글 속 2차 기능 중재가 1번 칸의 2차 기능과 맞지 않습니다. "원래대로"를 누르거나 편집에서 맞춰 고쳐 주세요.
+        </div>
+      )}
+      {!readOnly && onApplyAi && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+          <span style={{ fontSize: 11.5 }}>AI 글도 만들어져 있어요. 누르면 직접 고친 {parts} 글이 AI 글로 바뀝니다. 사진·카드는 그대로예요.</span>
+          <button onClick={onApplyAi} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#fff", background: "#8A6FB0", border: "none", borderRadius: 7, padding: "5px 10px", cursor: "pointer" }}>✨ AI 글로 바꾸기</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AiProgress({ typical = 40, limit = 90 }) {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => setSec(Math.floor((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, []);
+  const pct = Math.min(95, Math.round((1 - Math.exp(-sec / (typical * 0.6))) * 100)); // 끝날 때까지 95%를 넘지 않게
+  const left = Math.max(0, typical - sec);
+  const msg = sec < typical
+    ? `보통 ${typical}초쯤 걸립니다 · 약 ${left}초 남음`
+    : sec < limit ? `조금 더 걸리고 있습니다 · ${limit}초가 넘으면 자동으로 멈추고 알려 드립니다` : "곧 끝나거나 멈춥니다";
+  return (
+    <div style={{ marginTop: 10, padding: "10px 14px", background: "#F5F0FA", border: "1px solid #D9C9F0", borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", fontSize: 12.5, color: "#6B5B8A", fontWeight: 700 }}>
+        <span>✨ AI가 쓰는 중… {sec}초 지남</span>
+        <span style={{ marginLeft: "auto", fontWeight: 400, fontSize: 11.5 }}>{pct}%</span>
+      </div>
+      <div style={{ height: 6, background: "#E8DFF5", borderRadius: 3, marginTop: 7, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: "#8A6FB0", borderRadius: 3, transition: "width 0.5s" }} />
+      </div>
+      <div style={{ fontSize: 11, color: "#8A6FB0", marginTop: 6 }}>{msg} · 이 화면을 닫지 말고 기다려 주세요.</div>
+    </div>
+  );
+}
+
 function BIPBlock({ num, title, children, accent }) {
   return (
     <div style={{ marginBottom: 18 }}>
@@ -6440,7 +6683,7 @@ function PhotoEditor({ photos, onAdd, onRemove }) {
 }
 
 // 부모님용 쉬운 뷰
-function ParentView({ school = false, reviewBase = null, content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, onSlotPhoto, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
+function ParentView({ school = false, flags = null, reviewBase = null, content, childName, visualCards, draftVisualCards, onRemoveCard, onAddCard, onSlotPhoto, editing, draft, photos, onField, onItem, onAddItem, onRemoveItem, onAddPhotos, onRemovePhoto }) {
   const nm = displayName(childName);
   const ph = photos || { prevent: [], teach: [], respond: [] };
   const Block = ({ title, desc, items, bg, accent, secKey }) => (
@@ -6524,13 +6767,13 @@ function ParentView({ school = false, reviewBase = null, content, childName, vis
       {Block({ title: `${nm}${K(nm, "은", "는")} 왜 이런 행동을 할까요?`, desc: content.why, bg: "#FFF0F3", accent: PKD })}
       {Block({ title: "미리 예방해요 (이렇게 해보세요)", items: content.prevent, bg: "#F0F7F1", accent: "#5C9A72", secKey: "prevent" })}
       {Block({ title: "다른 행동을 가르쳐요", items: content.teach, bg: "#EEF3FB", accent: "#5B7BB5", secKey: "teach" })}
-      {Block({ title: "이렇게 반응해주세요", items: content.respond, bg: "#FFF6EC", accent: "#C99A4B", secKey: "respond" })}
+      {Block({ title: "이렇게 반응해 주세요", items: content.respond, bg: "#FFF6EC", accent: "#C99A4B", secKey: "respond" })}
       {/* 안전 안내: 고정 문구 (편집·AI 대상 아님) */}
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontWeight: 800, fontSize: 15, color: "#C4557A", marginBottom: 10 }}>안전을 위해 꼭 지켜 주세요</div>
         {editing && <div style={{ fontSize: 11.5, color: MUTE, marginBottom: 8 }}>이 칸은 고정 문구라 고칠 수 없어요.</div>}
         <div style={{ display: "grid", gap: 8 }}>
-          {parentSafetyFor(school ? "school" : "center").map((t, i) => (
+          {parentSafetyFor(school ? "school" : "center", flags).map((t, i) => (
             <div key={i} style={{ display: "flex", gap: 10, fontSize: 13.5, lineHeight: 1.7, background: "#FFF0F3", borderRadius: 12, padding: "12px 14px" }}>
               <span style={{ flexShrink: 0, color: "#C4557A", fontWeight: 800 }}>{i + 1}</span>
               <span>{t}</span>
@@ -6605,9 +6848,9 @@ function bipToText(bip, c, agg) {
     "",
     "5. 위기 대처 및 안전",
     "[위기 상황일 때]",
-    ...crisisSafetyFor(bip.setting).crisis.map((t) => "  - " + t),
+    ...crisisSafetyFor(bip.setting, bip.flags).crisis.map((t) => "  - " + t),
     "[안전 수칙]",
-    ...crisisSafetyFor(bip.setting).safety.map((t) => "  - " + t),
+    ...crisisSafetyFor(bip.setting, bip.flags).safety.map((t) => "  - " + t),
     line,
     "© 검단ABA언어행동연구소 (민다혜)",
   ].join(String.fromCharCode(10));
