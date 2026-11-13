@@ -1020,7 +1020,7 @@ const PARENT_BIP = {
     teach: [
       "원하는 것을 적절히 표현하는 방법을 가르쳐 주세요. 예를 들어 그림카드 건네기, \"주세요\"라고 말하기, 손으로 가리키기 같은 방법이 있습니다.",
       "\"기다리기\"도 조금씩 가르치는 것이 적절한데, 처음에는 아주 짧게 시작해서 기다리는 시간을 점차 늘려 가시면 됩니다.",
-      "차례 지키기와 나눠 쓰기도 함께 알려 주시는 편이 좋으며, 특히 형제나 친구와 함께 있을 때 필요합니다.",
+      "차례 지키기와 나눠 쓰기도 함께 알려 주시는 편이 좋으며, 특히 다른 아이와 함께 있을 때 필요합니다.",
     ],
     respond: [
       "문제행동을 할 때는 원하는 것을 주지 않는 것이 중요합니다. 그때 주면 \"이렇게 하면 얻는구나\"를 배우게 됩니다.",
@@ -1410,7 +1410,21 @@ function aggregateFunction(assessments) {
 // BIP 생성 (템플릿 조합) — setting: 'center' | 'pbs'
 // secondaryFuncs: 함께 작용하는 2차 기능들 → 그 기능의 선행 앞 3개와 대체 2개(가르치기 + 요청하면 들어주기)를 "[2차·○○]" 표시로 덧붙인다.
 // 후속결과는 1차 기능 것만 쓴다(소거 절차끼리 부딪치지 않게). 단 2차가 신체·통증이거나 관심↔회피 조합이면 부딪힘을 막는 한 줄을 덧붙인다.
-const HARM_RE = /(때리|때림|꼬집|깨물|물기|물어|물음|박기|박음|박아|긁|던지|던짐|발로 차|차기|밀치|할퀴|자해|공격|머리카락|뜯)/;
+// 침 뱉기는 사람을 향했을 때만 공격으로 본다 (같은 글 안에 '선생님·친구·얼굴·쪽으로·에게' 등이 함께 있을 때)
+function spitAtPerson(texts) {
+  return (texts || []).some((t) => {
+    const x = String(t || "");
+    return /침\s*(을\s*)?뱉/.test(x) && /(선생님|교사|친구|또래|사람|어른|엄마|아빠|동생|형|누나|언니|오빠|얼굴|쪽으로|에게|한테|향해)/.test(x);
+  });
+}
+function stripHarmClause(t) {
+  return String(t)
+    .replace(/\s*자해·공격·던지기가 있으면[^.]*\./, "")
+    .replace(/\s*\(단, 자신이나 친구를 다치게 하는 행동이면[^)]*\)/, "")
+    .replace(/을 하며,\s*자해·공격이 있으면 원장과 적용 여부를 먼저 정한다\)/, "을 한다)")
+    .trim();
+}
+const HARM_RE = /(때리|때림|꼬집|깨물|물기|물어|물음|박기|박음|박아|긁|던지|던짐|발로 차|차기|밀치|할퀴|자해|공격|머리카락|뜯|부수|부숨|부서|부러뜨|깨뜨|깨부|찢|파괴|엎)/; // 물건 부수기·엎기도 공격으로 봄
 const ELOPE_RE = /(뛰쳐|뛰어나|도망|도주|가출|무단 ?이탈|밖으로 (뛰|나가))/;
 function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], flags = {}) {
   const libs = setting === "pbs" ? INTERVENTION_LIB_SCHOOL : INTERVENTION_LIB;
@@ -1464,7 +1478,8 @@ function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], f
     hypothesis: lib.hypothesis(name, beh),
     antecedent: [...lib.antecedent, ...secAnt],
     replacement: [...lib.replacement, ...secRep],
-    consequence: [...pre, ...lib.consequence, ...secCon, ...post],
+    // 자해·공격 ※ 문장이 맨 위에 들어가면, 아래 항목 속 같은 뜻의 단서는 빼서 되풀이를 막는다
+    consequence: [...pre, ...(pre.length ? lib.consequence.map(stripHarmClause) : lib.consequence), ...secCon, ...post],
     secondaryFuncs: secs,
     flags: { harmful: !!flags.harmful, elope: !!flags.elope, painCheck: !!(flags.painCheck && func !== "physical" && !secs.includes("physical")) },
   };
@@ -3563,7 +3578,8 @@ function BIPSection({ c, assessments, onUpdateCase, readOnly = false, isAdmin = 
     return ph && top > 0 && (ph.sum || 0) > 0 && (ph.sum || 0) >= top * 0.6;
   });
   const bipFlags = {
-    harmful: HARM_RE.test(behText),
+    harmful: HARM_RE.test(behText) || spitAtPerson([c.target, c.behaviorDetail, ...(c.records || []).map((r) => r && r.behavior),
+      ...(c.assessments || []).map((a) => a.preInfo && a.preInfo.behaviorDetail)]),
     elope: ELOPE_RE.test(behText),
     painCheck: painInScale || agg.tiers.some((t) => t.func === "physical" && (t.tier === "primary" || t.tier === "secondary")),
   };
@@ -4734,6 +4750,35 @@ function keepSafetyItems(aiItems, baseItems) {
   return { items: out, restored };
 }
 
+// AI가 [2차·○○] 항목을 다 빼 버리면 1번 칸의 2차 기능과 중재가 어긋나므로, 기본 문장에서 다시 붙인다
+// (선행·대체는 그 기능의 첫 항목 하나, 후속은 그 기능 항목 전부)
+function keepSecondaryItems(aiItems, baseItems, key) {
+  const out = [...(aiItems || [])];
+  const tagOf = (t) => (String(t).match(/^\[2차·[^\]]+\]/) || [])[0];
+  const tags = [...new Set((baseItems || []).map(tagOf).filter(Boolean))];
+  tags.forEach((tag) => {
+    if (out.some((t) => String(t).startsWith(tag))) return;
+    const items = (baseItems || []).filter((b) => b.startsWith(tag));
+    (key === "consequence" ? items : items.slice(0, 1)).forEach((b) => out.push(b));
+  });
+  return out;
+}
+// 1차 기능의 핵심 후속결과(회피 소거·무관심·선호물 미제공)가 AI 결과에 없으면 기본 문장을 다시 넣는다
+const CORE_CON = {
+  escape: { re: /(회피|벗어나)[^.]*못하게|과제[를을]?\s*(지속|이어|유지|완료|거두지)|과제\s*요구[를을]?\s*거두지/, pick: (L) => L.consequence.find((t) => /회피하지는 못하게|벗어나지 못하게/.test(t)) },
+  attention: { re: /무관심|반응[을]?\s*최소|소거/, pick: (L) => L.consequence.find((t) => /무관심/.test(t)) },
+  tangible: { re: /(얻지|주지|제공하지)\s*(못하게|않)|얻지 못/, pick: (L) => L.consequence.find((t) => /얻지 못하게/.test(t)) },
+};
+function keepCoreConsequence(items, bip) {
+  const core = CORE_CON[bip.func];
+  if (!core) return items;
+  const own = items.filter((t) => !/^\[2차·/.test(t) && !/^※/.test(t));
+  if (own.some((t) => core.re.test(t))) return items;
+  const base = (bip.consequence || []).filter((t) => !/^\[2차·/.test(t) && !/^※/.test(t));
+  const pick = base.find((t) => core.re.test(t));
+  return pick ? [pick, ...items] : items;
+}
+
 // AI 결과에서 몸으로 제지·격리하는 내용이나 AI가 스스로 만든 위기 절차는 뺀다.
 // (위기·안전은 고정 칸 '위기 대처 및 안전'에만 들어간다)
 const AI_UNSAFE_RE = /제지|제압|붙잡아\s*(막|멈|제|두)|붙들어|신체\s*(적\s*)?(개입|억제|구속)(?!\s*(없이|범위|여부))|몸으로\s*막|(팔|손|몸)을\s*잡아\s*(막|멈|당기|끌)|격리|쿨\s*다운|타임\s*아웃\s*(방|룸|공간)|\d+\s*m\s*이상\s*(떨어|거리)|(^|[^분])위기\s*(상황|시|때|절차)/;
@@ -4838,7 +4883,10 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
   ["antecedent", "replacement", "consequence"].forEach((k) => {
     if (!result[k].length) return;
     result[k] = keepSafetyItems(result[k], bip[k]).items;
+    result[k] = keepSecondaryItems(result[k], bip[k], k);
   });
+  // 1차 기능의 핵심 후속결과(소거)가 빠지면 기본 문장을 다시 넣는다
+  if (result.consequence.length) result.consequence = keepCoreConsequence(result.consequence, bip);
   ["antecedent", "replacement", "consequence"].forEach((k) => {
     if (!result[k].length) { result[k] = [...(bip[k] || [])]; filled.push(k); }
   });
@@ -5871,22 +5919,15 @@ function getVisualCards(func) {
       { type: "token", title: "기다리기 토큰판", count: 3 },
       reinforcerMenu,
     ],
+    // 감각 기능: 감각 도구 요청·일정·기다리기·강화만 기본으로 (감정·목소리 카드는 편집에서 추가)
     sensory: [
-      { type: "voicemeter", title: "내 목소리 크기 (0~4단계)" },
-      { type: "volcano", title: "내 마음 화산 (지금 몇 층?)" },
-      { type: "pinwheel", title: "후~ 불어요! (호흡 연습)" },
-      { type: "traffic", title: "멈춰-생각-행동 (신호등)" },
       { type: "strip", title: "감각 도구 카드", items: [
         { label: "감각 도구", icon: "fidget" },
         { label: "쉼 공간 (조용한 코너)", icon: "corner" },
       ] },
-      { type: "sequence", title: "자기조절 순서", steps: ["멈추기", "숨쉬기", "도구 쓰기"] },
-      { type: "choice", title: "지금 기분", options: [
-        { label: "괜찮아요", icon: "happy" },
-        { label: "힘들어요", icon: "sad" },
-      ] },
-      breathing,
-      emotionScale,
+      { ...CARD_LIBRARY.find((c) => c.id === "seq_firstthen") },
+      { ...CARD_LIBRARY.find((c) => c.id === "seq_nowlater") },
+      { type: "token", title: "토큰판", count: 5 },
     ],
     physical: [
       { type: "bodyparts", title: "어디 있나요? (신체 부위)" },
