@@ -517,6 +517,7 @@ function isHangulSyllable(ch) {
 }
 // 중·고등학생용 문장: 나이가 '중1'·'고2'처럼 적혀 있거나 13세 이상이면 아래 문장으로 바꿔 쓴다 (원장 승인 2026-11-14)
 const TEEN_SWAP = [
+  ["조금씩 기다리는 것도 함께 가르치면 됩니다. \"잠깐만, 이것만 하고 봐 줄게\"처럼", "조금씩 기다리는 것도 함께 가르치면 됩니다. \"잠깐만, 이것만 하고 이야기하자\"처럼"],
   ["행동 발생과 관계없이 정해진 시간 간격(예: 5~10분마다)으로 미리 긍정적 관심을 주어, 관심을 얻으려 행동할 필요 자체를 줄인다 (비유관 관심, NCR). 제공 시점이 도전적 행동 직후와 겹치면 몇 초 미룬다.", "행동 발생과 관계없이 정해진 때(예: 활동이 바뀔 때, 과제를 시작하거나 마칠 때)에 짧게 말을 걸거나 인정해 주어, 관심을 얻으려 행동할 필요 자체를 줄인다 (비유관 관심, NCR). 제공 시점이 도전적 행동 직후와 겹치면 몇 초 미룬다."],
   ["관심을 받을 수 있는 시점을 미리 예고한다. 예: '5분 동안 혼자 해보고, 다 하면 선생님이 크게 칭찬해줄게'로 예측 가능성을 높인다.", "관심을 받을 수 있는 시점을 미리 알려 준다. 예: '이 과제를 마치면 같이 확인하자'로 예측 가능성을 높인다."],
   ["칭찬할 바른 행동 목록을 미리 정해 두고, 그 행동이 나오는 즉시 구체적으로 언급할 수 있게 준비한다 (행동 특정적 칭찬). 예: '조용히 앉아서 기다렸구나!'", "인정할 바른 행동 목록을 미리 정해 두고, 그 행동이 나오는 즉시 구체적으로 언급할 수 있게 준비한다 (행동 특정적 칭찬). 예: '끝까지 해냈네'처럼 나이에 맞게 담백하게 인정한다."],
@@ -973,6 +974,8 @@ const ELOPE_SAFETY = {
   center: "뛰쳐나가기(이탈)가 있을 때: 거리를 두기보다 시야에서 놓치지 않게 따라가며, 출입문 관리와 하원·이동 때의 동선과 인솔을 미리 정한다.",
   school: "뛰쳐나가기(이탈)가 있을 때: 거리를 두기보다 시야에서 놓치지 않게 따라가며, 출입문 관리와 이동 시간의 동선·인솔을 미리 정하고, 학교 밖으로 나가면 학교 위기 대응 절차를 따른다.",
   parent: "밖으로 뛰어나가는 일이 있으면 현관문 잠금장치를 쓰시고, 외출할 때는 손을 잡고 이동하시는 편이 좋습니다.",
+  // 중·고등학생 (원장 승인 2026-11-15)
+  parentTeen: "말없이 밖으로 나가는 일이 있으면, 나갈 때 어디에 가는지 알리는 방법과 연락 방법을 미리 함께 정해 두시는 편이 좋습니다.",
 };
 function crisisSafetyFor(setting, flags) {
   const school = setting === "school" || setting === "pbs";
@@ -1091,7 +1094,9 @@ function parentBipFor(func, setting, secondaryFuncs = [], flags = null) {
   // 2차 기능(신체 제외): 그 기능의 '가르치기' 첫 문장과 '반응' 첫 문장을 붙여 전문가용 2차 중재와 방향을 맞춘다
   secs.filter((f) => f !== "physical" && PARENT_BIP[f]).forEach((f) => {
     const combo = (func === "attention" && f === "escape") || (func === "escape" && f === "attention"); // 아래에서 맞춤 문장을 넣음
-    b = { ...b, teach: [...b.teach, PARENT_BIP[f].teach[0]], respond: combo ? b.respond : [...b.respond, PARENT_BIP[f].respond[0]] };
+    b = { ...b, prevent: [...b.prevent, PARENT_BIP[f].prevent[0]], teach: [...b.teach, PARENT_BIP[f].teach[0]], respond: combo ? b.respond : [...b.respond, PARENT_BIP[f].respond[0]] };
+    if ((func === "tangible" && f === "attention") || (func === "attention" && f === "tangible"))
+      b = { ...b, respond: [...b.respond, "문제행동으로 가져간 물건은 길게 말하지 않고 담담하게 돌려주게 하시면 되는데, 이때 눈을 맞추거나 꾸짖기보다 짧게 끝내시는 편이 좋습니다."] };
   });
   // 2차가 신체·통증이면 병원 진료 권유와 '아파 보이는 날' 안내를 덧붙인다 (전문가용의 소거 금지와 맞춤)
   if (func !== "physical" && (secondaryFuncs || []).includes("physical")) {
@@ -1112,7 +1117,9 @@ function parentBipFor(func, setting, secondaryFuncs = [], flags = null) {
   }
   // 뛰쳐나가기: 반응 칸에도 '먼저 따라가 데려오기'
   if (flags && flags.elope) {
-    b = { ...b, respond: [...b.respond, "밖으로 뛰어나가면 먼저 바로 따라가 안전하게 데려오시는 것이 우선이며, 데려온 뒤에는 길게 이야기하기보다 짧고 담담하게 하던 일로 이끄시면 됩니다."] };
+    b = { ...b, respond: [...b.respond, flags.teen
+      ? "말없이 나갔다면 먼저 안전한 곳에 있는지 확인하시고, 돌아온 뒤에는 길게 이야기하기보다 짧고 담담하게 하던 일로 이끄시면 됩니다."
+      : "밖으로 뛰어나가면 먼저 바로 따라가 안전하게 데려오시는 것이 우선이며, 데려온 뒤에는 길게 이야기하기보다 짧고 담담하게 하던 일로 이끄시면 됩니다."] };
   }
   // 통증 점수도 비슷하게 높으면(2차로 고르지 않았어도): 몸 상태 먼저
   if (flags && flags.painCheck) {
@@ -1152,7 +1159,7 @@ function targetLabel(t, emptyText = "________") {
   return v || emptyText;
 }
 function parentSafetyFor(setting, flags) {
-  const list = flags && flags.elope ? [...CRISIS_SAFETY.parent, ELOPE_SAFETY.parent] : CRISIS_SAFETY.parent;
+  const list = flags && flags.elope ? [...CRISIS_SAFETY.parent, flags.teen ? ELOPE_SAFETY.parentTeen : ELOPE_SAFETY.parent] : CRISIS_SAFETY.parent;
   return (setting === "school" || setting === "pbs") ? list.map(toSchoolParentText) : list;
 }
 
@@ -1498,6 +1505,9 @@ function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], f
       : "통증·신체 불편이 의심되는 동안에는 이 계획의 소거 관련 항목(해당되는 경우 계획된 무관심·회피 소거·선호물 미제공·감각 소거)을 적용하지 않고, 안전 확보와 원인 확인을 우선한다 (실제 통증을 방치할 위험)."));
     if (f === "escape" && func === "attention") secCon.push(tag + "과제 중 도전적 행동에는 반응을 최소화하되 과제 요구는 거두지 않고 이어 가게 하여, 무관심이 과제 회피로 이어지지 않게 한다.");
     if (f === "attention" && func === "escape") secCon.push(tag + "과제를 이어 가게 할 때는 말·눈맞춤을 최소화하고 촉구를 짧고 중립적으로 하여, 과제 지속 과정이 관심 강화가 되지 않게 한다.");
+    // 획득과 관심이 함께일 때: 무관심하는 동안 가져간 물건을 그대로 갖게 되지 않게 잇는 문장 (원장 승인 2026-11-15)
+    if ((func === "tangible" && f === "attention") || (func === "attention" && f === "tangible"))
+      secCon.push(tag + "도전적 행동으로 가져간 물건은 말없이 담담하게 돌려주게 하며, 그 과정에서 눈맞춤·말을 최소화한다.");
     // 그 밖의 2차 기능은 그 기능의 첫 후속결과 문장(소거·강화)을 붙인다
     const comboCon = f === "physical" || (f === "escape" && func === "attention") || (f === "attention" && func === "escape");
     if (!comboCon && L.consequence[0]) secCon.push(tag + L.consequence[0]);
@@ -4781,7 +4791,7 @@ async function callBipAI(payload) {
 }
 
 // 원장 목록 중 안전 단서가 든 항목은 AI가 빼거나 바꿨으면 원문으로 다시 넣는다
-const SAFETY_MARKERS = ["※", "원장과 적용 여부", "소거 절차를 적용하지", "병원 진료", "안전 범위", "위험하지 않은", "다치게 하는", "원장 확인 후", "바로 따라가 안전하게"];
+const SAFETY_MARKERS = ["※", "원장과 적용 여부", "소거 절차를 적용하지", "병원 진료", "안전 범위", "위험하지 않은", "다치게 하는", "원장 확인 후", "바로 따라가 안전하게", "안전한 곳에 있는지 확인", "담담하게 돌려주게"];
 function keepSafetyItems(aiItems, baseItems) {
   const out = [...(aiItems || [])];
   let restored = 0;
