@@ -1145,7 +1145,7 @@ function docTierNote(tiers, bip) {
   const parts = [];
   if (bip.secManual && (bip.secondaryFuncs || []).length) parts.push("※ 2차 기능은 평가 점수가 아니라 관찰을 바탕으로 직접 선택했습니다.");
   if (tiers.some((t) => t.tier === "tertiary")) parts.push("※ 별도 기능은 이 중재안에 포함하지 않았습니다." + (bip.func === "physical" ? " (신체 기능이 1차이면 의학적 원인을 확인한 뒤 다시 평가합니다)" : "")
-    + (bip.flags && bip.flags.painCheck ? " 다만 통증·신체 불편 점수가 높게 나와 4번에 몸 상태를 먼저 확인하는 문장을 넣었습니다." : ""));
+    + (bip.flags && bip.flags.painCheck && (bip.consequence || []).some((t) => String(t).includes("통증·신체 불편 점수도")) ? " 다만 통증·신체 불편 점수가 높게 나와 4번에 몸 상태를 먼저 확인하는 문장을 넣었습니다." : ""));
   return parts.join(" ");
 }
 // 주 기능 줄: 직접 고른 경우 "(사회적 부적강화, 직접 선택)"처럼 괄호를 하나로
@@ -3914,9 +3914,10 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   const editKey = `editedBip_${bip.setting}_${bip.func}`;
   const legacyEditKey = bip.setting === "school" ? "editedBip_school" : "editedBip_center";
   // 기준값: AI 있으면 AI, 없으면 템플릿 (편집 시작점)
-  const baseAnt = usingAi ? aiBip.antecedent : bip.antecedent;
-  const baseRep = usingAi ? aiBip.replacement : bip.replacement;
-  const baseCon = usingAi ? aiBip.consequence : bip.consequence;
+  // 예전에 만든 AI 글·고친 글에 나중에 생긴 ※ 안전 문장(자해·공격, 통증 확인 등)이 없으면 다시 넣는다 (원장 승인 2026-11-15)
+  const baseAnt = usingAi ? keepStarItems(aiBip.antecedent, bip.antecedent) : bip.antecedent;
+  const baseRep = usingAi ? keepStarItems(aiBip.replacement, bip.replacement) : bip.replacement;
+  const baseCon = usingAi ? keepStarItems(aiBip.consequence, bip.consequence) : bip.consequence;
   const baseHyp = (usingAi && aiBip.hypothesis) || bip.hypothesis;
   const baseMean = FUNC_MEANING(bip.func, c.name, c.target, bip.setting);
 
@@ -3927,9 +3928,9 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
   // 표시용: 저장된 편집본 > AI/템플릿
   const showHyp = savedEdit?.hypothesis ?? baseHyp;
   const showMean = savedEdit?.meaning ?? baseMean;
-  const showAnt = savedEdit?.antecedent?.length ? savedEdit.antecedent : baseAnt; // 항목을 다 지웠으면 기본 문안
-  const showRep = savedEdit?.replacement?.length ? savedEdit.replacement : baseRep;
-  const showCon = savedEdit?.consequence?.length ? savedEdit.consequence : baseCon;
+  const showAnt = savedEdit?.antecedent?.length ? keepStarItems(savedEdit.antecedent, bip.antecedent) : baseAnt; // 항목을 다 지웠으면 기본 문안
+  const showRep = savedEdit?.replacement?.length ? keepStarItems(savedEdit.replacement, bip.replacement) : baseRep;
+  const showCon = savedEdit?.consequence?.length ? keepStarItems(savedEdit.consequence, bip.consequence) : baseCon;
   // 지금 전문가용 2~4번에 어떤 글이 보이는지: 직접 고친 글 / AI 글 / 기본 문안
   const expTextEdited = !!savedEdit && !(sameList(showAnt, baseAnt) && sameList(showRep, baseRep) && sameList(showCon, baseCon));
   const expSource = expTextEdited ? "edit" : usingAi ? "ai" : "base";
@@ -4210,7 +4211,7 @@ function BIPDocument({ bip, c, agg, onUpdateCase, readOnly = false, isAdmin = fa
     const tierName = { primary: "1차 기능", secondary: "2차 기능", tertiary: "별도 기능" };
     const fn = (f) => (UNIFIED_FUNC_NAME[f] || f).split(" (")[0];
     const tiers = docTiers(agg, bip);
-    const tierNote = docTierNote(tiers, bip);
+    const tierNote = docTierNote(tiers, { ...bip, consequence: showCon });
     const li = (arr) => arr.map((t) => `<div class="item">${esc(t)}</div>`).join("");
     const photoHtml = (arr) => (!arr || !arr.length) ? "" :
       `<div class="photos">${arr.map(photoSrc).filter(Boolean).map((u) => `<img class="photo" src="${u}" />`).join("")}</div>`;
@@ -4616,7 +4617,7 @@ ${showVisualCards.map((card) => visualCardToHtml(card, esc)).join("")}
               </div>
             ))}
           </div>
-          {docTierNote(docTiers(agg, bip), bip) && <div style={{ fontSize: 11.5, color: MUTE, marginTop: 6 }}>{docTierNote(docTiers(agg, bip), bip)}</div>}
+          {docTierNote(docTiers(agg, bip), { ...bip, consequence: showCon }) && <div style={{ fontSize: 11.5, color: MUTE, marginTop: 6 }}>{docTierNote(docTiers(agg, bip), { ...bip, consequence: showCon })}</div>}
         </div>
 
         <div style={{ padding: "12px 14px", background: PKL, borderRadius: 10, fontSize: 13.5, lineHeight: 1.7, marginBottom: 12 }}>
@@ -4792,6 +4793,18 @@ async function callBipAI(payload) {
 
 // 원장 목록 중 안전 단서가 든 항목은 AI가 빼거나 바꿨으면 원문으로 다시 넣는다
 const SAFETY_MARKERS = ["※", "원장과 적용 여부", "소거 절차를 적용하지", "병원 진료", "안전 범위", "위험하지 않은", "다치게 하는", "원장 확인 후", "바로 따라가 안전하게", "안전한 곳에 있는지 확인", "담담하게 돌려주게"];
+// 기본 문안의 ※ 문장(맨 앞이면 맨 앞, 아니면 맨 뒤)이 글에 없으면 다시 넣는다. 같은 ※ 문장은 앞 14글자로 알아본다
+function keepStarItems(items, baseItems) {
+  if (!Array.isArray(items)) return items;
+  const key = (t) => String(t).replace(/^\s*※/, "").replace(/\s/g, "").slice(0, 14);
+  const out = [...items];
+  (baseItems || []).forEach((b, i) => {
+    if (!/^\s*※/.test(b)) return;
+    if (out.some((t) => /^\s*※/.test(t) && key(t) === key(b))) return;
+    if (i === 0) out.unshift(b); else out.push(b);
+  });
+  return out;
+}
 function keepSafetyItems(aiItems, baseItems) {
   const out = [...(aiItems || [])];
   let restored = 0;
