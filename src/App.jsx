@@ -966,7 +966,7 @@ const CRISIS_SAFETY = {
   parent: [
     "행동이 갑자기 심해지거나 다칠 위험이 있으면 혼자 견디지 마시고 센터에 바로 알려 주세요. 크게 다쳤다면 먼저 119에 연락하시면 됩니다.",
     "아이가 자기 몸을 다치게 했다면 먼저 상처를 확인하시고, 상처가 반복되거나 깊으면 병원 진료를 받으신 뒤 센터에 알리시면 됩니다.",
-    "때리거나 던지는 행동이 있을 때는 형제나 다른 가족이 다치지 않게 거리를 두고, 위험한 물건은 미리 치워 두시는 편이 좋습니다.",
+    "때리거나 던지는 행동이 있을 때는 다른 가족이나 주변 사람이 다치지 않게 거리를 두고, 위험한 물건은 미리 치워 두시는 편이 좋습니다.",
   ],
 };
 // 뛰쳐나가기(이탈)가 표적행동이면 안전 수칙에 이탈 항목을 더한다 (flags.elope)
@@ -1248,7 +1248,7 @@ const INTERVENTION_LIB = {
       "선호물 종료(전이) 전에 미리 예고하고, 다음에 다시 할 수 있음을 알려준다 (전이 예고).",
       "선호물을 적절히 요청할 수 있는 기회를 하루 중 자주 만든다 (요청 기회 삽입).",
       "원하는 것을 규칙적으로 미리 제공해 결핍 상태를 줄인다 (비유관 강화, NCR).",
-      "선호물을 둘러싼 갈등 상황(뺏김·순서 기다림)을 예측해, 순서판·차례 카드로 미리 구조화한다.",
+      "선호물을 둘러싼 갈등 상황(뺏김·순서 기다림)을 예측해, 순서판·차례 표시등으로 미리 구조화한다.",
       "'안 돼요'만 반복하기보다, 언제·어떻게 얻을 수 있는지를 함께 알려준다 (대안 제시).",
     ],
     replacement: [
@@ -5962,55 +5962,43 @@ function getVisualCards(func) {
   ] };
 
   const sets = {
+    // 회피 기능: 도움·휴식 요청, 먼저-그다음, 남은 양, 순서, 전환 예고, 선택만 기본으로 (원장 승인 2026-11-15)
     escape: [
-      { type: "receptive", title: "이렇게 해요 (지시 따르기)" },
-      { type: "countdown", title: "이제 곧 바꿔요 (5-4-3-2-1)" },
-      { type: "progressbar", title: "얼마나 남았을까? (진행 막대)" },
-      { type: "traffic", title: "멈춰-생각-행동 (신호등)" },
-      { type: "sequence", title: "활동 순서판", steps: ["앉기", "3개 하기", "쉬기"] },
       { type: "strip", title: "도움 요청 카드", items: [
         { label: "도와주세요", icon: "help" },
         { label: "쉬고 싶어요", icon: "rest" },
       ] },
+      { ...CARD_LIBRARY.find((c) => c.id === "seq_firstthen") },
+      { type: "progressbar", title: "얼마나 남았을까? (진행 막대)" },
+      { type: "sequence", title: "활동 순서판", steps: ["앉기", "3개 하기", "쉬기"] },
+      { type: "countdown", title: "이제 곧 바꿔요 (5-4-3-2-1)" },
       { type: "choice", title: "선택판", options: [
         { label: "더 할래요", icon: "yes" },
         { label: "그만할래요", icon: "stop" },
       ] },
-      dailySchedule,
-      emotionScale,
     ],
+    // 관심 끌기: 관심 요청·부르기·기다리기·강화만 기본으로 (원장 승인 2026-11-15)
     attention: [
-      { type: "strip", title: "기다리는 중 카드", items: [{ label: "기다리는 중", icon: "wait" }] },
-      { type: "eyecontact", title: "나 봐! (눈맞춤)" },
-      { type: "pecs", title: "그림으로 부탁해요 (PECS 교환)" },
-      { type: "callcard", title: "○○ 오세요 (부르기 카드·빈칸)" },
-      { type: "corevocab", title: "핵심 어휘 소통판" },
-      { type: "relay", title: "주고받기 대화 (대화 릴레이)" },
-      { type: "sentence", title: "문장 늘리기 (한 마디→여러 마디)" },
-      { type: "turntable", title: "누구 차례일까? (차례 표시등)" },
-      { type: "voicemeter", title: "내 목소리 크기 (0~4단계)" },
       { type: "strip", title: "관심 요청 카드", items: [
         { label: "봐 주세요", icon: "look" },
         { label: "같이 해요", icon: "together" },
       ] },
+      { type: "callcard", title: "○○ 오세요 (부르기 카드·빈칸)" },
+      { type: "strip", title: "기다리는 중 카드", items: [{ label: "기다리는 중", icon: "wait" }] },
       { type: "token", title: "토큰판", count: 5 },
-      { type: "choice", title: "차례 카드", options: [
-        { label: "내 차례", icon: "me" },
-        { label: "기다리기", icon: "wait" },
-      ] },
       reinforcerMenu,
     ],
+    // 선호물 획득: 요청·기다리기·전환 예고·차례·강화 (핵심 어휘 소통판은 요청 카드와 겹쳐 뺌, 원장 승인 2026-11-15)
     tangible: [
-      { type: "countdown", title: "이제 곧 바꿔요 (5-4-3-2-1)" },
-      { type: "turntable", title: "누구 차례일까? (차례 표시등)" },
-      { type: "pecs", title: "그림으로 부탁해요 (PECS 교환)" },
-      { type: "corevocab", title: "핵심 어휘 소통판" },
-      { type: "sequence", title: "지금-다음 카드", steps: ["지금은 안 돼요", "이따가"] },
       { type: "strip", title: "요청 카드", items: [
         { label: "주세요", icon: "give" },
         { label: "하고 싶어요", icon: "want" },
       ] },
+      { type: "pecs", title: "그림으로 부탁해요 (PECS 교환)" },
+      { type: "sequence", title: "지금-다음 카드", steps: ["지금은 안 돼요", "이따가"] },
       { type: "token", title: "기다리기 토큰판", count: 3 },
+      { type: "countdown", title: "이제 곧 바꿔요 (5-4-3-2-1)" },
+      { type: "turntable", title: "누구 차례일까? (차례 표시등)" },
       reinforcerMenu,
     ],
     // 감각 기능: 감각 도구 요청·일정·기다리기·강화만 기본으로 (감정·목소리 카드는 편집에서 추가)
@@ -6023,9 +6011,8 @@ function getVisualCards(func) {
       { ...CARD_LIBRARY.find((c) => c.id === "seq_nowlater") },
       { type: "token", title: "토큰판", count: 5 },
     ],
+    // 신체 불편·통증: 아픔 알리기·위치·정도·몸 신호·쉼 공간 (신체 부위 이름·심호흡은 편집에서 추가, 원장 승인 2026-11-15)
     physical: [
-      { type: "bodyparts", title: "어디 있나요? (신체 부위)" },
-      { type: "bodysignal", title: "내 몸이 말해요 (몸 신호)" },
       { type: "strip", title: "아플 때 알리는 카드", items: [
         { label: "아파요", emoji: "🤕" },
         { label: "도와주세요", icon: "help" },
@@ -6041,11 +6028,11 @@ function getVisualCards(func) {
         { label: "조금 아파요", emoji: "😟" },
         { label: "많이 아파요", emoji: "😣" },
       ] },
+      { type: "bodysignal", title: "내 몸이 말해요 (몸 신호)" },
       { type: "strip", title: "쉼 공간 (조용한 코너)", items: [
         { label: "쉼 공간", icon: "corner" },
         { label: "쉬고 싶어요", icon: "rest" },
       ] },
-      breathing,
     ],
   };
   return sets[func] || sets.escape;
