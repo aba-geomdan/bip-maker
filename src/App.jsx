@@ -1039,7 +1039,7 @@ const PARENT_BIP = {
     respond: [
       "아이가 바르게 감각 도구를 요청하거나 사용하면 바로 칭찬해 주세요.",
       "문제행동에는 차분하게 반응하시는 편이 좋으며, 가능하면 그 행동이 주는 자극을 안전한 범위에서 줄여 주시면 됩니다(예: 그 행동으로 나는 소리나 느낌이 덜 생기도록 주변을 바꾸기). 다만 자기 몸을 다치게 하는 행동이라면 이 방법을 쓰기 전에 센터와 먼저 상의해 주세요.",
-      "좋아하는 감각 활동도 가끔 종류를 바꾸어 주시는 것이 좋은데, 늘 똑같으면 아이가 금방 싫증을 내기 때문입니다.",
+      "좋아하는 감각 활동도 가끔 종류를 바꾸어 주시는 것이 좋은데, 늘 똑같으면 아이가 금방 싫증을 낼 수 있기 때문입니다.",
     ],
   },
   tangible: {
@@ -1504,9 +1504,11 @@ function generateBIP(func, childName, targetBeh, setting, secondaryFuncs = [], f
   });
   const pre = [], post = [];
   // 표적행동이 자해·공격이면 소거·무관심 항목 앞에 확정 문장을 둔다
+  // ※ 문장 속 '소거 관련 항목'은 1차 기능에 맞는 말만 쓴다
+  const extName = { attention: "무관심", escape: "과제 지속", tangible: "선호물 미제공", sensory: "감각 소거" }[func] || "소거";
   if (flags.harmful && func !== "physical") pre.push(isSchool
-    ? "※ 이 학생의 표적행동은 자해·공격에 해당하므로, 이 칸의 소거 관련 항목(무관심·과제 지속·선호물 미제공 중 해당하는 것)은 PBS 자문위원과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보하고 또래를 보호한다."
-    : "※ 이 아동의 표적행동은 자해·공격에 해당하므로, 이 칸의 소거 관련 항목(무관심·과제 지속·선호물 미제공 중 해당하는 것)은 원장과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보한다.");
+    ? "※ 이 학생의 표적행동은 자해·공격에 해당하므로, 이 칸의 " + extName + " 항목은 PBS 자문위원과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보하고 또래를 보호한다."
+    : "※ 이 아동의 표적행동은 자해·공격에 해당하므로, 이 칸의 " + extName + " 항목은 원장과 적용 여부와 신체 개입 범위를 정한 뒤 적용하고, 행동이 나오는 동안에는 먼저 안전을 확보한다.");
   // 통증 점수도 1차와 비슷하면(2차로 고르지 않았어도) 몸 상태 확인을 늘 넣는다
   if (flags.painCheck && func !== "physical" && !secs.includes("physical")) post.push(
     "※ 통증·신체 불편 점수도 1차와 비슷하게 높게 나왔으므로, 행동이 늘면 먼저 몸 상태(피곤·통증·가려움 등)를 확인하고 필요하면 보호자에게 의료 확인을 권한다.");
@@ -4814,6 +4816,20 @@ function tidyItems(items) {
   });
   return out;
 }
+// AI가 기본 문장의 숫자(예: 20~30분마다 2~3분씩)를 '(  )분마다'처럼 빈칸으로 바꿔 버리면 기본 문장의 숫자를 되살린다
+function restoreTemplateNumbers(aiItems, baseItems) {
+  const UNIT = "(분마다|분씩|분 동안|분|초|회|번|개)";
+  const pool = {};
+  (baseItems || []).join(" ").replace(new RegExp("(\\d+(?:~\\d+)?)\\s*" + UNIT, "g"), (m, n, u) => { (pool[u] = pool[u] || []).push(n); return m; });
+  return (aiItems || []).map((t) => {
+    const used = {};
+    return String(t).replace(new RegExp("\\(\\s*_*\\s*\\)\\s*" + UNIT, "g"), (m, u) => {
+      const list = pool[u] || []; const i = used[u] || 0;
+      if (i >= list.length) return m; // 기본 문장에 그 숫자가 없으면 빈칸 그대로(선생님이 채움)
+      used[u] = i + 1; return list[i] + u;
+    });
+  });
+}
 function keepSecondaryItems(aiItems, baseItems, key) {
   const out = [...(aiItems || [])];
   const tagOf = (t) => (String(t).match(/^\[2차·[^\]]+\]/) || [])[0];
@@ -4948,6 +4964,7 @@ async function enhanceBIPWithAI(bip, c, onDelta) {
   ["antecedent", "replacement", "consequence"].forEach((k) => {
     if (!result[k].length) return;
     result[k] = keepSafetyItems(result[k], bip[k]).items;
+    result[k] = restoreTemplateNumbers(result[k], bip[k]);
     result[k] = keepSecondaryItems(result[k], bip[k], k);
     result[k] = tidyItems(result[k]);
   });
@@ -5009,9 +5026,9 @@ async function enhanceParentBIP(bip, c, parentBase) {
   ["prevent", "teach", "respond"].forEach((k) => { if (!out[k].length) filled.push(k); });
   const r = {
     why: out.why || base.why,
-    prevent: out.prevent.length ? tidyItems(keepSafetyItems(out.prevent, defBase.prevent).items) : base.prevent,
-    teach: out.teach.length ? tidyItems(keepSafetyItems(out.teach, defBase.teach).items) : base.teach,
-    respond: out.respond.length ? tidyItems(keepSafetyItems(out.respond, defBase.respond).items) : base.respond,
+    prevent: out.prevent.length ? tidyItems(restoreTemplateNumbers(keepSafetyItems(out.prevent, defBase.prevent).items, defBase.prevent)) : base.prevent,
+    teach: out.teach.length ? tidyItems(restoreTemplateNumbers(keepSafetyItems(out.teach, defBase.teach).items, defBase.teach)) : base.teach,
+    respond: out.respond.length ? tidyItems(restoreTemplateNumbers(keepSafetyItems(out.respond, defBase.respond).items, defBase.respond)) : base.respond,
   };
   if (filled.length) r._filled = filled;
   if (safetyDropped) r._safetyDropped = safetyDropped;
