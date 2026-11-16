@@ -1966,6 +1966,14 @@ function MainApp() {
           onSelect={(id) => setSelectedId(id)}
           prefill={tab === "center" ? linkPrefill : null}
           onPrefillDone={() => setLinkPrefill(null)}
+          // 통합본에서 왔는데 이름이 같은 내 케이스(아직 연결 안 됨)가 있으면, 새로 만들지 않고 그 케이스에 연결할 수 있게 한다
+          linkCandidates={tab === "center" && linkPrefill ? cases.filter((c) => (c._ownerId || authUser.id) === authUser.id && c.type === "center" && !c.abaChildId
+            && String(c.name || "").replace(/\s/g, "") && String(c.name || "").replace(/\s/g, "") === String(linkPrefill.name || "").replace(/\s/g, "")) : []}
+          onLinkExisting={(id) => {
+            if (!linkPrefill) return;
+            updateCase(id, { abaChildId: String(linkPrefill.abaChildId) });
+            setSelectedId(id); setLinkPrefill(null);
+          }}
           onAdd={(nc) => {
             if (nc.abaChildId) {
               const dup = cases.find((c) => (c._ownerId || authUser.id) === authUser.id && String(c.abaChildId || "") === String(nc.abaChildId));
@@ -2216,7 +2224,7 @@ function AdminPanel() {
 }
 
 // ── 케이스 목록 + 추가 ──────────────────────────
-function CaseList({ tab, isAdmin, cases, onAdd, onSelect, prefill, onPrefillDone }) {
+function CaseList({ tab, isAdmin, cases, onAdd, onSelect, prefill, onPrefillDone, linkCandidates = [], onLinkExisting }) {
   const [adding, setAdding] = useState(false);
   const isPbs = tab === "pbs";
   const linking = !!(prefill && !isPbs);
@@ -2228,6 +2236,25 @@ function CaseList({ tab, isAdmin, cases, onAdd, onSelect, prefill, onPrefillDone
         {!linking && <button onClick={() => setAdding((v) => !v)} style={btnPrimary}>{adding ? "닫기" : "+ 새 케이스"}</button>}
       </div>
 
+      {linking && linkCandidates.length > 0 && (
+        <div data-testid="link-existing" style={{ background: "#EEF4FB", border: "1px solid #C9DAF0", borderRadius: 14, padding: 14, marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#3E5F8A" }}>🔗 이미 있는 케이스와 연결할 수 있어요</div>
+          <div style={{ fontSize: 12, color: "#5A6B80", marginTop: 4, lineHeight: 1.6 }}>BIP에 이름이 같은 케이스가 있습니다. 같은 아이라면 연결해 주세요. 연결하면 새로 만들지 않고 이 케이스가 통합본 아이와 이어집니다.</div>
+          <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+            {linkCandidates.map((c) => (
+              <div key={c.id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name} {ageOf(c) ? <span style={{ fontSize: 12, color: MUTE, fontWeight: 400 }}>· {ageOf(c)}</span> : null}</div>
+                  <div style={{ fontSize: 12, color: INK, marginTop: 2 }}>🎯 {c.target || "목표행동 미설정"}</div>
+                  <div style={{ fontSize: 11, color: MUTE, marginTop: 2 }}>등록 {c.createdAt || "-"}{(c.records || []).length ? ` · 기록 ${(c.records || []).length}건` : ""}</div>
+                </div>
+                <button onClick={() => onLinkExisting && onLinkExisting(c.id)} style={{ ...btnPrimary, background: "#5B7FB0", padding: "7px 14px", fontSize: 13 }}>이 케이스와 연결</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#5A6B80", marginTop: 10 }}>다른 아이라면 아래에서 새 케이스로 만드시면 됩니다.</div>
+        </div>
+      )}
       {linking && (
         <AddForm key={"link-" + prefill.abaChildId} isPbs={false} prefill={prefill}
           onCancel={() => onPrefillDone && onPrefillDone()}
