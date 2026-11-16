@@ -1586,6 +1586,7 @@ function MainApp() {
   const [tab, setTab] = useState("center");
   const [selectedId, setSelectedId] = useState(null);
   const [abaLink, setAbaLink] = useState(() => (typeof window !== "undefined" ? readAbaLink() : null)); // 통합본에서 넘어온 아이
+  const [photoCleanupOpen, setPhotoCleanupOpen] = useState(false); // 사진 보관함 정리 창 (원장님만)
   const [linkPrefill, setLinkPrefill] = useState(null); // 연결된 케이스가 없을 때 새 케이스 화면에 채울 값
 
   const isAdmin = authUser?.role === "admin";
@@ -1774,7 +1775,9 @@ function MainApp() {
     } else {
       setSelectedId(null);
       setTab("center");
-      setLinkPrefill({ abaChildId: abaLink.cid, name: abaLink.name, birth: abaLink.birth });
+      setLinkPrefill({ abaChildId: abaLink.cid, name: abaLink.name, birth: abaLink.birth, behaviors: abaLink.behaviors || [] });
+      const cid = abaLink.cid;
+      fetchSurveyPrefill(cid).then((sp) => { if (sp) setLinkPrefill((p) => (p && String(p.abaChildId) === String(cid) ? { ...p, ...sp } : p)); });
     }
     try { localStorage.removeItem(BIP_HANDOFF_KEY); } catch (e) {}
     setAbaLink(null);
@@ -1966,6 +1969,7 @@ function MainApp() {
           onSelect={(id) => setSelectedId(id)}
           prefill={tab === "center" ? linkPrefill : null}
           onPrefillDone={() => setLinkPrefill(null)}
+          onPhotoCleanup={authUser.role === "admin" ? () => setPhotoCleanupOpen(true) : null}
           // 통합본에서 왔는데 이름이 같은 내 케이스(아직 연결 안 됨)가 있으면, 새로 만들지 않고 그 케이스에 연결할 수 있게 한다
           linkCandidates={tab === "center" && linkPrefill ? cases.filter((c) => (c._ownerId || authUser.id) === authUser.id && c.type === "center" && !c.abaChildId
             && String(c.name || "").replace(/\s/g, "") && String(c.name || "").replace(/\s/g, "") === String(linkPrefill.name || "").replace(/\s/g, "")) : []}
@@ -1986,6 +1990,11 @@ function MainApp() {
         />
       </div>
 
+      {photoCleanupOpen && authUser.role === "admin" && (
+        <PhotoCleanupModal uid={authUser.id} cases={cases}
+          busy={savingRef.current || saveStatus === "saving" || saveStatus === "error"}
+          onClose={() => setPhotoCleanupOpen(false)} />
+      )}
       <Footer />
     </div>
   );
@@ -2224,7 +2233,7 @@ function AdminPanel() {
 }
 
 // ── 케이스 목록 + 추가 ──────────────────────────
-function CaseList({ tab, isAdmin, cases, onAdd, onSelect, prefill, onPrefillDone, linkCandidates = [], onLinkExisting }) {
+function CaseList({ tab, isAdmin, cases, onAdd, onSelect, prefill, onPrefillDone, linkCandidates = [], onLinkExisting, onPhotoCleanup }) {
   const [adding, setAdding] = useState(false);
   const isPbs = tab === "pbs";
   const linking = !!(prefill && !isPbs);
@@ -2271,6 +2280,11 @@ function CaseList({ tab, isAdmin, cases, onAdd, onSelect, prefill, onPrefillDone
       <div style={{ display: "grid", gap: 10 }}>
         {cases.map((c) => <CaseCard key={c.id} c={c} isPbs={isPbs} isAdmin={isAdmin} onSelect={onSelect} />)}
       </div>
+      {isAdmin && !isPbs && onPhotoCleanup && !linking && (
+        <div style={{ textAlign: "right", marginTop: 10 }}>
+          <button onClick={onPhotoCleanup} style={{ border: "none", background: "transparent", color: MUTE, fontSize: 12, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", padding: 4 }}>🧹 사진 보관함 정리</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -7019,15 +7033,24 @@ function bipToText(bip, c, agg) {
 }
 
 // ── 케이스 추가 폼 ──────────────────────────────
+const TONG_TAG = { fontSize: 11.5, color: "#4A6A9E", background: "#EEF3FB", borderRadius: 6, padding: "4px 8px", marginTop: -6, marginBottom: 10, lineHeight: 1.5 };
 function AddForm({ isPbs, onAdd, initial, prefill, onCancel }) {
   // initial이 있으면 '정보 수정' (같은 입력창을 그대로 씀), prefill은 통합본에서 넘어온 새 케이스
   const ini = initial || prefill || {};
   const [name, setName] = useState(ini.name || "");
   const [birth, setBirth] = useState(ini.birth || "");
   const [age, setAge] = useState(isPbs ? (ini.age || "") : "");
-  const [target, setTarget] = useState(ini.target || "");
+  // 통합본에서 연 새 케이스: 통합본 보고서의 도전적 행동이 1개면 목표행동에 바로, 여러 개면 눌러서 고르게
+  const fromTong = !initial && prefill ? prefill : null;
+  const tongBeh = fromTong && Array.isArray(fromTong.behaviors) ? fromTong.behaviors.filter(Boolean) : [];
+  const [target, setTarget] = useState(ini.target || (tongBeh.length === 1 ? tongBeh[0] : ""));
   const [school, setSchool] = useState(ini.school || "");
-  const [likes, setLikes] = useState(ini.likes || "");        // 좋아하는 것(강화제)
+  const [likes, setLikes] = useState(ini.likes || (fromTong && fromTong.surveyLikes) || "");        // 좋아하는 것(강화제)
+  // 강화제 설문은 화면이 뜬 뒤에 도착할 수 있어서, 아직 비어 있고 손대지 않았으면 그때 채운다
+  const likesTouched = React.useRef(false);
+  useEffect(() => {
+    if (fromTong && fromTong.surveyLikes && !likesTouched.current && !likes) setLikes(fromTong.surveyLikes);
+  }, [fromTong && fromTong.surveyLikes]);
   const [comm, setComm] = useState(ini.comm || "");           // 의사소통 수준
   const [behaviorDetail, setBehaviorDetail] = useState(ini.behaviorDetail || ""); // 행동의 구체적 모습
   const [triggers, setTriggers] = useState(ini.triggers || "");   // 심해지는·진정되는 상황
@@ -7069,11 +7092,19 @@ function AddForm({ isPbs, onAdd, initial, prefill, onCancel }) {
       {isPbs && <Field label="학년" value={age} onChange={setAge} placeholder="예: 고1" />}
       {isPbs && <Field label="학교" value={school} onChange={setSchool} placeholder="예: 인천영종고" />}
       <Field label="목표행동" value={target} onChange={setTarget} placeholder="예: 수업 중 자리 이탈" />
+      {tongBeh.length === 1 && target === tongBeh[0] && <div style={TONG_TAG}>↳ 통합본 보고서의 도전적 행동에서 가져왔어요. 맞는지 확인해 주세요.</div>}
+      {tongBeh.length > 1 && (
+        <div style={{ ...TONG_TAG, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>↳ 통합본 보고서의 도전적 행동: {tongBeh.map((b) => (
+          <button key={b} type="button" onClick={() => setTarget(b)} style={{ border: "1px solid #C9DAF0", background: target === b ? "#5B7FB0" : "#fff", color: target === b ? "#fff" : "#3E5F8A", borderRadius: 14, padding: "3px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>{b}</button>
+        ))} <span style={{ color: MUTE }}>눌러서 넣기</span></div>
+      )}
 
       <div style={{ marginTop: 6, marginBottom: 4, padding: "10px 12px", background: "#FBF8FE", border: "1px dashed #D9C9F0", borderRadius: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "#8A6FB0", marginBottom: 2 }}>✨ AI 맞춤 생성용 정보 (선택)</div>
         <div style={{ fontSize: 11, color: MUTE, lineHeight: 1.5, marginBottom: 10 }}>아래를 채우면 AI가 이 아이에 훨씬 맞는 BIP를 만들어요. 비워둬도 됩니다.</div>
-        <Field label="좋아하는 것 (강화제)" value={likes} onChange={setLikes} placeholder="예: 자동차 장난감, 유튜브, 젤리, 안아주기" />
+        <Field label="좋아하는 것 (강화제)" value={likes} onChange={(v) => { likesTouched.current = true; setLikes(v); }} placeholder="예: 자동차 장난감, 유튜브, 젤리, 안아주기" />
+        {fromTong && fromTong.surveyLikes && likes === fromTong.surveyLikes && <div style={TONG_TAG}>↳ 학부모 강화제 설문{fromTong.surveyDate ? `(${fromTong.surveyDate})` : ""} '가장 좋아하는 것' 순서대로 가져왔어요.</div>}
+        {fromTong && fromTong.surveyWarn && <div style={{ ...TONG_TAG, color: "#B45309", background: "#FFF7E8" }}>⚠ 설문 안전 확인: {fromTong.surveyWarn}</div>}
         <Field label="의사소통 수준" value={comm} onChange={setComm} placeholder="예: 2~3단어 구어 / 그림카드 사용 / 무발화" />
         <Field label="행동의 구체적 모습" value={behaviorDetail} onChange={setBehaviorDetail} placeholder="예: 10분쯤 앉아있다 일어나 커튼을 만지작거림" />
         <Field label="심해지는 · 진정되는 상황" value={triggers} onChange={setTriggers} placeholder="예: 조용한 시간에 심해짐 / 안아주면 진정됨" />
@@ -7262,6 +7293,141 @@ function PhotoImg({ src, alt = "", style }) {
   const url = photoSrc(src);
   return url ? <img src={url} alt={alt} style={style} /> : <div style={{ ...style, background: "#F3EEF0" }} />;
 }
+// ── 사진 보관함 정리 (원장님 계정 전용, 원장님 보관함만) ──────────
+// 어느 케이스에도 쓰이지 않는 사진만 찾는다. 최근 7일 안에 올린 사진은 쓰는 중일 수 있어 빼고,
+// 자료를 하나라도 못 읽으면 지우지 않고 멈춘다(잘못 지우면 되살릴 수 없으므로).
+const PHOTO_KEEP_DAYS = 7;
+async function listMyBipPhotos(uid) {
+  const token = await getValidAccessToken();
+  if (!token || !uid) throw new Error("login");
+  const out = [];
+  for (let offset = 0, i = 0; i < 50; i++, offset += 1000) {
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/list/${PHOTO_BUCKET}`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefix: uid, limit: 1000, offset, sortBy: { column: "name", order: "asc" } }),
+    }, 20000);
+    if (!r.ok) throw new Error("list");
+    const rows = await r.json();
+    if (!Array.isArray(rows)) throw new Error("list");
+    rows.forEach((f) => {
+      if (f && f.id && f.name) out.push({ path: `${uid}/${f.name}`, size: Number(f.metadata && f.metadata.size) || 0, created: Date.parse(f.created_at || f.updated_at || "") || 0 });
+    });
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+function addPhotoRefsFrom(set, v) {
+  try {
+    const str = typeof v === "string" ? v : JSON.stringify(v == null ? null : v);
+    const re = /sb:([A-Za-z0-9_\-./]+)/g;
+    let m;
+    while ((m = re.exec(str || ""))) set.add(m[1]);
+  } catch (e) { throw new Error("scan"); }
+}
+// 쓰이는 사진: 지금 화면의 자료 + 서버의 내 자료 + 모든 선생님 자료 (원장님이 선생님 케이스에 넣은 사진도 원장님 보관함에 있음)
+async function collectUsedPhotoRefs(uid, memCases) {
+  const used = new Set();
+  addPhotoRefsFrom(used, memCases);
+  const own = await casesLoad(uid);
+  if (!own || !own.ok) throw new Error("own");
+  addPhotoRefsFrom(used, own.list);
+  const headers = await authHeaders();
+  const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/admin_list_users`, { method: "POST", headers, body: "{}" }, 20000);
+  if (!r.ok) throw new Error("users");
+  const users = await r.json();
+  if (!Array.isArray(users)) throw new Error("users");
+  for (const t of users) {
+    if (!t || !t.user_id || t.user_id === uid) continue;
+    const r2 = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/admin_get_user_data_bip`, { method: "POST", headers, body: JSON.stringify({ target_user_id: t.user_id }) }, 20000);
+    if (!r2.ok) throw new Error("teacher");
+    const rows = await r2.json();
+    if (!Array.isArray(rows)) throw new Error("teacher");
+    rows.forEach((row) => addPhotoRefsFrom(used, row && row.value));
+  }
+  return used;
+}
+async function deleteBipPhotos(paths) {
+  const token = await getValidAccessToken();
+  if (!token) throw new Error("login");
+  let n = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const chunk = paths.slice(i, i + 100);
+    const r = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/${PHOTO_BUCKET}`, {
+      method: "DELETE",
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefixes: chunk }),
+    }, 30000);
+    if (!r.ok) throw Object.assign(new Error("delete"), { done: n });
+    const rows = await r.json().catch(() => []);
+    n += Array.isArray(rows) ? rows.length : 0;
+    chunk.forEach((pth) => photoUrlCache.delete(pth));
+  }
+  return n;
+}
+function fmtMB(bytes) { const mb = bytes / (1024 * 1024); return mb >= 0.1 ? `약 ${mb.toFixed(1)}MB` : "0.1MB 미만"; }
+function PhotoCleanupModal({ uid, cases, busy, onClose }) {
+  const [st, setSt] = useState({ phase: "checking" });
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (busy) { setSt({ phase: "error", msg: "저장 중이거나 저장하지 못한 내용이 있습니다. 저장이 끝난 뒤 다시 눌러 주세요." }); return; }
+      try {
+        const files = await listMyBipPhotos(uid);
+        const used = await collectUsedPhotoRefs(uid, cases);
+        const cut = Date.now() - PHOTO_KEEP_DAYS * 86400000;
+        const orphans = files.filter((f) => !used.has(f.path) && f.created && f.created < cut);
+        if (alive) setSt({ phase: orphans.length ? "found" : "none", total: files.length, orphans });
+      } catch (e) {
+        if (alive) setSt({ phase: "error", msg: "보관함이나 선생님 BIP 자료를 다 읽지 못해서, 잘못 지우지 않도록 멈췄습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요." });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+  const doDelete = async () => {
+    const paths = st.orphans.map((f) => f.path);
+    setSt((p) => ({ ...p, phase: "deleting" }));
+    try {
+      const n = await deleteBipPhotos(paths);
+      setSt((p) => ({ ...p, phase: "done", deleted: n }));
+    } catch (e) {
+      setSt((p) => ({ ...p, phase: "error", msg: `지우는 중에 멈췄습니다${e && e.done ? ` (${e.done}장은 지웠습니다)` : ""}. 다시 눌러 남은 사진을 확인해 주세요.` }));
+    }
+  };
+  const box = { background: "#fff", borderRadius: 16, padding: "20px 22px", maxWidth: 560, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto" };
+  const sm = { fontSize: 13, color: "#6A5A5F", lineHeight: 1.7 };
+  const orphans = st.orphans || [];
+  const bytes = orphans.reduce((a, f) => a + (f.size || 0), 0);
+  return (
+    <div onClick={st.phase === "deleting" ? undefined : onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
+      <div data-testid="photo-cleanup" onClick={(e) => e.stopPropagation()} style={box}>
+        <div style={{ fontWeight: 800, fontSize: 16, color: PKD, marginBottom: 8 }}>🧹 사진 보관함 정리</div>
+        {st.phase === "checking" && <div style={sm}>보관함과 케이스를 확인하는 중입니다…</div>}
+        {st.phase === "error" && <div style={{ ...sm, color: "#B45309" }}>{st.msg}</div>}
+        {st.phase === "none" && <div style={sm}>정리할 사진이 없습니다. {st.total ? `보관함 사진 ${st.total}장은 모두 케이스에서 쓰이고 있거나 최근 ${PHOTO_KEEP_DAYS}일 안에 올린 사진입니다.` : "보관함에 사진이 없습니다."}</div>}
+        {(st.phase === "found" || st.phase === "deleting") && (
+          <>
+            <div style={sm}>원장님 보관함 사진 <b>{st.total}장</b> 중 <b>{orphans.length}장</b>({fmtMB(bytes)})이 어느 케이스에도 쓰이지 않습니다.<br />케이스를 지웠거나, 편집에서 뺐거나, '원래대로'를 눌러 남은 사진입니다.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 6, margin: "12px 0" }}>
+              {orphans.slice(0, 24).map((f) => <PhotoImg key={f.path} src={"sb:" + f.path} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8 }} />)}
+            </div>
+            {orphans.length > 24 && <div style={{ ...sm, fontSize: 12, marginTop: -6 }}>외 {orphans.length - 24}장</div>}
+            <div style={{ ...sm, fontSize: 12, color: MUTE }}>※ 최근 {PHOTO_KEEP_DAYS}일 안에 올린 사진은 아직 쓰는 중일 수 있어서 빼고 셌습니다.<br />※ 선생님 케이스에 들어간 사진도 '쓰는 사진'으로 봅니다.</div>
+            <div style={{ background: "#FFF7E8", color: "#B45309", borderRadius: 8, padding: "8px 10px", fontSize: 12.5, margin: "10px 0" }}>⚠ 지운 사진은 되살릴 수 없습니다.</div>
+          </>
+        )}
+        {st.phase === "done" && <div style={sm}>{st.deleted}장을 지웠습니다.</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button onClick={onClose} disabled={st.phase === "deleting"} style={{ ...btnGhost, flex: 1, opacity: st.phase === "deleting" ? 0.5 : 1 }}>닫기</button>
+          {(st.phase === "found" || st.phase === "deleting") && (
+            <button onClick={doDelete} disabled={st.phase === "deleting"} style={{ flex: 2, padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer", background: "#D85A5A", color: "#fff", fontWeight: 700, fontSize: 14, opacity: st.phase === "deleting" ? 0.6 : 1 }}>{st.phase === "deleting" ? "지우는 중…" : `${orphans.length}장 지우기`}</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 문서에 들어간 사진 경로를 모두 모은다 (인쇄 전 미리 받기용)
 function collectPhotoRefs(...groups) {
   const out = [];
@@ -7359,14 +7525,43 @@ function readAbaLink() {
     const params = new URLSearchParams(window.location.search || "");
     const cid = params.get("aba_child");
     if (!cid) return null;
-    let name = "", birth = "";
+    let name = "", birth = "", behaviors = [];
     try {
       const h = JSON.parse(localStorage.getItem(BIP_HANDOFF_KEY) || "null");
-      if (h && String(h.cid) === String(cid) && Date.now() - (Number(h.ts) || 0) < 30 * 60 * 1000) { name = h.name || ""; birth = h.birth || ""; }
+      if (h && String(h.cid) === String(cid) && Date.now() - (Number(h.ts) || 0) < 30 * 60 * 1000) {
+        name = h.name || ""; birth = h.birth || "";
+        // 통합본 보고서의 도전적 행동 이름 (새 케이스의 목표행동 칸 후보)
+        if (Array.isArray(h.behaviors)) behaviors = h.behaviors.map((b) => String(b || "").trim().slice(0, 60)).filter(Boolean).slice(0, 10);
+      }
     } catch (e) {}
-    return { cid: String(cid), name, birth };
+    return { cid: String(cid), name, birth, behaviors };
   } catch (e) { return null; }
 }
+// 통합본에서 연 새 케이스: 학부모 강화제 설문(가장 최근 1건)에서 '가장 좋아하는 것' 순위와 안전 확인을 읽어 온다.
+//   읽기만 하고, 실패하면 아무것도 채우지 않는다.
+async function fetchSurveyPrefill(cid) {
+  try {
+    const headers = await authHeaders();
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rein_surveys?child_id=eq.${encodeURIComponent(cid)}&select=answers,submitted_at&order=submitted_at.desc&limit=1`, { headers });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row || !row.answers || typeof row.answers !== "object") return null;
+    const a = row.answers;
+    const rank = a.rank && a.rank.v;
+    const likes = (Array.isArray(rank) ? rank : rank ? [rank] : []).map((t) => String(t || "").trim()).filter(Boolean).slice(0, 5).join(", ");
+    const warn = [];
+    const yes = (q) => q && q.v === "있음";
+    if (yes(a.allergy)) warn.push("알레르기·금지 음식: " + (String(a.allergy.detail || "").trim() || "(내용 없음)"));
+    if (yes(a.choking)) warn.push("삼킴 위험·피할 것: " + (String(a.choking.detail || "").trim() || "(내용 없음)"));
+    if (yes(a.avoid)) warn.push("수업에서 쓰지 말 것: " + (String(a.avoid.detail || "").trim() || "(내용 없음)"));
+    const d = row.submitted_at ? new Date(row.submitted_at) : null;
+    const date = d && !isNaN(d.getTime()) ? `${d.getFullYear() % 100}/${d.getMonth() + 1}/${d.getDate()}`.replace(/^\d+\//, "") : "";
+    if (!likes && !warn.length) return null;
+    return { surveyLikes: likes, surveyDate: date, surveyWarn: warn.join(" · ") };
+  } catch (e) { return null; }
+}
+
 // 주소에서 아이 번호 지우기 (새로고침해도 같은 일이 반복되지 않게, 화면 위치 #… 는 그대로)
 function clearAbaLinkFromUrl() {
   try {
