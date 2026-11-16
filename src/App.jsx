@@ -7297,9 +7297,10 @@ function PhotoImg({ src, alt = "", style }) {
 // 어느 케이스에도 쓰이지 않는 사진만 찾는다. 최근 7일 안에 올린 사진은 쓰는 중일 수 있어 빼고,
 // 자료를 하나라도 못 읽으면 지우지 않고 멈춘다(잘못 지우면 되살릴 수 없으므로).
 const PHOTO_KEEP_DAYS = 7;
+const cleanupErr = (step, status) => Object.assign(new Error(step), { step, status });
 async function listMyBipPhotos(uid) {
   const token = await getValidAccessToken();
-  if (!token || !uid) throw new Error("login");
+  if (!token || !uid) throw cleanupErr("로그인", "");
   const out = [];
   for (let offset = 0, i = 0; i < 50; i++, offset += 1000) {
     const r = await fetchWithTimeout(`${SUPABASE_URL}/storage/v1/object/list/${PHOTO_BUCKET}`, {
@@ -7307,9 +7308,9 @@ async function listMyBipPhotos(uid) {
       headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ prefix: uid, limit: 1000, offset, sortBy: { column: "name", order: "asc" } }),
     }, 20000);
-    if (!r.ok) throw new Error("list");
+    if (!r.ok) throw cleanupErr("보관함 목록", r.status);
     const rows = await r.json();
-    if (!Array.isArray(rows)) throw new Error("list");
+    if (!Array.isArray(rows)) throw cleanupErr("보관함 목록", "형식");
     rows.forEach((f) => {
       if (f && f.id && f.name) out.push({ path: `${uid}/${f.name}`, size: Number(f.metadata && f.metadata.size) || 0, created: Date.parse(f.created_at || f.updated_at || "") || 0 });
     });
@@ -7328,24 +7329,35 @@ function addPhotoRefsFrom(set, v) {
 // 쓰이는 사진: 지금 화면의 자료 + 서버의 내 자료 + 모든 선생님 자료 (원장님이 선생님 케이스에 넣은 사진도 원장님 보관함에 있음)
 async function collectUsedPhotoRefs(uid, memCases) {
   const used = new Set();
+  const skipped = [];
   addPhotoRefsFrom(used, memCases);
   const own = await casesLoad(uid);
-  if (!own || !own.ok) throw new Error("own");
+  if (!own || !own.ok) throw cleanupErr("내 BIP 자료", "");
   addPhotoRefsFrom(used, own.list);
   const headers = await authHeaders();
   const r = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/admin_list_users`, { method: "POST", headers, body: "{}" }, 20000);
-  if (!r.ok) throw new Error("users");
+  if (!r.ok) throw cleanupErr("선생님 목록", r.status);
   const users = await r.json();
-  if (!Array.isArray(users)) throw new Error("users");
+  if (!Array.isArray(users)) throw cleanupErr("선생님 목록", "형식");
   for (const t of users) {
     if (!t || !t.user_id || t.user_id === uid) continue;
-    const r2 = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/admin_get_user_data_bip`, { method: "POST", headers, body: JSON.stringify({ target_user_id: t.user_id }) }, 20000);
-    if (!r2.ok) throw new Error("teacher");
+    const who = t.display_name || t.email || "선생님";
+    // 한 번 실패하면 한 번 더 받아 본다
+    let r2 = null;
+    for (let tryN = 0; tryN < 2; tryN++) {
+      try { r2 = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/admin_get_user_data_bip`, { method: "POST", headers, body: JSON.stringify({ target_user_id: t.user_id }) }, 20000); }
+      catch (e) { r2 = null; }
+      if (r2 && (r2.ok || (r2.status >= 400 && r2.status < 500))) break;
+    }
+    // 4xx(계정 자체를 읽을 수 없음)는 BIP 화면에서도 늘 못 읽는 계정이라, 원장님이 그 케이스에 사진을 넣었을 수 없음 → 건너뜀.
+    //   인터넷 문제·서버 오류(응답 없음·5xx)는 잠깐 못 읽은 것일 수 있으니 멈춘다.
+    if (r2 && !r2.ok && r2.status >= 400 && r2.status < 500) { skipped.push(who); continue; }
+    if (!r2 || !r2.ok) throw cleanupErr(`선생님 자료(${who})`, r2 ? r2.status : "응답 없음");
     const rows = await r2.json();
-    if (!Array.isArray(rows)) throw new Error("teacher");
+    if (!Array.isArray(rows)) throw cleanupErr(`선생님 자료(${who})`, "형식");
     rows.forEach((row) => addPhotoRefsFrom(used, row && row.value));
   }
-  return used;
+  return { used, skipped };
 }
 async function deleteBipPhotos(paths) {
   const token = await getValidAccessToken();
@@ -7374,12 +7386,13 @@ function PhotoCleanupModal({ uid, cases, busy, onClose }) {
       if (busy) { setSt({ phase: "error", msg: "저장 중이거나 저장하지 못한 내용이 있습니다. 저장이 끝난 뒤 다시 눌러 주세요." }); return; }
       try {
         const files = await listMyBipPhotos(uid);
-        const used = await collectUsedPhotoRefs(uid, cases);
+        const { used, skipped } = await collectUsedPhotoRefs(uid, cases);
         const cut = Date.now() - PHOTO_KEEP_DAYS * 86400000;
         const orphans = files.filter((f) => !used.has(f.path) && f.created && f.created < cut);
-        if (alive) setSt({ phase: orphans.length ? "found" : "none", total: files.length, orphans });
+        if (alive) setSt({ phase: orphans.length ? "found" : "none", total: files.length, orphans, skipped });
       } catch (e) {
-        if (alive) setSt({ phase: "error", msg: "보관함이나 선생님 BIP 자료를 다 읽지 못해서, 잘못 지우지 않도록 멈췄습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요." });
+        const where = e && e.step ? ` (멈춘 곳: ${e.step}${e.status !== "" && e.status != null ? " · " + e.status : ""})` : "";
+        if (alive) setSt({ phase: "error", msg: "보관함이나 선생님 BIP 자료를 다 읽지 못해서, 잘못 지우지 않도록 멈췄습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요." + where });
       }
     })();
     return () => { alive = false; };
@@ -7412,7 +7425,8 @@ function PhotoCleanupModal({ uid, cases, busy, onClose }) {
               {orphans.slice(0, 24).map((f) => <PhotoImg key={f.path} src={"sb:" + f.path} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8 }} />)}
             </div>
             {orphans.length > 24 && <div style={{ ...sm, fontSize: 12, marginTop: -6 }}>외 {orphans.length - 24}장</div>}
-            <div style={{ ...sm, fontSize: 12, color: MUTE }}>※ 최근 {PHOTO_KEEP_DAYS}일 안에 올린 사진은 아직 쓰는 중일 수 있어서 빼고 셌습니다.<br />※ 선생님 케이스에 들어간 사진도 '쓰는 사진'으로 봅니다.</div>
+            <div style={{ ...sm, fontSize: 12, color: MUTE }}>※ 최근 {PHOTO_KEEP_DAYS}일 안에 올린 사진은 아직 쓰는 중일 수 있어서 빼고 셌습니다.<br />※ 선생님 케이스에 들어간 사진도 '쓰는 사진'으로 봅니다.
+              {st.skipped && st.skipped.length > 0 && <><br />※ 자료를 읽을 수 없는 계정({st.skipped.join(", ")})은 확인에서 뺐습니다. BIP 화면에서도 열리지 않는 계정입니다.</>}</div>
             <div style={{ background: "#FFF7E8", color: "#B45309", borderRadius: 8, padding: "8px 10px", fontSize: 12.5, margin: "10px 0" }}>⚠ 지운 사진은 되살릴 수 없습니다.</div>
           </>
         )}
